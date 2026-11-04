@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 
+from lacis.storage.errors import TamperedResponseError
+
 
 class ResponseSource(StrEnum):
     COMPANY_REGISTER = "company_register"
@@ -93,10 +95,14 @@ class ResponseStore:
 
     def read(self, identifier: int) -> StoredResponse:
         summary = self.summary(identifier)
-        (body,) = self.connection.execute(
+        (stored_body,) = self.connection.execute(
             "SELECT body FROM response WHERE identifier = ?", (identifier,)
         ).fetchone()
-        return StoredResponse(summary, bytes(body))
+        body = stored_body.encode("utf-8") if isinstance(stored_body, str) else bytes(stored_body)
+        actual_fingerprint = fingerprint(body)
+        if actual_fingerprint != summary.fingerprint:
+            raise TamperedResponseError(identifier, summary.fingerprint, actual_fingerprint)
+        return StoredResponse(summary, body)
 
     def summaries(self) -> list[ResponseSummary]:
         rows = self.connection.execute(
