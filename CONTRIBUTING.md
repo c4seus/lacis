@@ -210,13 +210,51 @@ Established acronyms of the domain stay as they are: `siren`, `siret`, `naf`, `b
 
 ## Releases
 
-Lacis follows [semantic versioning](https://semver.org/). Before 1.0.0, a minor version may contain breaking changes.
+Version numbers follow the [versioning policy](docs/versioning.md). The version of the package comes from the git tag: there is no version to edit in the code.
 
-1. Update the version in `src/lacis/__init__.py` on `develop`, through a pull request.
+### Minor and major releases
+
+1. Check that every issue of the milestone is closed or moved to a later milestone.
 2. Open a pull request from `develop` to `main`, titled `Release X.Y.Z`.
-3. Merge it with **Create a merge commit**. Never rebase or squash a release: `main` and `develop` must share the same commits.
-4. Tag the merge commit `vX.Y.Z` and push the tag.
+3. Merge it with **Create a merge commit**. Never rebase or squash a release: `main` must keep the commits of `develop` as they are.
+4. Tag the merge commit and push the tag:
+
+   ```bash
+   git switch main && git pull
+   git tag -a vX.Y.Z -m "Lacis X.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
 5. The release workflow builds the packages and attaches them to the GitHub release.
+
+A pre-release follows the same steps with a tag such as `v0.2.0rc1`.
+
+### Patch releases
+
+`develop` may already contain work for the next version, so a fix for a released version starts from `main`.
+
+1. Create the fix branch from `main`:
+
+   ```bash
+   git switch main && git pull
+   git switch -c fix/N-short-description
+   ```
+
+2. Commit the fix and its tests, then open a pull request against `main`.
+3. Merge it with **Create a merge commit**.
+4. Tag the merge commit `vX.Y.Z` with the next patch version, and push the tag, as for a minor release.
+5. Bring the same commits to `develop`, through a pull request merged with **Rebase and merge**:
+
+   ```bash
+   git switch develop && git pull
+   git switch -c fix/N-short-description-develop
+   git cherry-pick vX.Y.Z^1..vX.Y.Z^2
+   git push -u origin fix/N-short-description-develop
+   ```
+
+   `vX.Y.Z^1..vX.Y.Z^2` selects the commits of the fix branch: those reachable from the fix, the second parent of the merge commit, and not from `main` before the merge, its first parent.
+
+`main` is never merged into `develop`: the ruleset of `develop` requires a linear history. The commits of the fix exist twice, with different identifiers but the same changes, and git merges them without conflict at the next release.
 
 ## Dependencies
 
