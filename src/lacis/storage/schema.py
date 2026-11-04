@@ -22,7 +22,23 @@ def create_investigation_table(connection: sqlite3.Connection) -> None:
     )
 
 
-MIGRATIONS: tuple[Migration, ...] = (create_investigation_table,)
+def create_entity_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE entity (
+            identifier TEXT PRIMARY KEY,
+            kind TEXT NOT NULL,
+            label TEXT NOT NULL,
+            attributes TEXT NOT NULL,
+            first_collected_at TEXT NOT NULL,
+            last_collected_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute("CREATE INDEX entity_by_kind ON entity (kind)")
+
+
+MIGRATIONS: tuple[Migration, ...] = (create_investigation_table, create_entity_table)
 
 
 def schema_version(connection: sqlite3.Connection) -> int:
