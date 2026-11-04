@@ -64,10 +64,11 @@ select = ["E", "W", "F", "I", "N", "B", "UP", "SIM", "RUF", "PL", "PT", "C4", "P
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "tests"]
+files = ["src", "scripts", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["scripts"]
 addopts = ["--strict-markers"]
 qt_api = "pyside6"
 
