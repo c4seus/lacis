@@ -1,4 +1,5 @@
 import sqlite3
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import StrEnum
@@ -33,7 +34,7 @@ class InvalidNoticeError(ValueError):
 
 NOTICE_COLUMNS = (
     "identifier, family, published_on, court, judgment, summary, response_identifier, "
-    "first_collected_at, last_collected_at"
+    "first_collected_at, last_collected_at, withdrawn_at"
 )
 
 REPLACE_ROLE = "DO UPDATE SET role = excluded.role"
@@ -67,9 +68,16 @@ class Notice:
     response_identifier: int
     first_collected_at: datetime
     last_collected_at: datetime
+    withdrawn_at: datetime | None = None
+
+    @property
+    def is_withdrawn(self) -> bool:
+        return self.withdrawn_at is not None
 
 
-def notice_from_row(row: tuple[str, str, str, str, str, str, int, str, str]) -> Notice:
+def notice_from_row(
+    row: tuple[str, str, str, str, str, str, int, str, str, str | None],
+) -> Notice:
     (
         identifier,
         family,
@@ -80,6 +88,7 @@ def notice_from_row(row: tuple[str, str, str, str, str, str, int, str, str]) -> 
         response_identifier,
         first_collected_at,
         last_collected_at,
+        withdrawn_at,
     ) = row
     return Notice(
         identifier=identifier,
@@ -91,6 +100,7 @@ def notice_from_row(row: tuple[str, str, str, str, str, str, int, str, str]) -> 
         response_identifier=response_identifier,
         first_collected_at=datetime.fromisoformat(first_collected_at),
         last_collected_at=datetime.fromisoformat(last_collected_at),
+        withdrawn_at=datetime.fromisoformat(withdrawn_at) if withdrawn_at is not None else None,
     )
 
 
@@ -119,7 +129,7 @@ class NoticeStore:
 
     def insert_notice(self, collected_notice: CollectedNotice, response: ResponseSummary) -> None:
         self.connection.execute(
-            f"INSERT INTO notice ({NOTICE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            f"INSERT INTO notice ({NOTICE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
             (
                 collected_notice.identifier,
                 collected_notice.family.value,
@@ -138,7 +148,7 @@ class NoticeStore:
             """
             UPDATE notice
             SET family = ?, published_on = ?, court = ?, judgment = ?, summary = ?,
-                response_identifier = ?, last_collected_at = ?
+                response_identifier = ?, last_collected_at = ?, withdrawn_at = NULL
             WHERE identifier = ?
             """,
             (
@@ -204,3 +214,33 @@ class NoticeStore:
                 CompanyNotice(notice, NoticeRole(role))
             )
         return notices_by_family
+
+    def record_refresh(
+        self,
+        company_identifier: str,
+        response: ResponseSummary,
+        returned_notice_identifiers: Collection[str],
+    ) -> list[Notice]:
+        refreshed_at = response.collected_at.isoformat()
+        returned = set(returned_notice_identifiers)
+        with self.connection:
+            candidates = self.connection.execute(
+                """
+                SELECT notice.identifier FROM notice
+                JOIN notice_company ON notice_company.notice_identifier = notice.identifier
+                WHERE notice_company.company_identifier = ?
+                    AND notice_company.role = ?
+                    AND notice.withdrawn_at IS NULL
+                    AND notice.last_collected_at < ?
+                ORDER BY notice.identifier
+                """,
+                (company_identifier, NoticeRole.SUBJECT.value, refreshed_at),
+            ).fetchall()
+            withdrawn_identifiers = [
+                identifier for (identifier,) in candidates if identifier not in returned
+            ]
+            self.connection.executemany(
+                "UPDATE notice SET withdrawn_at = ? WHERE identifier = ?",
+                [(refreshed_at, identifier) for identifier in withdrawn_identifiers],
+            )
+        return [self.require_notice(identifier) for identifier in withdrawn_identifiers]
