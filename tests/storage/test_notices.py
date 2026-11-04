@@ -5,8 +5,16 @@ from pathlib import Path
 
 import pytest
 
+from lacis.storage.entities import CollectedEntity, company_identifier, person_identifier
+from lacis.storage.graph_store import GraphStore
 from lacis.storage.investigations import InvestigationLibrary
-from lacis.storage.notices import CollectedNotice, NoticeFamily, NoticeStore
+from lacis.storage.notices import (
+    CollectedNotice,
+    InvalidNoticeError,
+    NoticeFamily,
+    NoticeRole,
+    NoticeStore,
+)
 from lacis.storage.responses import (
     CollectedResponse,
     ResponseSource,
@@ -133,3 +141,119 @@ def test_a_missing_notice_is_none(notice_store: NoticeStore) -> None:
     assert notice_store.notice("UNKNOWN") is None
     with pytest.raises(KeyError):
         notice_store.require_notice("UNKNOWN")
+
+
+DUPONT_SERVICES = company_identifier("222222222")
+ACME_PLOMBERIE = company_identifier("111111111")
+
+
+@pytest.fixture
+def companies(connection: sqlite3.Connection) -> None:
+    graph_store = GraphStore(connection)
+    response = bodacc_response(connection, FIRST_COLLECTION)
+    graph_store.save_entity(CollectedEntity(DUPONT_SERVICES, "DUPONT SERVICES"), response)
+    graph_store.save_entity(CollectedEntity(ACME_PLOMBERIE, "ACME PLOMBERIE"), response)
+
+
+def notice_of(
+    identifier: str,
+    family: NoticeFamily,
+    published_on: date,
+    companies: dict[str, NoticeRole],
+) -> CollectedNotice:
+    return CollectedNotice(identifier, family, published_on, TOULOUSE_COURT, "", "", companies)
+
+
+@pytest.mark.usefixtures("companies")
+@pytest.mark.parametrize("role", list(NoticeRole))
+def test_a_notice_is_linked_to_its_company_with_every_role(
+    connection: sqlite3.Connection, notice_store: NoticeStore, role: NoticeRole
+) -> None:
+    notice = notice_of("B1", NoticeFamily.SALE, date(2022, 5, 1), {DUPONT_SERVICES: role})
+    notice_store.save_notice(notice, bodacc_response(connection, FIRST_COLLECTION))
+    notices = notice_store.notices_of_company(DUPONT_SERVICES)
+    assert [company_notice.role for company_notice in notices[NoticeFamily.SALE]] == [role]
+
+
+@pytest.mark.usefixtures("companies")
+def test_one_notice_can_concern_several_companies_with_different_roles(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    sale = notice_of(
+        "B2",
+        NoticeFamily.SALE,
+        date(2022, 5, 1),
+        {DUPONT_SERVICES: NoticeRole.PREVIOUS_OWNER, ACME_PLOMBERIE: NoticeRole.SUBJECT},
+    )
+    notice_store.save_notice(sale, bodacc_response(connection, FIRST_COLLECTION))
+    seller = notice_store.notices_of_company(DUPONT_SERVICES)[NoticeFamily.SALE][0]
+    buyer = notice_store.notices_of_company(ACME_PLOMBERIE)[NoticeFamily.SALE][0]
+    assert (seller.role, buyer.role) == (NoticeRole.PREVIOUS_OWNER, NoticeRole.SUBJECT)
+    assert seller.notice == buyer.notice
+
+
+@pytest.mark.usefixtures("companies")
+def test_notices_are_grouped_by_family_from_the_most_recent_to_the_oldest(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    subject = {DUPONT_SERVICES: NoticeRole.SUBJECT}
+    response = bodacc_response(connection, FIRST_COLLECTION)
+    for notice in [
+        notice_of("creation", NoticeFamily.CREATION, date(2021, 3, 1), subject),
+        notice_of("opening", NoticeFamily.INSOLVENCY, date(2022, 6, 10), subject),
+        notice_of("closing", NoticeFamily.INSOLVENCY, date(2022, 12, 5), subject),
+        notice_of("removal", NoticeFamily.REMOVAL, date(2023, 1, 20), subject),
+        notice_of(
+            "other", NoticeFamily.REMOVAL, date(2024, 1, 1), {ACME_PLOMBERIE: NoticeRole.SUBJECT}
+        ),
+    ]:
+        notice_store.save_notice(notice, response)
+    notices = notice_store.notices_of_company(DUPONT_SERVICES)
+    assert list(notices) == [NoticeFamily.REMOVAL, NoticeFamily.INSOLVENCY, NoticeFamily.CREATION]
+    assert [
+        [company_notice.notice.identifier for company_notice in family_notices]
+        for family_notices in notices.values()
+    ] == [["removal"], ["closing", "opening"], ["creation"]]
+
+
+def test_a_company_without_notices_has_no_family(notice_store: NoticeStore) -> None:
+    assert notice_store.notices_of_company(DUPONT_SERVICES) == {}
+
+
+@pytest.mark.usefixtures("companies")
+def test_a_newer_collection_updates_the_role_and_an_older_one_does_not(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    def save_with_role(role: NoticeRole, collected_at: datetime) -> None:
+        notice = notice_of("B3", NoticeFamily.SALE, date(2022, 5, 1), {DUPONT_SERVICES: role})
+        notice_store.save_notice(notice, bodacc_response(connection, collected_at))
+
+    def current_role() -> NoticeRole:
+        return notice_store.notices_of_company(DUPONT_SERVICES)[NoticeFamily.SALE][0].role
+
+    save_with_role(NoticeRole.MENTIONED, FIRST_COLLECTION)
+    save_with_role(NoticeRole.PREVIOUS_OWNER, SECOND_COLLECTION)
+    assert current_role() is NoticeRole.PREVIOUS_OWNER
+    save_with_role(NoticeRole.SUBJECT, EARLIER_COLLECTION)
+    assert current_role() is NoticeRole.PREVIOUS_OWNER
+
+
+def test_a_notice_only_concerns_companies() -> None:
+    with pytest.raises(InvalidNoticeError, match="concerns companies"):
+        notice_of(
+            "B4",
+            NoticeFamily.SALE,
+            date(2022, 5, 1),
+            {person_identifier("DUPONT", "Jean", "1980-05"): NoticeRole.SUBJECT},
+        )
+
+
+def test_a_notice_cannot_concern_a_company_outside_the_investigation(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    notice = notice_of(
+        "B5", NoticeFamily.SALE, date(2022, 5, 1), {DUPONT_SERVICES: NoticeRole.SUBJECT}
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        notice_store.save_notice(notice, bodacc_response(connection, FIRST_COLLECTION))
+    assert notice_store.notice("B5") is None
