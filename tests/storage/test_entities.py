@@ -1,16 +1,26 @@
+from collections.abc import Callable
+
 import pytest
 
 from lacis.storage.entities import (
     CollectedEntity,
+    CollectedLink,
     EntityKind,
     InvalidIdentifierError,
+    InvalidLinkError,
+    LinkKind,
     address_identifier,
     company_identifier,
     establishment_identifier,
+    establishment_of_link,
     foreign_company_identifier,
     kind_of,
+    located_at_link,
+    mandate_link,
     normalise_text,
     person_identifier,
+    registered_office_link,
+    same_person_link,
 )
 
 
@@ -97,3 +107,78 @@ def test_a_foreign_company_is_identified_by_its_name_and_country() -> None:
 def test_the_kind_is_read_from_the_identifier(entity_identifier: str, kind: EntityKind) -> None:
     assert kind_of(entity_identifier) is kind
     assert CollectedEntity(entity_identifier, "label").kind is kind
+
+
+JEAN = person_identifier("DUPONT", "Jean", "1980-05")
+JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05")
+DUPONT_SERVICES = company_identifier("222222222")
+ACME = company_identifier("111111111")
+SIEGE = establishment_identifier("22222222200015")
+LILAS = address_identifier("12 rue des Lilas 31000 Toulouse")
+INVEST = foreign_company_identifier("DUPONT INVEST LTD", "Royaume-Uni")
+
+
+@pytest.mark.parametrize(
+    ("link", "kind"),
+    [
+        (mandate_link(JEAN, DUPONT_SERVICES, "Président"), LinkKind.MANDATE),
+        (mandate_link(DUPONT_SERVICES, ACME, "Associé"), LinkKind.MANDATE),
+        (mandate_link(INVEST, ACME, "Associé"), LinkKind.MANDATE),
+        (registered_office_link(DUPONT_SERVICES, LILAS), LinkKind.REGISTERED_OFFICE),
+        (located_at_link(SIEGE, LILAS), LinkKind.LOCATED_AT),
+        (establishment_of_link(SIEGE, DUPONT_SERVICES), LinkKind.ESTABLISHMENT_OF),
+        (same_person_link(JEAN, JEAN_PIERRE), LinkKind.SAME_PERSON),
+    ],
+)
+def test_every_link_kind_connects_its_entity_kinds(link: CollectedLink, kind: LinkKind) -> None:
+    assert link.kind is kind
+    assert link.identifier.startswith("link:")
+
+
+@pytest.mark.parametrize(
+    "create_link",
+    [
+        lambda: mandate_link(LILAS, DUPONT_SERVICES, "Président"),
+        lambda: mandate_link(JEAN, LILAS, "Président"),
+        lambda: registered_office_link(SIEGE, LILAS),
+        lambda: located_at_link(DUPONT_SERVICES, LILAS),
+        lambda: establishment_of_link(ACME, DUPONT_SERVICES),
+        lambda: same_person_link(JEAN, DUPONT_SERVICES),
+    ],
+    ids=[
+        "address as director",
+        "mandate on an address",
+        "registered office of an establishment",
+        "company located like an establishment",
+        "company as establishment",
+        "same person with a company",
+    ],
+)
+def test_a_link_between_the_wrong_entity_kinds_is_refused(
+    create_link: Callable[[], CollectedLink],
+) -> None:
+    with pytest.raises(InvalidLinkError, match="cannot go from"):
+        create_link()
+
+
+def test_a_mandate_needs_a_role_and_other_links_have_none() -> None:
+    with pytest.raises(InvalidLinkError, match="role"):
+        mandate_link(JEAN, DUPONT_SERVICES, "  ")
+    with pytest.raises(InvalidLinkError, match="role"):
+        CollectedLink(SIEGE, LILAS, LinkKind.LOCATED_AT, "Siège")
+
+
+def test_an_entity_cannot_be_linked_to_itself() -> None:
+    with pytest.raises(InvalidLinkError, match="two different entities"):
+        same_person_link(JEAN, JEAN)
+
+
+def test_the_role_is_part_of_the_mandate_identity() -> None:
+    president = mandate_link(JEAN, DUPONT_SERVICES, "Président")
+    assert president.identifier == mandate_link(JEAN, DUPONT_SERVICES, " Président ").identifier
+    assert president.identifier == mandate_link(JEAN, DUPONT_SERVICES, "PRESIDENT").identifier
+    assert president.identifier != mandate_link(JEAN, DUPONT_SERVICES, "Gérant").identifier
+
+
+def test_same_person_links_do_not_depend_on_the_order_of_the_people() -> None:
+    assert same_person_link(JEAN, JEAN_PIERRE) == same_person_link(JEAN_PIERRE, JEAN)

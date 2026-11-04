@@ -7,12 +7,18 @@ import pytest
 
 from lacis.storage.entities import (
     CollectedEntity,
+    CollectedLink,
     EntityKind,
     address_identifier,
     company_identifier,
     establishment_identifier,
+    establishment_of_link,
     foreign_company_identifier,
+    located_at_link,
+    mandate_link,
     person_identifier,
+    registered_office_link,
+    same_person_link,
 )
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.investigations import InvestigationLibrary
@@ -110,3 +116,66 @@ def test_attributes_keep_accents_and_types(graph_store: GraphStore) -> None:
         "capital": 1500.5,
         "closed_on": None,
     }
+
+
+ACME_PLOMBERIE = CollectedEntity(company_identifier("111111111"), "ACME PLOMBERIE")
+JEAN_PIERRE_DUPONT = CollectedEntity(
+    person_identifier("DUPONT", "Jean Pierre", "1980-05"), "Jean Pierre DUPONT"
+)
+EVERY_LINK_KIND = [
+    mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président"),
+    registered_office_link(DUPONT_SERVICES.identifier, LILAS_ADDRESS.identifier),
+    located_at_link(TOULOUSE_ESTABLISHMENT.identifier, LILAS_ADDRESS.identifier),
+    establishment_of_link(TOULOUSE_ESTABLISHMENT.identifier, DUPONT_SERVICES.identifier),
+    same_person_link(JEAN_DUPONT.identifier, JEAN_PIERRE_DUPONT.identifier),
+    mandate_link(DUPONT_INVEST.identifier, ACME_PLOMBERIE.identifier, "Associé"),
+]
+
+
+@pytest.fixture
+def scenario_store(graph_store: GraphStore) -> GraphStore:
+    for collected_entity in [*EVERY_KIND, ACME_PLOMBERIE, JEAN_PIERRE_DUPONT]:
+        graph_store.save_entity(collected_entity, FIRST_COLLECTION)
+    return graph_store
+
+
+@pytest.mark.parametrize("collected_link", EVERY_LINK_KIND, ids=lambda link: link.kind.value)
+def test_every_link_kind_is_stored_and_read_back(
+    scenario_store: GraphStore, collected_link: CollectedLink
+) -> None:
+    stored = scenario_store.save_link(collected_link, FIRST_COLLECTION)
+    assert (stored.source, stored.target, stored.kind, stored.role) == (
+        collected_link.source,
+        collected_link.target,
+        collected_link.kind,
+        collected_link.role,
+    )
+    assert stored.identifier == collected_link.identifier
+    assert stored.first_collected_at == stored.last_collected_at == FIRST_COLLECTION
+    assert scenario_store.link(collected_link.identifier) == stored
+
+
+def test_the_links_of_an_entity_include_both_directions(scenario_store: GraphStore) -> None:
+    for collected_link in EVERY_LINK_KIND:
+        scenario_store.save_link(collected_link, FIRST_COLLECTION)
+    kinds_around_dupont_services = sorted(
+        link.kind.value for link in scenario_store.links_of(DUPONT_SERVICES.identifier)
+    )
+    assert kinds_around_dupont_services == ["establishment_of", "mandate", "registered_office"]
+    assert len(scenario_store.links()) == len(EVERY_LINK_KIND)
+
+
+def test_a_link_to_an_unknown_entity_is_refused(graph_store: GraphStore) -> None:
+    graph_store.save_entity(JEAN_DUPONT, FIRST_COLLECTION)
+    with pytest.raises(sqlite3.IntegrityError):
+        graph_store.save_link(
+            mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président"),
+            FIRST_COLLECTION,
+        )
+    assert graph_store.links() == []
+
+
+def test_a_missing_link_is_none(graph_store: GraphStore) -> None:
+    assert graph_store.link("link:0000000000000000") is None
+    with pytest.raises(KeyError):
+        graph_store.require_link("link:0000000000000000")

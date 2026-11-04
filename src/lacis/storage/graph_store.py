@@ -2,9 +2,18 @@ import json
 import sqlite3
 from datetime import datetime
 
-from lacis.storage.entities import Attributes, CollectedEntity, Entity, EntityKind
+from lacis.storage.entities import (
+    Attributes,
+    CollectedEntity,
+    CollectedLink,
+    Entity,
+    EntityKind,
+    Link,
+    LinkKind,
+)
 
 ENTITY_COLUMNS = "identifier, kind, label, attributes, first_collected_at, last_collected_at"
+LINK_COLUMNS = "identifier, kind, source, target, role, first_collected_at, last_collected_at"
 
 
 def encode_attributes(attributes: Attributes) -> str:
@@ -18,6 +27,19 @@ def entity_from_row(row: tuple[str, str, str, str, str, str]) -> Entity:
         kind=EntityKind(kind),
         label=label,
         attributes=json.loads(attributes),
+        first_collected_at=datetime.fromisoformat(first_collected_at),
+        last_collected_at=datetime.fromisoformat(last_collected_at),
+    )
+
+
+def link_from_row(row: tuple[str, str, str, str, str, str, str]) -> Link:
+    identifier, kind, source, target, role, first_collected_at, last_collected_at = row
+    return Link(
+        identifier=identifier,
+        kind=LinkKind(kind),
+        source=source,
+        target=target,
+        role=role,
         first_collected_at=datetime.fromisoformat(first_collected_at),
         last_collected_at=datetime.fromisoformat(last_collected_at),
     )
@@ -65,3 +87,44 @@ class GraphStore:
                 (kind.value,),
             ).fetchall()
         return [entity_from_row(row) for row in rows]
+
+    def save_link(self, collected_link: CollectedLink, collected_at: datetime) -> Link:
+        with self.connection:
+            self.connection.execute(
+                f"INSERT INTO link ({LINK_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    collected_link.identifier,
+                    collected_link.kind.value,
+                    collected_link.source,
+                    collected_link.target,
+                    collected_link.role,
+                    collected_at.isoformat(),
+                    collected_at.isoformat(),
+                ),
+            )
+        return self.require_link(collected_link.identifier)
+
+    def link(self, identifier: str) -> Link | None:
+        row = self.connection.execute(
+            f"SELECT {LINK_COLUMNS} FROM link WHERE identifier = ?", (identifier,)
+        ).fetchone()
+        return link_from_row(row) if row is not None else None
+
+    def require_link(self, identifier: str) -> Link:
+        link = self.link(identifier)
+        if link is None:
+            raise KeyError(identifier)
+        return link
+
+    def links(self) -> list[Link]:
+        rows = self.connection.execute(
+            f"SELECT {LINK_COLUMNS} FROM link ORDER BY identifier"
+        ).fetchall()
+        return [link_from_row(row) for row in rows]
+
+    def links_of(self, entity_identifier: str) -> list[Link]:
+        rows = self.connection.execute(
+            f"SELECT {LINK_COLUMNS} FROM link WHERE source = ? OR target = ? ORDER BY identifier",
+            (entity_identifier, entity_identifier),
+        ).fetchall()
+        return [link_from_row(row) for row in rows]

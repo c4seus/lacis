@@ -112,3 +112,86 @@ class Entity:
     attributes: Attributes
     first_collected_at: datetime
     last_collected_at: datetime
+
+
+class LinkKind(StrEnum):
+    MANDATE = "mandate"
+    REGISTERED_OFFICE = "registered_office"
+    LOCATED_AT = "located_at"
+    ESTABLISHMENT_OF = "establishment_of"
+    SAME_PERSON = "same_person"
+
+
+DIRECTOR_KINDS = frozenset({EntityKind.PERSON, EntityKind.COMPANY, EntityKind.FOREIGN_COMPANY})
+LINK_ENDPOINT_KINDS = {
+    LinkKind.MANDATE: (DIRECTOR_KINDS, frozenset({EntityKind.COMPANY})),
+    LinkKind.REGISTERED_OFFICE: (frozenset({EntityKind.COMPANY}), frozenset({EntityKind.ADDRESS})),
+    LinkKind.LOCATED_AT: (frozenset({EntityKind.ESTABLISHMENT}), frozenset({EntityKind.ADDRESS})),
+    LinkKind.ESTABLISHMENT_OF: (
+        frozenset({EntityKind.ESTABLISHMENT}),
+        frozenset({EntityKind.COMPANY}),
+    ),
+    LinkKind.SAME_PERSON: (frozenset({EntityKind.PERSON}), frozenset({EntityKind.PERSON})),
+}
+LINK_IDENTIFIER_PREFIX = "link"
+
+
+class InvalidLinkError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class CollectedLink:
+    source: str
+    target: str
+    kind: LinkKind
+    role: str = ""
+
+    def __post_init__(self) -> None:
+        source_kinds, target_kinds = LINK_ENDPOINT_KINDS[self.kind]
+        if kind_of(self.source) not in source_kinds or kind_of(self.target) not in target_kinds:
+            raise InvalidLinkError(
+                f"A {self.kind} link cannot go from {kind_of(self.source)} "
+                f"to {kind_of(self.target)}"
+            )
+        if self.source == self.target:
+            raise InvalidLinkError("A link needs two different entities")
+        if (self.kind == LinkKind.MANDATE) != bool(self.role.strip()):
+            raise InvalidLinkError("A mandate has a role, and only a mandate has one")
+
+    @property
+    def identifier(self) -> str:
+        key = KEY_SEPARATOR.join([self.source, self.kind, self.target, normalise_text(self.role)])
+        return f"{LINK_IDENTIFIER_PREFIX}{IDENTIFIER_SEPARATOR}{digest(key)}"
+
+
+def mandate_link(director: str, company: str, role: str) -> CollectedLink:
+    return CollectedLink(director, company, LinkKind.MANDATE, " ".join(role.split()))
+
+
+def registered_office_link(company: str, address: str) -> CollectedLink:
+    return CollectedLink(company, address, LinkKind.REGISTERED_OFFICE)
+
+
+def located_at_link(establishment: str, address: str) -> CollectedLink:
+    return CollectedLink(establishment, address, LinkKind.LOCATED_AT)
+
+
+def establishment_of_link(establishment: str, company: str) -> CollectedLink:
+    return CollectedLink(establishment, company, LinkKind.ESTABLISHMENT_OF)
+
+
+def same_person_link(first_person: str, second_person: str) -> CollectedLink:
+    source, target = sorted([first_person, second_person])
+    return CollectedLink(source, target, LinkKind.SAME_PERSON)
+
+
+@dataclass(frozen=True)
+class Link:
+    identifier: str
+    kind: LinkKind
+    source: str
+    target: str
+    role: str
+    first_collected_at: datetime
+    last_collected_at: datetime
