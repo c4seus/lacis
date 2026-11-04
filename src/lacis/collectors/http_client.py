@@ -1,3 +1,4 @@
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -6,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 
 from lacis import __version__
-from lacis.collectors.rate_limiting import SHARED_RATE_LIMITERS, RateLimiters, Sleep
+from lacis.collectors.rate_limiting import SHARED_RATE_LIMITERS, Clock, RateLimiters, Sleep
 from lacis.collectors.retries import (
     DEFAULT_RETRY_POLICY,
     RETRY_AFTER_HEADER,
@@ -14,10 +15,18 @@ from lacis.collectors.retries import (
     RetryPolicy,
     is_retryable_status,
 )
+from lacis.diagnostics import LOGGER_NAME
 from lacis.product import REPOSITORY_URL
-from lacis.storage.responses import ResponseSource
+from lacis.storage.collection_log import CollectionLog, LoggedRequest
+from lacis.storage.responses import (
+    CollectedResponse,
+    ResponseSource,
+    ResponseStore,
+    StoredResponse,
+)
 
 USER_AGENT = f"Lacis/{__version__} (+{REPOSITORY_URL})"
+COLLECTORS_LOGGER_NAME = f"{LOGGER_NAME}.collectors"
 REQUEST_TIMEOUT = timedelta(seconds=10)
 SUCCESSFUL_HTTP_STATUSES = range(200, 300)
 SOURCE_NAMES = {
@@ -69,27 +78,41 @@ def unreachable_service_message(source: ResponseSource) -> str:
 
 
 @dataclass(frozen=True)
-class FetchedResponse:
+class CollectorTiming:
+    rate_limiters: RateLimiters = SHARED_RATE_LIMITERS
+    retry_policy: RetryPolicy = DEFAULT_RETRY_POLICY
+    sleep: Sleep = time.sleep
+    now: Callable[[], datetime] = current_time
+    monotonic: Clock = time.monotonic
+
+
+DEFAULT_TIMING = CollectorTiming()
+
+
+@dataclass(frozen=True)
+class CollectorRequest:
     source: ResponseSource
     url: str
     parameters: dict[str, str]
-    http_status: int
-    body: bytes
+
+
+@dataclass(frozen=True)
+class AttemptStart:
+    requested_at: datetime
+    monotonic_time: float
 
 
 class CollectorHttpClient:
     def __init__(
         self,
+        response_store: ResponseStore,
+        collection_log: CollectionLog,
         transport: httpx.BaseTransport | None = None,
-        rate_limiters: RateLimiters = SHARED_RATE_LIMITERS,
-        retry_policy: RetryPolicy = DEFAULT_RETRY_POLICY,
-        sleep: Sleep = time.sleep,
-        now: Callable[[], datetime] = current_time,
+        timing: CollectorTiming = DEFAULT_TIMING,
     ) -> None:
-        self.rate_limiters = rate_limiters
-        self.retry_policy = retry_policy
-        self.sleep = sleep
-        self.now = now
+        self.response_store = response_store
+        self.collection_log = collection_log
+        self.timing = timing
         self.client = httpx.Client(
             transport=transport,
             timeout=REQUEST_TIMEOUT.total_seconds(),
@@ -100,40 +123,85 @@ class CollectorHttpClient:
     def close(self) -> None:
         self.client.close()
 
-    def get(self, source: ResponseSource, url: str, parameters: dict[str, str]) -> FetchedResponse:
+    def get(self, source: ResponseSource, url: str, parameters: dict[str, str]) -> StoredResponse:
+        request = CollectorRequest(source, url, parameters)
         attempt = 1
         while True:
-            is_last_attempt = attempt == self.retry_policy.maximum_attempts
-            self.rate_limiters.wait_for(source)
+            is_last_attempt = attempt == self.timing.retry_policy.maximum_attempts
+            self.timing.rate_limiters.wait_for(source)
+            attempt_start = AttemptStart(self.timing.now(), self.timing.monotonic())
             try:
                 response = self.client.get(url, params=parameters)
             except httpx.TransportError as transport_error:
+                message = unreachable_service_message(source)
+                self.record_attempt(request, attempt_start, None, message)
                 if is_last_attempt:
-                    raise CollectionError(
-                        unreachable_service_message(source), source, None
-                    ) from transport_error
+                    raise CollectionError(message, source, None) from transport_error
                 self.wait_before_retry(attempt, None)
                 attempt += 1
                 continue
             if response.status_code in SUCCESSFUL_HTTP_STATUSES:
-                return FetchedResponse(
-                    source, url, parameters, response.status_code, response.content
-                )
-            if not is_retryable_status(response.status_code):
-                raise CollectionError(
-                    refused_request_message(source, response.status_code),
-                    source,
-                    response.status_code,
-                )
-            if is_last_attempt:
-                raise CollectionError(
-                    final_failure_message(source, response.status_code),
-                    source,
-                    response.status_code,
-                )
+                return self.keep_response(request, attempt_start, response)
+            retryable = is_retryable_status(response.status_code)
+            message = (
+                final_failure_message(source, response.status_code)
+                if retryable
+                else refused_request_message(source, response.status_code)
+            )
+            self.record_attempt(request, attempt_start, response.status_code, message)
+            if not retryable or is_last_attempt:
+                raise CollectionError(message, source, response.status_code)
             self.wait_before_retry(attempt, response.headers.get(RETRY_AFTER_HEADER))
             attempt += 1
 
+    def keep_response(
+        self, request: CollectorRequest, attempt_start: AttemptStart, response: httpx.Response
+    ) -> StoredResponse:
+        summary = self.response_store.save(
+            CollectedResponse(
+                request.source,
+                request.url,
+                response.content,
+                attempt_start.requested_at,
+                request.parameters,
+            )
+        )
+        self.record_attempt(request, attempt_start, response.status_code, "", summary.identifier)
+        logging.getLogger(COLLECTORS_LOGGER_NAME).info(
+            "GET %s returned %d, fingerprint %s",
+            request.url,
+            response.status_code,
+            summary.fingerprint,
+        )
+        return StoredResponse(summary, response.content)
+
+    def record_attempt(
+        self,
+        request: CollectorRequest,
+        attempt_start: AttemptStart,
+        http_status: int | None,
+        error: str,
+        response_identifier: int | None = None,
+    ) -> None:
+        elapsed_seconds = self.timing.monotonic() - attempt_start.monotonic_time
+        self.collection_log.record(
+            LoggedRequest(
+                requested_at=attempt_start.requested_at,
+                source=request.source,
+                endpoint=request.url,
+                http_status=http_status,
+                duration=timedelta(seconds=elapsed_seconds),
+                error=error,
+                response_identifier=response_identifier,
+            )
+        )
+        if error:
+            logging.getLogger(COLLECTORS_LOGGER_NAME).warning(
+                "GET %s failed with status %s", request.url, http_status
+            )
+
     def wait_before_retry(self, failed_attempts: int, retry_after: str | None) -> None:
-        delay = self.retry_policy.delay_before_retry(failed_attempts, retry_after, self.now())
-        self.sleep(delay.total_seconds())
+        delay = self.timing.retry_policy.delay_before_retry(
+            failed_attempts, retry_after, self.timing.now()
+        )
+        self.timing.sleep(delay.total_seconds())
