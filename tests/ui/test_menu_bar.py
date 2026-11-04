@@ -7,6 +7,7 @@ from pytestqt.qtbot import QtBot
 
 from lacis.design.theme_controller import ThemeController, ThemePreference
 from lacis.design.tokens import DARK_THEME, LIGHT_THEME, Theme
+from lacis.ui.help_menu import HelpMenu
 from lacis.ui.main_window import GEOMETRY_SETTING_KEY, MainWindow
 from lacis.ui.menu_bar import MainMenuBar
 from lacis.ui.theme_menu import ThemeMenu
@@ -42,7 +43,7 @@ def open_main_window(
 
 
 def create_menu_bar(qtbot: QtBot, theme_controller: ThemeController) -> MainMenuBar:
-    menu_bar = MainMenuBar(ThemeMenu(theme_controller))
+    menu_bar = MainMenuBar(ThemeMenu(theme_controller), HelpMenu())
     qtbot.addWidget(menu_bar)
     return menu_bar
 
@@ -135,7 +136,7 @@ def test_the_view_menu_offers_the_theme_choice(
     qtbot: QtBot, theme_controller: ThemeController
 ) -> None:
     theme_menu = ThemeMenu(theme_controller)
-    menu_bar = MainMenuBar(theme_menu)
+    menu_bar = MainMenuBar(theme_menu, HelpMenu())
     qtbot.addWidget(menu_bar)
     assert menu_bar.view_menu.actions() == [theme_menu.menuAction()]
     assert menu_bar.view_menu.menuAction().isEnabled()
@@ -163,3 +164,13 @@ def test_every_entry_of_a_menu_has_its_own_mnemonic(
         assert len(set(mnemonics)) == len(mnemonics), menu.title()
         checked_menus += 1
     assert checked_menus == len(menu_bar.menus()) + 1
+
+
+def test_the_help_menu_and_the_help_button_share_the_same_entries(
+    qtbot: QtBot, settings: QSettings, theme_controller: ThemeController
+) -> None:
+    main_window = open_main_window(qtbot, settings, theme_controller)
+    shared_menu = main_window.header_bar.help_menu
+    assert main_window.header_bar.help_button.menu() is shared_menu
+    assert main_window.main_menu_bar.help_menu is shared_menu
+    assert main_window.main_menu_bar.actions()[-1] is shared_menu.menuAction()
