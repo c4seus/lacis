@@ -29,11 +29,32 @@ QMainWindow, QDialog {{
 
 QLabel[tone="muted"] {{
     color: {colours.muted_text};
+    font-size: {font_sizes.small}px;
 }}
 
 QLabel[tone="faint"] {{
     color: {colours.faint_text};
     font-size: {font_sizes.small}px;
+}}
+
+QLabel[tone="caption"] {{
+    color: {colours.muted_text};
+    font-size: {font_sizes.caption}px;
+}}
+
+QLabel[tone="current"] {{
+    font-size: {font_sizes.small}px;
+    font-weight: {font_weights.bold};
+}}
+
+QLabel[tone="brand"] {{
+    font-size: {font_sizes.large}px;
+    font-weight: {font_weights.bold};
+}}
+
+QWidget#headerBar {{
+    border-bottom: 1px solid {colours.border};
+    background-color: {colours.surface};
 }}
 
 QLabel[tone="heading"] {{
