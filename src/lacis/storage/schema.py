@@ -132,6 +132,27 @@ def add_notice_withdrawal(connection: sqlite3.Connection) -> None:
     connection.execute("ALTER TABLE notice ADD COLUMN withdrawn_at TEXT")
 
 
+def create_collection_log_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE collection_log (
+            identifier INTEGER PRIMARY KEY AUTOINCREMENT,
+            requested_at TEXT NOT NULL,
+            source TEXT NOT NULL,
+            endpoint TEXT NOT NULL,
+            http_status INTEGER,
+            duration_milliseconds INTEGER NOT NULL,
+            served_from_cache INTEGER NOT NULL,
+            error TEXT NOT NULL,
+            response_identifier INTEGER REFERENCES response (identifier)
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX collection_log_by_date ON collection_log (requested_at, identifier)"
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     create_investigation_table,
     create_entity_table,
@@ -141,6 +162,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     create_notice_table,
     create_notice_company_table,
     add_notice_withdrawal,
+    create_collection_log_table,
 )
 
 
