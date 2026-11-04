@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.ui.header_bar import HeaderBar
+from lacis.ui.menu_bar import MainMenuBar
 
 WINDOW_TITLE = "Lacis"
 MINIMUM_SIZE = QSize(1024, 640)
@@ -29,6 +30,9 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(MINIMUM_SIZE)
 
         self.header_bar = HeaderBar(self.icon_factory, theme_controller)
+        self.main_menu_bar = MainMenuBar(self)
+        self.main_menu_bar.quit_action.triggered.connect(self.close)
+        self.setMenuBar(self.main_menu_bar)
         self.content_area = QWidget()
         self.content_area.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         central_widget = QWidget(self)
