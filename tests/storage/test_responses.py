@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from lacis.storage.errors import TamperedResponseError
 from lacis.storage.investigations import InvestigationLibrary
 from lacis.storage.responses import (
     CollectedResponse,
@@ -96,3 +97,47 @@ def test_responses_are_listed_by_collection_date(response_store: ResponseStore) 
 def test_an_unknown_response_is_refused(response_store: ResponseStore) -> None:
     with pytest.raises(KeyError):
         response_store.read(404)
+
+
+def tamper(connection: sqlite3.Connection, statement: str, identifier: int) -> None:
+    with connection:
+        connection.execute(statement, (identifier,))
+
+
+def test_an_untouched_response_is_read_without_complaint(response_store: ResponseStore) -> None:
+    summary = response_store.save(SEARCH_RESPONSE)
+    assert response_store.read(summary.identifier).body == COMPANY_BODY
+
+
+def test_a_response_whose_body_was_modified_is_reported_when_read(
+    connection: sqlite3.Connection, response_store: ResponseStore
+) -> None:
+    summary = response_store.save(SEARCH_RESPONSE)
+    tamper(
+        connection,
+        "UPDATE response SET body = replace(body, 'DUPONT', 'DURAND') WHERE identifier = ?",
+        summary.identifier,
+    )
+    with pytest.raises(TamperedResponseError) as tampering:
+        response_store.read(summary.identifier)
+    assert str(tampering.value) == (
+        f"La réponse n\u00a0{summary.identifier} a été modifiée depuis sa collecte\u00a0: "
+        "son contenu ne correspond plus à l'empreinte enregistrée."
+    )
+    assert tampering.value.expected_fingerprint == summary.fingerprint
+    assert tampering.value.actual_fingerprint == fingerprint(
+        COMPANY_BODY.replace(b"DUPONT", b"DURAND")
+    )
+
+
+def test_a_response_whose_fingerprint_was_modified_is_reported_when_read(
+    connection: sqlite3.Connection, response_store: ResponseStore
+) -> None:
+    summary = response_store.save(SEARCH_RESPONSE)
+    tamper(
+        connection,
+        "UPDATE response SET fingerprint = '" + "0" * 64 + "' WHERE identifier = ?",
+        summary.identifier,
+    )
+    with pytest.raises(TamperedResponseError):
+        response_store.read(summary.identifier)

@@ -38,3 +38,16 @@ class NewerInvestigationError(InvestigationError):
         self.name = name
         self.version = version
         self.supported_version = supported_version
+
+
+class TamperedResponseError(InvestigationError):
+    def __init__(
+        self, identifier: int, expected_fingerprint: str, actual_fingerprint: str
+    ) -> None:
+        super().__init__(
+            f"La réponse n\u00a0{identifier} a été modifiée depuis sa collecte\u00a0: "
+            "son contenu ne correspond plus à l'empreinte enregistrée."
+        )
+        self.identifier = identifier
+        self.expected_fingerprint = expected_fingerprint
+        self.actual_fingerprint = actual_fingerprint
