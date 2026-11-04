@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QLocale, QSettings
+from PySide6.QtCore import QLocale, QSettings, Qt
 from PySide6.QtWidgets import QApplication
 
 from lacis import __version__
@@ -30,6 +30,7 @@ def remove_theme_controllers_created_by_main(qapp: QApplication) -> Iterator[Non
             theme_controller.follow_system_colour_scheme
         )
         theme_controller.setParent(None)
+    qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")
 
 
