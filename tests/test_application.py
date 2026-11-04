@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QLocale, QSettings, Qt
+from PySide6.QtGui import QFontInfo
 from PySide6.QtWidgets import QApplication
 
 from lacis import __version__
@@ -40,6 +41,11 @@ def test_the_application_has_its_name_organisation_and_version(qapp: QApplicatio
     assert qapp.applicationDisplayName() == APPLICATION_NAME
     assert qapp.organizationName() == ORGANIZATION_NAME
     assert qapp.applicationVersion() == __version__
+
+
+def test_the_application_uses_the_bundled_inter_font(qapp: QApplication) -> None:
+    configure_application(qapp)
+    assert QFontInfo(qapp.font()).family() == "Inter"
 
 
 def test_the_application_speaks_french(qapp: QApplication) -> None:
