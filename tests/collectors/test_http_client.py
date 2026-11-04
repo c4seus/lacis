@@ -475,3 +475,43 @@ def test_a_cache_hit_is_written_to_the_application_log(
     assert [record.getMessage() for record in caplog.records] == [
         f"GET {SEARCH_URL} served from the cache, fingerprint {stored.summary.fingerprint}"
     ]
+
+
+def test_a_refresh_always_queries_the_api(
+    client_factory: Callable[[Handler], CollectorHttpClient],
+    received_requests: list[httpx.Request],
+    collection_log: CollectionLog,
+) -> None:
+    client = client_factory(
+        answers(httpx.Response(200, content=b"1"), httpx.Response(200, content=b"2"))
+    )
+    collected = client.get(ResponseSource.COMPANY_REGISTER, SEARCH_URL, {"q": "222222222"})
+    refreshed = client.get(
+        ResponseSource.COMPANY_REGISTER, SEARCH_URL, {"q": "222222222"}, refresh=True
+    )
+    assert refreshed.body == b"2"
+    assert refreshed.summary.identifier != collected.summary.identifier
+    assert len(received_requests) == 2
+    assert not any(entry.request.served_from_cache for entry in collection_log.entries())
+
+
+def test_the_refreshed_response_is_served_from_the_cache_afterwards(
+    client_factory: Callable[[Handler], CollectorHttpClient],
+    received_requests: list[httpx.Request],
+) -> None:
+    client = client_factory(
+        answers(httpx.Response(200, content=b"1"), httpx.Response(200, content=b"2"))
+    )
+    client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    client.get(ResponseSource.BODACC, SEARCH_URL, {}, refresh=True)
+    assert client.get(ResponseSource.BODACC, SEARCH_URL, {}).body == b"2"
+    assert len(received_requests) == 2
+
+
+def test_a_failed_refresh_reaches_the_caller_instead_of_the_cached_response(
+    client_factory: Callable[[Handler], CollectorHttpClient],
+) -> None:
+    client = client_factory(answers(httpx.Response(200), httpx.Response(404)))
+    client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    with pytest.raises(CollectionError):
+        client.get(ResponseSource.BODACC, SEARCH_URL, {}, refresh=True)
