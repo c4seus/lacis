@@ -89,6 +89,12 @@ QPushButton[variant="primary"] {{
     color: {colours.text_on_accent};
 }}
 
+QPushButton[variant="primary"]:disabled {{
+    border-color: {colours.border};
+    background-color: {colours.raised_surface};
+    color: {colours.faint_text};
+}}
+
 QPushButton[variant="subtle"], QToolButton[variant="subtle"] {{
     border-color: transparent;
     background-color: transparent;
@@ -115,6 +121,10 @@ QLineEdit {{
     color: {colours.text};
     selection-background-color: {colours.soft_accent};
     selection-color: {colours.text};
+}}
+
+QLineEdit[variant="search"] {{
+    background-color: {colours.raised_surface};
 }}
 
 QLineEdit:disabled {{

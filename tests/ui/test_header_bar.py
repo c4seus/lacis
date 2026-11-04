@@ -1,5 +1,6 @@
 import pytest
 from PySide6.QtGui import QColor, QImage
+from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
 from lacis import __version__
@@ -100,3 +101,62 @@ def test_the_header_bar_follows_the_theme(
     assert header_image.pixelColor(header_bar.width() // 2, 4) == QColor(theme.colours.surface)
     logo_colours = opaque_colours(header_bar.logo_mark.grab().toImage())
     assert theme.colours.company in logo_colours
+
+
+def test_the_search_field_explains_what_can_be_searched(
+    qtbot: QtBot, icon_factory: IconFactory
+) -> None:
+    header_bar = open_header_bar(qtbot, icon_factory)
+    assert header_bar.search_field.placeholderText() == (
+        "Dénomination, SIREN, SIRET, dirigeant ou adresse"
+    )
+    assert header_bar.search_field.accessibleName() == "Rechercher une entreprise"
+
+
+def test_the_search_icon_sits_inside_the_field_before_the_text(
+    qtbot: QtBot, icon_factory: IconFactory, theme_controller: ThemeController
+) -> None:
+    header_bar = open_header_bar(qtbot, icon_factory)
+    theme_controller.set_preference(ThemePreference.LIGHT)
+    search_icon = header_bar.search_icon
+    assert search_icon.parent() is header_bar.search_field
+    assert search_icon.geometry().right() < header_bar.search_field.textMargins().left() + 12
+    assert search_icon.geometry().center().y() == pytest.approx(
+        header_bar.search_field.height() / 2, abs=1
+    )
+    assert LIGHT_THEME.colours.faint_text in opaque_colours(search_icon.grab().toImage())
+
+
+def test_the_search_button_is_the_primary_button(qtbot: QtBot, icon_factory: IconFactory) -> None:
+    header_bar = open_header_bar(qtbot, icon_factory)
+    assert header_bar.search_button.text() == "Rechercher"
+    assert header_bar.search_button.property("variant") == "primary"
+
+
+def test_the_search_stays_inactive_until_the_search_is_available(
+    qtbot: QtBot, icon_factory: IconFactory
+) -> None:
+    header_bar = open_header_bar(qtbot, icon_factory)
+    assert not header_bar.search_field.isEnabled()
+    assert not header_bar.search_button.isEnabled()
+    header_bar.set_search_enabled(True)
+    assert header_bar.search_field.isEnabled()
+    assert header_bar.search_button.isEnabled()
+
+
+def horizontal_span(header_bar: HeaderBar, widget: QWidget) -> tuple[int, int]:
+    top_left = widget.mapTo(header_bar, widget.rect().topLeft())
+    top_right = widget.mapTo(header_bar, widget.rect().topRight())
+    return top_left.x(), top_right.x()
+
+
+def test_the_search_sits_between_the_breadcrumb_and_the_version(
+    qtbot: QtBot, icon_factory: IconFactory
+) -> None:
+    header_bar = open_header_bar(qtbot, icon_factory)
+    _, breadcrumb_right = horizontal_span(header_bar, header_bar.breadcrumb)
+    search_left, search_right = horizontal_span(header_bar, header_bar.search_field)
+    button_left, button_right = horizontal_span(header_bar, header_bar.search_button)
+    version_left, _ = horizontal_span(header_bar, header_bar.version_label)
+    assert breadcrumb_right < search_left < search_right < button_left
+    assert button_right < version_left
