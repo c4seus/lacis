@@ -11,4 +11,4 @@ This folder records the decisions that shape Lacis, with their context, the opti
 
 1. Copy the structure of an existing record: Context, Options, Decision, Consequences.
 2. Number it after the last one, with a short kebab-case name.
-3. Open a pull request with the `type:docs` label. The record is accepted when the pull request is merged.
+3. Open a pull request with the `documentation` label. The record is accepted when the pull request is merged.
