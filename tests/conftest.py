@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.diagnostics import LOG_DIRECTORY_VARIABLE, LOGGER_NAME
+from lacis.storage.locations import DATA_DIRECTORY_VARIABLE
 
 OFFSCREEN_SCREEN_CONFIGURATION = Path(__file__).with_name("offscreen-screen.json")
 
@@ -33,6 +34,13 @@ def isolated_log_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> I
     for handler in list(lacis_logger.handlers):
         lacis_logger.removeHandler(handler)
         handler.close()
+
+
+@pytest.fixture(autouse=True)
+def isolated_data_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    data_directory = tmp_path / "data"
+    monkeypatch.setenv(DATA_DIRECTORY_VARIABLE, str(data_directory))
+    return data_directory
 
 
 @pytest.fixture(autouse=True)
