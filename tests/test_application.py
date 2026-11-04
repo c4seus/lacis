@@ -20,11 +20,15 @@ from lacis.application import (
 from lacis.design.style_sheet import build_style_sheet
 from lacis.design.theme_controller import ThemeController
 from lacis.design.tokens import LIGHT_THEME
+from lacis.ui.error_dialog import UnexpectedErrorHandler
 from lacis.ui.main_window import MainWindow
 
 
 @pytest.fixture(autouse=True)
-def remove_theme_controllers_created_by_main(qapp: QApplication) -> Iterator[None]:
+def remove_theme_controllers_created_by_main(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    monkeypatch.setattr(sys, "excepthook", sys.excepthook)
     qt_message_handler = qInstallMessageHandler(None)
     qInstallMessageHandler(qt_message_handler)
     yield
@@ -128,3 +132,11 @@ def test_the_command_writes_its_start_to_the_log(
     main(["lacis"])
     log_text = (isolated_log_directory / "lacis.log").read_text(encoding="utf-8")
     assert f"Lacis {__version__} started" in log_text
+
+
+def test_the_command_shows_unexpected_errors_in_a_dialog(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(QApplication, "exec", staticmethod(lambda: 0))
+    main(["lacis"])
+    assert isinstance(getattr(sys.excepthook, "__self__", None), UnexpectedErrorHandler)
