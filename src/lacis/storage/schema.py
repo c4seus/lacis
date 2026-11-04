@@ -56,10 +56,28 @@ def create_link_table(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX link_by_target ON link (target)")
 
 
+def create_response_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE response (
+            identifier INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            url TEXT NOT NULL,
+            parameters TEXT NOT NULL,
+            collected_at TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            body BLOB NOT NULL
+        )
+        """
+    )
+    connection.execute("CREATE INDEX response_by_url ON response (url, collected_at)")
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     create_investigation_table,
     create_entity_table,
     create_link_table,
+    create_response_table,
 )
 
 
