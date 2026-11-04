@@ -1,4 +1,6 @@
 import argparse
+import logging
+import platform
 import sys
 from collections.abc import Sequence
 
@@ -8,6 +10,12 @@ from PySide6.QtWidgets import QApplication
 from lacis import __version__
 from lacis.design.fonts import application_font, load_bundled_fonts
 from lacis.design.theme_controller import ThemeController
+from lacis.diagnostics import (
+    LOGGER_NAME,
+    configure_logging,
+    default_log_directory,
+    forward_qt_messages_to_the_log,
+)
 from lacis.product import PRODUCT_DESCRIPTION
 from lacis.ui.main_window import MainWindow
 
@@ -65,6 +73,11 @@ def main(command_line: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv if command_line is None else command_line)
     parse_arguments(arguments[1:])
     application = create_application(arguments)
+    log_file = configure_logging(default_log_directory())
+    forward_qt_messages_to_the_log()
+    logging.getLogger(LOGGER_NAME).info(
+        "Lacis %s started on %s, log file %s", __version__, platform.platform(), log_file
+    )
     settings = create_settings()
     theme_controller = ThemeController(application, settings, parent=application)
     main_window = MainWindow(settings, theme_controller)

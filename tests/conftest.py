@@ -1,3 +1,4 @@
+import logging
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -8,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
+from lacis.diagnostics import LOG_DIRECTORY_VARIABLE, LOGGER_NAME
 
 OFFSCREEN_SCREEN_CONFIGURATION = Path(__file__).with_name("offscreen-screen.json")
 
@@ -20,6 +22,17 @@ def offscreen_platform_with_full_hd_screen() -> str:
 @pytest.fixture(scope="session")
 def qapp_args() -> list[str]:
     return ["lacis-tests", "-platform", offscreen_platform_with_full_hd_screen()]
+
+
+@pytest.fixture(autouse=True)
+def isolated_log_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    log_directory = tmp_path / "logs"
+    monkeypatch.setenv(LOG_DIRECTORY_VARIABLE, str(log_directory))
+    yield log_directory
+    lacis_logger = logging.getLogger(LOGGER_NAME)
+    for handler in list(lacis_logger.handlers):
+        lacis_logger.removeHandler(handler)
+        handler.close()
 
 
 @pytest.fixture(autouse=True)

@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QLocale, QSettings, Qt
+from PySide6.QtCore import QLocale, QSettings, Qt, qInstallMessageHandler
 from PySide6.QtGui import QFontInfo
 from PySide6.QtWidgets import QApplication
 
@@ -25,7 +25,10 @@ from lacis.ui.main_window import MainWindow
 
 @pytest.fixture(autouse=True)
 def remove_theme_controllers_created_by_main(qapp: QApplication) -> Iterator[None]:
+    qt_message_handler = qInstallMessageHandler(None)
+    qInstallMessageHandler(qt_message_handler)
     yield
+    qInstallMessageHandler(qt_message_handler)
     for theme_controller in qapp.findChildren(ThemeController):
         qapp.styleHints().colorSchemeChanged.disconnect(
             theme_controller.follow_system_colour_scheme
@@ -116,3 +119,12 @@ def test_settings_are_stored_in_an_ini_file_of_the_user(isolated_user_settings: 
     settings = create_settings()
     assert settings.format() == QSettings.Format.IniFormat
     assert Path(settings.fileName()) == isolated_user_settings / "Lacis" / "Lacis.ini"
+
+
+def test_the_command_writes_its_start_to_the_log(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch, isolated_log_directory: Path
+) -> None:
+    monkeypatch.setattr(QApplication, "exec", staticmethod(lambda: 0))
+    main(["lacis"])
+    log_text = (isolated_log_directory / "lacis.log").read_text(encoding="utf-8")
+    assert f"Lacis {__version__} started" in log_text
