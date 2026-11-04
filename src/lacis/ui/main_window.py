@@ -1,6 +1,6 @@
 from typing import override
 
-from PySide6.QtCore import QByteArray, QSettings, QSize
+from PySide6.QtCore import QByteArray, QSettings, QSize, Qt
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
@@ -28,8 +28,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(WINDOW_TITLE)
         self.setMinimumSize(MINIMUM_SIZE)
 
-        self.header_bar = HeaderBar(self.icon_factory)
+        self.header_bar = HeaderBar(self.icon_factory, theme_controller)
         self.content_area = QWidget()
+        self.content_area.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         central_widget = QWidget(self)
         central_layout = QVBoxLayout(central_widget)
         central_layout.setContentsMargins(0, 0, 0, 0)
@@ -38,6 +39,7 @@ class MainWindow(QMainWindow):
         central_layout.addWidget(self.content_area, 1)
         self.setCentralWidget(central_widget)
 
+        self.content_area.setFocus()
         self.restore_saved_geometry()
 
     def restore_saved_geometry(self) -> None:
