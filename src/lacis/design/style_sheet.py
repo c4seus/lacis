@@ -207,6 +207,28 @@ QToolTip {{
     font-size: {font_sizes.small}px;
 }}
 
+QMenuBar {{
+    border-bottom: 1px solid {colours.border};
+    background-color: {colours.surface};
+    color: {colours.text};
+    font-size: {font_sizes.small}px;
+}}
+
+QMenuBar::item {{
+    padding: {spacing.step_1}px {spacing.step_3}px;
+    border-radius: {radii.small}px;
+    background-color: transparent;
+    color: {colours.text};
+}}
+
+QMenuBar::item:selected {{
+    background-color: {colours.soft_accent};
+}}
+
+QMenuBar::item:disabled {{
+    color: {colours.faint_text};
+}}
+
 QMenu {{
     padding: {spacing.step_1}px;
     border: 1px solid {colours.border};
@@ -223,6 +245,10 @@ QMenu::item {{
 QMenu::item:selected {{
     background-color: {colours.soft_accent};
     color: {colours.text};
+}}
+
+QMenu::item:disabled {{
+    color: {colours.faint_text};
 }}
 
 QMenu::separator {{
