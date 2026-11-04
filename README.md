@@ -100,3 +100,5 @@ To report a vulnerability, follow [SECURITY.md](SECURITY.md).
 ## License
 
 Lacis is free software, released under the [GNU General Public License v3.0 or later](LICENSE).
+
+The bundled fonts and icons, and their licenses, are listed in [src/lacis/resources/LICENSES.md](src/lacis/resources/LICENSES.md).
