@@ -6,8 +6,7 @@ from PySide6.QtCore import QLocale, QSettings
 from PySide6.QtWidgets import QApplication
 
 from lacis import __version__
-from lacis.design.style_sheet import build_style_sheet
-from lacis.design.tokens import LIGHT_THEME
+from lacis.design.theme_controller import ThemeController
 from lacis.ui.main_window import MainWindow
 
 APPLICATION_NAME = "Lacis"
@@ -39,7 +38,6 @@ def configure_application(application: QApplication) -> None:
     application.setOrganizationName(ORGANIZATION_NAME)
     application.setApplicationVersion(__version__)
     QLocale.setDefault(APPLICATION_LOCALE)
-    application.setStyleSheet(build_style_sheet(LIGHT_THEME))
 
 
 def create_application(arguments: Sequence[str]) -> QApplication:
@@ -66,6 +64,7 @@ def main(command_line: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv if command_line is None else command_line)
     parse_arguments(arguments[1:])
     application = create_application(arguments)
+    ThemeController(application, parent=application)
     main_window = MainWindow(create_settings())
     main_window.show()
     return application.exec()
