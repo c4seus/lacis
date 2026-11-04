@@ -2,19 +2,33 @@ from collections.abc import Sequence
 from typing import override
 
 from PySide6.QtCore import QRect, QSize, Qt
-from PySide6.QtGui import QIcon, QPainter, QPaintEvent
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
+from PySide6.QtGui import QIcon, QPainter, QPaintEvent, QResizeEvent
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSizePolicy,
+    QWidget,
+)
 
 from lacis import __version__
 from lacis.design.icons import IconFactory
 
 HEADER_BAR_HEIGHT = 52
 LOGO_SIZE = QSize(22, 22)
+SEARCH_ICON_SIZE = QSize(16, 16)
+SEARCH_ICON_LEFT_MARGIN = 12
+SEARCH_TEXT_LEFT_MARGIN = 22
 BREADCRUMB_SEPARATOR = "/"
 BREADCRUMB_ACCESSIBLE_NAME = "Fil d'Ariane"
 HOME_TRAIL = ("Enquêtes",)
 BRAND_NAME = "Lacis"
 LOCAL_VERSION_SEPARATOR = "+"
+SEARCH_PLACEHOLDER = "Dénomination, SIREN, SIRET, dirigeant ou adresse"
+SEARCH_ACCESSIBLE_NAME = "Rechercher une entreprise"
+SEARCH_BUTTON_TEXT = "Rechercher"
+SEARCH_MAXIMUM_WIDTH = 760
 
 
 def displayed_version(version: str) -> str:
@@ -88,6 +102,20 @@ class HeaderBar(QWidget):
         self.brand_label = QLabel(BRAND_NAME, self)
         self.brand_label.setProperty("tone", "brand")
         self.breadcrumb = Breadcrumb(self)
+        self.search_field = QLineEdit(self)
+        self.search_field.setProperty("variant", "search")
+        self.search_field.setPlaceholderText(SEARCH_PLACEHOLDER)
+        self.search_field.setAccessibleName(SEARCH_ACCESSIBLE_NAME)
+        self.search_field.setTextMargins(SEARCH_TEXT_LEFT_MARGIN, 0, 0, 0)
+        self.search_icon = IconMark(
+            icon_factory.icon("search"),
+            SEARCH_ICON_SIZE,
+            QIcon.Mode.Disabled,
+            self.search_field,
+        )
+        self.search_button = QPushButton(SEARCH_BUTTON_TEXT, self)
+        self.search_button.setProperty("variant", "primary")
+        self.set_search_enabled(False)
         self.version_label = QLabel(displayed_version(__version__), self)
         self.version_label.setProperty("tone", "caption")
 
@@ -101,4 +129,29 @@ class HeaderBar(QWidget):
         layout.addLayout(brand_layout)
         layout.addWidget(self.breadcrumb)
         layout.addStretch(1)
+        search_area = QWidget(self)
+        search_area.setMaximumWidth(SEARCH_MAXIMUM_WIDTH)
+        search_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        search_layout = QHBoxLayout(search_area)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(8)
+        search_layout.addWidget(self.search_field, 1)
+        search_layout.addWidget(self.search_button)
+        layout.addWidget(search_area, 4)
+        layout.addStretch(1)
         layout.addWidget(self.version_label)
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.place_search_icon()
+
+    def place_search_icon(self) -> None:
+        self.search_icon.move(
+            SEARCH_ICON_LEFT_MARGIN,
+            (self.search_field.height() - self.search_icon.height()) // 2,
+        )
+
+    def set_search_enabled(self, enabled: bool) -> None:
+        self.search_field.setEnabled(enabled)
+        self.search_button.setEnabled(enabled)
