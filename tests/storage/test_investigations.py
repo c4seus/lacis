@@ -1,4 +1,5 @@
 import sqlite3
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -8,6 +9,8 @@ from lacis.storage.errors import (
     InvalidInvestigationNameError,
     InvalidInvestigationQuestionError,
     InvestigationAlreadyExistsError,
+    InvestigationNotFoundError,
+    InvestigationNotTrashedError,
 )
 from lacis.storage.investigations import (
     DATABASE_FILE_NAME,
@@ -72,3 +75,111 @@ def test_two_investigations_cannot_share_a_name(library: InvestigationLibrary) -
     library.create("faux-plombiers-31", QUESTION)
     with pytest.raises(InvestigationAlreadyExistsError, match="« faux-plombiers-31 » existe déjà"):
         library.create("faux-plombiers-31", "Une autre question")
+
+
+def test_an_empty_library_lists_nothing(library: InvestigationLibrary) -> None:
+    assert library.names() == []
+
+
+def test_investigations_are_listed_by_name(library: InvestigationLibrary) -> None:
+    library.create("zeta", "")
+    library.create("alpha", "")
+    (library.root / "not-an-investigation").mkdir()
+    assert library.names() == ["alpha", "zeta"]
+
+
+def test_opening_an_investigation_gives_its_details_and_database(
+    library: InvestigationLibrary,
+) -> None:
+    created = library.create("faux-plombiers-31", QUESTION)
+    with library.open("faux-plombiers-31") as opened:
+        assert opened.investigation == created
+        assert opened.connection.execute("SELECT COUNT(*) FROM investigation").fetchone() == (1,)
+
+
+def test_closing_an_investigation_closes_its_database(library: InvestigationLibrary) -> None:
+    library.create("faux-plombiers-31", QUESTION)
+    opened = library.open("faux-plombiers-31")
+    opened.close()
+    with pytest.raises(sqlite3.ProgrammingError):
+        opened.connection.execute("SELECT 1")
+
+
+def test_opening_an_unreadable_investigation_closes_its_database(
+    library: InvestigationLibrary,
+) -> None:
+    investigation = library.create("abimee", "")
+    connection = sqlite3.connect(investigation.database_path)
+    connection.execute("DROP TABLE investigation")
+    connection.commit()
+    connection.close()
+    with pytest.raises(sqlite3.OperationalError):
+        library.open("abimee")
+
+
+def test_opening_a_missing_investigation_is_refused(library: InvestigationLibrary) -> None:
+    with pytest.raises(InvestigationNotFoundError, match="« absente » est introuvable"):
+        library.open("absente")
+
+
+def test_renaming_moves_the_investigation_to_its_new_name(library: InvestigationLibrary) -> None:
+    library.create("faux-plombiers", QUESTION)
+    library.rename("faux-plombiers", "faux-plombiers-31")
+    assert library.names() == ["faux-plombiers-31"]
+    with library.open("faux-plombiers-31") as opened:
+        assert opened.investigation.question == QUESTION
+
+
+def test_renaming_validates_the_new_name_and_keeps_it_unique(
+    library: InvestigationLibrary,
+) -> None:
+    library.create("alpha", "")
+    library.create("beta", "")
+    with pytest.raises(InvalidInvestigationNameError):
+        library.rename("alpha", "Alpha")
+    with pytest.raises(InvestigationAlreadyExistsError):
+        library.rename("alpha", "beta")
+    with pytest.raises(InvestigationNotFoundError):
+        library.rename("gamma", "delta")
+    assert library.names() == ["alpha", "beta"]
+
+
+def test_deleting_moves_the_investigation_to_the_trash(tmp_path: Path) -> None:
+    trashed: list[Path] = []
+
+    def move_to_trash(path: Path) -> bool:
+        trashed.append(path)
+        return True
+
+    library = InvestigationLibrary(tmp_path / "investigations", move_to_trash)
+    investigation = library.create("faux-plombiers-31", QUESTION)
+    library.delete("faux-plombiers-31")
+    assert trashed == [investigation.directory]
+
+
+def test_a_failure_of_the_trash_is_reported(tmp_path: Path) -> None:
+    library = InvestigationLibrary(tmp_path / "investigations", lambda path: False)
+    library.create("faux-plombiers-31", QUESTION)
+    with pytest.raises(InvestigationNotTrashedError, match="dans la corbeille"):
+        library.delete("faux-plombiers-31")
+    assert library.names() == ["faux-plombiers-31"]
+
+
+def test_deleting_a_missing_investigation_is_refused(library: InvestigationLibrary) -> None:
+    with pytest.raises(InvestigationNotFoundError):
+        library.delete("absente")
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="checks the freedesktop trash of Linux")
+def test_the_default_trash_is_the_trash_of_the_system(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_data_directory = tmp_path / "xdg"
+    user_data_directory.mkdir()
+    monkeypatch.setenv("XDG_DATA_HOME", str(user_data_directory))
+    library = InvestigationLibrary(tmp_path / "investigations")
+    library.create("faux-plombiers-31", QUESTION)
+    library.delete("faux-plombiers-31")
+    assert library.names() == []
+    trash_files = user_data_directory / "Trash" / "files"
+    assert (trash_files / "faux-plombiers-31" / DATABASE_FILE_NAME).is_file()
