@@ -1,5 +1,6 @@
 import runpy
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -16,8 +17,20 @@ from lacis.application import (
     main,
 )
 from lacis.design.style_sheet import build_style_sheet
+from lacis.design.theme_controller import ThemeController
 from lacis.design.tokens import LIGHT_THEME
 from lacis.ui.main_window import MainWindow
+
+
+@pytest.fixture(autouse=True)
+def remove_theme_controllers_created_by_main(qapp: QApplication) -> Iterator[None]:
+    yield
+    for theme_controller in qapp.findChildren(ThemeController):
+        qapp.styleHints().colorSchemeChanged.disconnect(
+            theme_controller.follow_system_colour_scheme
+        )
+        theme_controller.setParent(None)
+    qapp.setStyleSheet("")
 
 
 def test_the_application_has_its_name_organisation_and_version(qapp: QApplication) -> None:
@@ -32,11 +45,6 @@ def test_the_application_speaks_french(qapp: QApplication) -> None:
     configure_application(qapp)
     assert QLocale().language() == QLocale.Language.French
     assert QLocale().territory() == QLocale.Country.France
-
-
-def test_the_application_uses_the_style_sheet_of_the_light_theme(qapp: QApplication) -> None:
-    configure_application(qapp)
-    assert qapp.styleSheet() == build_style_sheet(LIGHT_THEME)
 
 
 def test_creating_the_application_reuses_the_running_one(qapp: QApplication) -> None:
@@ -86,6 +94,15 @@ def test_the_command_without_option_shows_the_main_window_and_runs_the_event_loo
     assert main(["lacis"]) == 0
     assert len(visible_main_windows) == 1
     assert visible_main_windows[0].windowTitle() == "Lacis"
+
+
+def test_the_command_applies_the_theme_of_the_system(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(QApplication, "exec", staticmethod(lambda: 0))
+    main(["lacis"])
+    assert len(qapp.findChildren(ThemeController)) == 1
+    assert qapp.styleSheet() == build_style_sheet(LIGHT_THEME)
 
 
 def test_settings_are_stored_in_an_ini_file_of_the_user(isolated_user_settings: Path) -> None:
