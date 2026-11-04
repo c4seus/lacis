@@ -13,7 +13,7 @@ updates:
     target-branch: develop
     schedule:
       interval: weekly
-    labels: [dependencies]
+    labels: [dependencies, build]
     commit-message:
       prefix: build
     groups:
