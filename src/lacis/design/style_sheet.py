@@ -138,7 +138,7 @@ QToolButton[variant="icon"]:focus {{
     padding: 0;
 }}
 
-QLineEdit {{
+QLineEdit, QComboBox, QAbstractSpinBox {{
     min-height: {CONTROL_HEIGHT}px;
     padding: 0 {spacing.step_3}px;
     border: 1px solid {colours.strong_border};
@@ -149,16 +149,50 @@ QLineEdit {{
     selection-color: {colours.text};
 }}
 
-QLineEdit:focus {{
+QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus {{
     border: 2px solid {colours.accent};
     padding: 0 {spacing.step_3 - 1}px;
+}}
+
+QTextEdit, QPlainTextEdit, QAbstractItemView {{
+    border: 1px solid {colours.strong_border};
+    border-radius: {radii.small}px;
+    background-color: {colours.surface};
+    color: {colours.text};
+    selection-background-color: {colours.soft_accent};
+    selection-color: {colours.text};
+}}
+
+QTextEdit:focus, QPlainTextEdit:focus, QAbstractItemView:focus {{
+    border: 2px solid {colours.accent};
+}}
+
+QCheckBox, QRadioButton {{
+    padding: 2px {spacing.step_1}px;
+    border: 2px solid transparent;
+    border-radius: {radii.small}px;
+    spacing: {spacing.step_2}px;
+}}
+
+QCheckBox:focus, QRadioButton:focus {{
+    border-color: {colours.accent};
+}}
+
+QTabBar:focus {{
+    border: 2px solid {colours.accent};
+    border-radius: {radii.small}px;
+}}
+
+QSlider:focus {{
+    border: 2px solid {colours.accent};
+    border-radius: {radii.small}px;
 }}
 
 QLineEdit[variant="search"] {{
     background-color: {colours.raised_surface};
 }}
 
-QLineEdit:disabled {{
+QLineEdit:disabled, QComboBox:disabled, QAbstractSpinBox:disabled {{
     border-color: {colours.border};
     background-color: {colours.raised_surface};
     color: {colours.faint_text};
