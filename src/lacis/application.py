@@ -17,6 +17,7 @@ from lacis.diagnostics import (
     forward_qt_messages_to_the_log,
 )
 from lacis.product import PRODUCT_DESCRIPTION
+from lacis.ui.error_dialog import install_unexpected_error_handler
 from lacis.ui.main_window import MainWindow
 
 APPLICATION_NAME = "Lacis"
@@ -81,5 +82,6 @@ def main(command_line: Sequence[str] | None = None) -> int:
     settings = create_settings()
     theme_controller = ThemeController(application, settings, parent=application)
     main_window = MainWindow(settings, theme_controller)
+    install_unexpected_error_handler(log_file, main_window)
     main_window.show()
     return application.exec()
