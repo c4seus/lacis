@@ -2,7 +2,7 @@ import argparse
 import sys
 from collections.abc import Sequence
 
-from PySide6.QtCore import QLocale
+from PySide6.QtCore import QLocale, QSettings
 from PySide6.QtWidgets import QApplication
 
 from lacis import __version__
@@ -50,10 +50,19 @@ def create_application(arguments: Sequence[str]) -> QApplication:
     return application
 
 
+def create_settings() -> QSettings:
+    return QSettings(
+        QSettings.Format.IniFormat,
+        QSettings.Scope.UserScope,
+        ORGANIZATION_NAME,
+        APPLICATION_NAME,
+    )
+
+
 def main(command_line: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv if command_line is None else command_line)
     parse_arguments(arguments[1:])
     application = create_application(arguments)
-    main_window = MainWindow()
+    main_window = MainWindow(create_settings())
     main_window.show()
     return application.exec()
