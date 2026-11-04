@@ -124,11 +124,19 @@ class CollectorHttpClient:
     def close(self) -> None:
         self.client.close()
 
-    def get(self, source: ResponseSource, url: str, parameters: dict[str, str]) -> StoredResponse:
+    def get(
+        self,
+        source: ResponseSource,
+        url: str,
+        parameters: dict[str, str],
+        *,
+        refresh: bool = False,
+    ) -> StoredResponse:
         request = CollectorRequest(source, url, parameters)
-        cached_response = self.cached_response(request)
-        if cached_response is not None:
-            return cached_response
+        if not refresh:
+            cached_response = self.cached_response(request)
+            if cached_response is not None:
+                return cached_response
         return self.fetch(request)
 
     def cached_response(self, request: CollectorRequest) -> StoredResponse | None:
