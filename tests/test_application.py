@@ -15,6 +15,8 @@ from lacis.application import (
     create_settings,
     main,
 )
+from lacis.design.style_sheet import build_style_sheet
+from lacis.design.tokens import LIGHT_THEME
 from lacis.ui.main_window import MainWindow
 
 
@@ -30,6 +32,11 @@ def test_the_application_speaks_french(qapp: QApplication) -> None:
     configure_application(qapp)
     assert QLocale().language() == QLocale.Language.French
     assert QLocale().territory() == QLocale.Country.France
+
+
+def test_the_application_uses_the_style_sheet_of_the_light_theme(qapp: QApplication) -> None:
+    configure_application(qapp)
+    assert qapp.styleSheet() == build_style_sheet(LIGHT_THEME)
 
 
 def test_creating_the_application_reuses_the_running_one(qapp: QApplication) -> None:
