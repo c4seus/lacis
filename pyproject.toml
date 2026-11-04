@@ -71,7 +71,7 @@ files = ["src", "scripts", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["scripts"]
+pythonpath = ["scripts", "tests"]
 addopts = ["--strict-markers"]
 qt_api = "pyside6"
 
