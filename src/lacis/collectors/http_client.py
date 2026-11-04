@@ -4,6 +4,7 @@ from datetime import timedelta
 import httpx
 
 from lacis import __version__
+from lacis.collectors.rate_limiting import SHARED_RATE_LIMITERS, RateLimiters
 from lacis.product import REPOSITORY_URL
 from lacis.storage.responses import ResponseSource
 
@@ -44,7 +45,12 @@ class FetchedResponse:
 
 
 class CollectorHttpClient:
-    def __init__(self, transport: httpx.BaseTransport | None = None) -> None:
+    def __init__(
+        self,
+        transport: httpx.BaseTransport | None = None,
+        rate_limiters: RateLimiters = SHARED_RATE_LIMITERS,
+    ) -> None:
+        self.rate_limiters = rate_limiters
         self.client = httpx.Client(
             transport=transport,
             timeout=REQUEST_TIMEOUT.total_seconds(),
@@ -56,6 +62,7 @@ class CollectorHttpClient:
         self.client.close()
 
     def get(self, source: ResponseSource, url: str, parameters: dict[str, str]) -> FetchedResponse:
+        self.rate_limiters.wait_for(source)
         try:
             response = self.client.get(url, params=parameters)
         except httpx.TransportError as transport_error:
