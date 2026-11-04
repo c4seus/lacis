@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest release receives security fixes. Lacis has not been released yet: until v0.1.0 is out, fixes land on `develop`.
+Only the latest release receives security fixes, as a new patch version, following the [versioning policy](docs/versioning.md#supported-versions). Lacis has not been released yet: until v0.1.0 is out, fixes land on `develop`.
 
 ## Reporting a vulnerability
 

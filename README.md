@@ -58,7 +58,7 @@ The first release brings the capabilities of the former web prototype to the des
 - **Keyboard and screen reader foundations**: accessible names, logical focus order and visible focus everywhere.
 - **Packages** for Debian, Fedora, Arch Linux and Windows.
 
-The issues of each version are grouped in the [milestones](https://github.com/c4seus/lacis/milestones).
+The issues of each version are grouped in the [milestones](https://github.com/c4seus/lacis/milestones), and version numbers follow the [versioning policy](docs/versioning.md).
 
 ## Data sources
 
