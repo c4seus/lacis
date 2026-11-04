@@ -28,6 +28,7 @@ from lacis.storage.responses import (
 USER_AGENT = f"Lacis/{__version__} (+{REPOSITORY_URL})"
 COLLECTORS_LOGGER_NAME = f"{LOGGER_NAME}.collectors"
 REQUEST_TIMEOUT = timedelta(seconds=10)
+CACHE_LIFETIME = timedelta(hours=24)
 SUCCESSFUL_HTTP_STATUSES = range(200, 300)
 SOURCE_NAMES = {
     ResponseSource.COMPANY_REGISTER: "Recherche d'entreprises",
@@ -125,13 +126,48 @@ class CollectorHttpClient:
 
     def get(self, source: ResponseSource, url: str, parameters: dict[str, str]) -> StoredResponse:
         request = CollectorRequest(source, url, parameters)
+        cached_response = self.cached_response(request)
+        if cached_response is not None:
+            return cached_response
+        return self.fetch(request)
+
+    def cached_response(self, request: CollectorRequest) -> StoredResponse | None:
+        lookup_start = AttemptStart(self.timing.now(), self.timing.monotonic())
+        stored_response = self.response_store.latest_collected_since(
+            request.source,
+            request.url,
+            request.parameters,
+            lookup_start.requested_at - CACHE_LIFETIME,
+        )
+        if stored_response is None:
+            return None
+        self.collection_log.record(
+            LoggedRequest(
+                requested_at=lookup_start.requested_at,
+                source=request.source,
+                endpoint=request.url,
+                http_status=None,
+                duration=self.elapsed_since(lookup_start),
+                served_from_cache=True,
+                response_identifier=stored_response.summary.identifier,
+            )
+        )
+        logging.getLogger(COLLECTORS_LOGGER_NAME).info(
+            "GET %s served from the cache, fingerprint %s",
+            request.url,
+            stored_response.summary.fingerprint,
+        )
+        return stored_response
+
+    def fetch(self, request: CollectorRequest) -> StoredResponse:
+        source = request.source
         attempt = 1
         while True:
             is_last_attempt = attempt == self.timing.retry_policy.maximum_attempts
             self.timing.rate_limiters.wait_for(source)
             attempt_start = AttemptStart(self.timing.now(), self.timing.monotonic())
             try:
-                response = self.client.get(url, params=parameters)
+                response = self.client.get(request.url, params=request.parameters)
             except httpx.TransportError as transport_error:
                 message = unreachable_service_message(source)
                 self.record_attempt(request, attempt_start, None, message)
@@ -183,14 +219,13 @@ class CollectorHttpClient:
         error: str,
         response_identifier: int | None = None,
     ) -> None:
-        elapsed_seconds = self.timing.monotonic() - attempt_start.monotonic_time
         self.collection_log.record(
             LoggedRequest(
                 requested_at=attempt_start.requested_at,
                 source=request.source,
                 endpoint=request.url,
                 http_status=http_status,
-                duration=timedelta(seconds=elapsed_seconds),
+                duration=self.elapsed_since(attempt_start),
                 error=error,
                 response_identifier=response_identifier,
             )
@@ -199,6 +234,9 @@ class CollectorHttpClient:
             logging.getLogger(COLLECTORS_LOGGER_NAME).warning(
                 "GET %s failed with status %s", request.url, http_status
             )
+
+    def elapsed_since(self, attempt_start: AttemptStart) -> timedelta:
+        return timedelta(seconds=self.timing.monotonic() - attempt_start.monotonic_time)
 
     def wait_before_retry(self, failed_attempts: int, retry_after: str | None) -> None:
         delay = self.timing.retry_policy.delay_before_retry(

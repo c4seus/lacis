@@ -61,6 +61,10 @@ def summary_from_row(row: tuple[int, str, str, str, str, str]) -> ResponseSummar
     )
 
 
+def collection_order(summary: ResponseSummary) -> tuple[datetime, int]:
+    return summary.collected_at, summary.identifier
+
+
 class ResponseStore:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self.connection = connection
@@ -109,3 +113,21 @@ class ResponseStore:
             f"SELECT {RESPONSE_SUMMARY_COLUMNS} FROM response ORDER BY collected_at, identifier"
         ).fetchall()
         return [summary_from_row(row) for row in rows]
+
+    def latest_collected_since(
+        self, source: ResponseSource, url: str, parameters: dict[str, str], since: datetime
+    ) -> StoredResponse | None:
+        rows = self.connection.execute(
+            f"""
+            SELECT {RESPONSE_SUMMARY_COLUMNS} FROM response
+            WHERE source = ? AND url = ? AND parameters = ?
+            """,
+            (source.value, url, encode_parameters(parameters)),
+        ).fetchall()
+        recent_summaries = [
+            summary for summary in map(summary_from_row, rows) if summary.collected_at > since
+        ]
+        if not recent_summaries:
+            return None
+        latest = max(recent_summaries, key=collection_order)
+        return self.read(latest.identifier)
