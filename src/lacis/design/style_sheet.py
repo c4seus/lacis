@@ -106,10 +106,36 @@ QPushButton[variant="subtle"]:hover, QToolButton[variant="subtle"]:hover {{
     color: {colours.text};
 }}
 
+QToolButton[variant="icon"] {{
+    min-height: 0;
+    padding: 0;
+    border-color: transparent;
+    background-color: transparent;
+}}
+
+QToolButton[variant="icon"]:hover {{
+    border-color: {colours.border};
+    background-color: {colours.raised_surface};
+}}
+
+QToolButton[variant="icon"]::menu-indicator {{
+    image: none;
+    width: 0;
+}}
+
 QPushButton:checked, QToolButton:checked {{
     border-color: {colours.accent};
     background-color: {colours.soft_accent};
     color: {colours.accent};
+}}
+
+QPushButton:focus, QToolButton:focus {{
+    border: 2px solid {colours.accent};
+    padding: 0 {spacing.step_3 - 1}px;
+}}
+
+QToolButton[variant="icon"]:focus {{
+    padding: 0;
 }}
 
 QLineEdit {{
@@ -121,6 +147,11 @@ QLineEdit {{
     color: {colours.text};
     selection-background-color: {colours.soft_accent};
     selection-color: {colours.text};
+}}
+
+QLineEdit:focus {{
+    border: 2px solid {colours.accent};
+    padding: 0 {spacing.step_3 - 1}px;
 }}
 
 QLineEdit[variant="search"] {{

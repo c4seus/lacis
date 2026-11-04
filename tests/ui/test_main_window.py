@@ -1,4 +1,5 @@
 from PySide6.QtCore import QPoint, QSettings, QSize, Qt
+from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
 from lacis.design.theme_controller import ThemeController
@@ -83,3 +84,12 @@ def test_the_main_window_shows_the_header_bar_at_the_top(
     assert main_window.header_bar.isVisible()
     assert main_window.header_bar.geometry().top() == 0
     assert main_window.header_bar.width() == main_window.width()
+
+
+def test_no_header_button_has_the_focus_when_the_window_opens(
+    qtbot: QtBot, settings: QSettings, theme_controller: ThemeController
+) -> None:
+    main_window = open_main_window(qtbot, settings, theme_controller)
+    main_window.activateWindow()
+    qtbot.waitUntil(main_window.isActiveWindow)
+    assert QApplication.focusWidget() is main_window.content_area
