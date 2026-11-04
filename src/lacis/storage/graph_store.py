@@ -51,18 +51,47 @@ class GraphStore:
 
     def save_entity(self, collected_entity: CollectedEntity, collected_at: datetime) -> Entity:
         with self.connection:
-            self.connection.execute(
-                f"INSERT INTO entity ({ENTITY_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    collected_entity.identifier,
-                    collected_entity.kind.value,
-                    collected_entity.label,
-                    encode_attributes(collected_entity.attributes),
-                    collected_at.isoformat(),
-                    collected_at.isoformat(),
-                ),
-            )
+            existing = self.entity(collected_entity.identifier)
+            if existing is None:
+                self.connection.execute(
+                    f"INSERT INTO entity ({ENTITY_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        collected_entity.identifier,
+                        collected_entity.kind.value,
+                        collected_entity.label,
+                        encode_attributes(collected_entity.attributes),
+                        collected_at.isoformat(),
+                        collected_at.isoformat(),
+                    ),
+                )
+            else:
+                self.update_entity(existing, collected_entity, collected_at)
         return self.require_entity(collected_entity.identifier)
+
+    def update_entity(
+        self, existing: Entity, collected_entity: CollectedEntity, collected_at: datetime
+    ) -> None:
+        is_newer = collected_at >= existing.last_collected_at
+        label = collected_entity.label if is_newer else existing.label
+        attributes = (
+            {**existing.attributes, **collected_entity.attributes}
+            if is_newer
+            else {**collected_entity.attributes, **existing.attributes}
+        )
+        self.connection.execute(
+            """
+            UPDATE entity
+            SET label = ?, attributes = ?, first_collected_at = ?, last_collected_at = ?
+            WHERE identifier = ?
+            """,
+            (
+                label,
+                encode_attributes(attributes),
+                min(existing.first_collected_at, collected_at).isoformat(),
+                max(existing.last_collected_at, collected_at).isoformat(),
+                existing.identifier,
+            ),
+        )
 
     def entity(self, identifier: str) -> Entity | None:
         row = self.connection.execute(
@@ -90,18 +119,32 @@ class GraphStore:
 
     def save_link(self, collected_link: CollectedLink, collected_at: datetime) -> Link:
         with self.connection:
-            self.connection.execute(
-                f"INSERT INTO link ({LINK_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (
-                    collected_link.identifier,
-                    collected_link.kind.value,
-                    collected_link.source,
-                    collected_link.target,
-                    collected_link.role,
-                    collected_at.isoformat(),
-                    collected_at.isoformat(),
-                ),
-            )
+            existing = self.link(collected_link.identifier)
+            if existing is None:
+                self.connection.execute(
+                    f"INSERT INTO link ({LINK_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        collected_link.identifier,
+                        collected_link.kind.value,
+                        collected_link.source,
+                        collected_link.target,
+                        collected_link.role,
+                        collected_at.isoformat(),
+                        collected_at.isoformat(),
+                    ),
+                )
+            else:
+                self.connection.execute(
+                    """
+                    UPDATE link SET first_collected_at = ?, last_collected_at = ?
+                    WHERE identifier = ?
+                    """,
+                    (
+                        min(existing.first_collected_at, collected_at).isoformat(),
+                        max(existing.last_collected_at, collected_at).isoformat(),
+                        existing.identifier,
+                    ),
+                )
         return self.require_link(collected_link.identifier)
 
     def link(self, identifier: str) -> Link | None:

@@ -179,3 +179,101 @@ def test_a_missing_link_is_none(graph_store: GraphStore) -> None:
     assert graph_store.link("link:0000000000000000") is None
     with pytest.raises(KeyError):
         graph_store.require_link("link:0000000000000000")
+
+
+SECOND_COLLECTION = datetime(2026, 11, 4, 9, 30, tzinfo=UTC)
+EARLIER_COLLECTION = datetime(2026, 10, 1, 8, 0, tzinfo=UTC)
+
+
+def collect_dupont_services(store: GraphStore, collected_at: datetime) -> None:
+    store.save_entity(DUPONT_SERVICES, collected_at)
+    store.save_entity(TOULOUSE_ESTABLISHMENT, collected_at)
+    store.save_entity(LILAS_ADDRESS, collected_at)
+    store.save_entity(JEAN_DUPONT, collected_at)
+    for collected_link in [
+        mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président"),
+        registered_office_link(DUPONT_SERVICES.identifier, LILAS_ADDRESS.identifier),
+        located_at_link(TOULOUSE_ESTABLISHMENT.identifier, LILAS_ADDRESS.identifier),
+        establishment_of_link(TOULOUSE_ESTABLISHMENT.identifier, DUPONT_SERVICES.identifier),
+    ]:
+        store.save_link(collected_link, collected_at)
+
+
+def test_collecting_the_same_company_twice_leaves_one_entity_and_the_same_links(
+    graph_store: GraphStore,
+) -> None:
+    collect_dupont_services(graph_store, FIRST_COLLECTION)
+    entities_after_first = [entity.identifier for entity in graph_store.entities()]
+    links_after_first = [link.identifier for link in graph_store.links()]
+    collect_dupont_services(graph_store, SECOND_COLLECTION)
+    assert [entity.identifier for entity in graph_store.entities()] == entities_after_first
+    assert [link.identifier for link in graph_store.links()] == links_after_first
+    assert len(graph_store.entities(EntityKind.COMPANY)) == 1
+
+
+def test_updating_an_entity_keeps_its_first_collection_date_and_updates_its_last_one(
+    graph_store: GraphStore,
+) -> None:
+    graph_store.save_entity(DUPONT_SERVICES, FIRST_COLLECTION)
+    updated = graph_store.save_entity(DUPONT_SERVICES, SECOND_COLLECTION)
+    assert updated.first_collected_at == FIRST_COLLECTION
+    assert updated.last_collected_at == SECOND_COLLECTION
+
+
+def test_a_newer_collection_updates_the_label_and_the_attributes_it_brings(
+    graph_store: GraphStore,
+) -> None:
+    graph_store.save_entity(DUPONT_SERVICES, FIRST_COLLECTION)
+    renamed = CollectedEntity(
+        DUPONT_SERVICES.identifier, "DUPONT SERVICES SAS", {"active": True, "employees": 3}
+    )
+    updated = graph_store.save_entity(renamed, SECOND_COLLECTION)
+    assert updated.label == "DUPONT SERVICES SAS"
+    assert updated.attributes == {
+        "siren": "222222222",
+        "naf": "43.22A",
+        "active": True,
+        "created_on": "2021-03-01",
+        "employees": 3,
+    }
+
+
+def test_an_older_collection_never_overwrites_newer_facts(graph_store: GraphStore) -> None:
+    graph_store.save_entity(DUPONT_SERVICES, SECOND_COLLECTION)
+    older = CollectedEntity(
+        DUPONT_SERVICES.identifier, "ANCIEN NOM", {"active": True, "former_name": "ANCIEN NOM"}
+    )
+    updated = graph_store.save_entity(older, EARLIER_COLLECTION)
+    assert updated.label == "DUPONT SERVICES"
+    assert updated.attributes["active"] is False
+    assert updated.attributes["former_name"] == "ANCIEN NOM"
+    assert updated.first_collected_at == EARLIER_COLLECTION
+    assert updated.last_collected_at == SECOND_COLLECTION
+
+
+def test_collecting_a_link_again_keeps_its_first_collection_date(
+    scenario_store: GraphStore,
+) -> None:
+    president = mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président")
+    scenario_store.save_link(president, FIRST_COLLECTION)
+    updated = scenario_store.save_link(president, SECOND_COLLECTION)
+    assert updated.first_collected_at == FIRST_COLLECTION
+    assert updated.last_collected_at == SECOND_COLLECTION
+    earlier = scenario_store.save_link(president, EARLIER_COLLECTION)
+    assert earlier.first_collected_at == EARLIER_COLLECTION
+    assert earlier.last_collected_at == SECOND_COLLECTION
+    assert len(scenario_store.links()) == 1
+
+
+def test_a_new_role_between_the_same_entities_is_a_new_mandate(
+    scenario_store: GraphStore,
+) -> None:
+    scenario_store.save_link(
+        mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président"),
+        FIRST_COLLECTION,
+    )
+    scenario_store.save_link(
+        mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Associé"),
+        FIRST_COLLECTION,
+    )
+    assert sorted(link.role for link in scenario_store.links()) == ["Associé", "Président"]
