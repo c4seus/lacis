@@ -257,3 +257,113 @@ def test_a_notice_cannot_concern_a_company_outside_the_investigation(
     with pytest.raises(sqlite3.IntegrityError):
         notice_store.save_notice(notice, bodacc_response(connection, FIRST_COLLECTION))
     assert notice_store.notice("B5") is None
+
+
+SUBJECT = {DUPONT_SERVICES: NoticeRole.SUBJECT}
+REFRESH = datetime(2026, 11, 5, 10, 0, tzinfo=UTC)
+LATER_REFRESH = datetime(2026, 11, 6, 10, 0, tzinfo=UTC)
+
+
+@pytest.fixture
+def two_notices(
+    connection: sqlite3.Connection, notice_store: NoticeStore, companies: None
+) -> None:
+    response = bodacc_response(connection, FIRST_COLLECTION)
+    notice_store.save_notice(
+        notice_of("kept", NoticeFamily.REMOVAL, date(2023, 1, 20), SUBJECT), response
+    )
+    notice_store.save_notice(
+        notice_of("gone", NoticeFamily.INSOLVENCY, date(2022, 12, 5), SUBJECT), response
+    )
+
+
+@pytest.mark.usefixtures("two_notices")
+def test_a_notice_no_longer_returned_is_marked_as_withdrawn(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    refresh = bodacc_response(connection, REFRESH)
+    withdrawn = notice_store.record_refresh(DUPONT_SERVICES, refresh, ["kept"])
+    assert [notice.identifier for notice in withdrawn] == ["gone"]
+    assert notice_store.require_notice("gone").is_withdrawn
+    assert notice_store.require_notice("gone").withdrawn_at == REFRESH
+    assert not notice_store.require_notice("kept").is_withdrawn
+
+
+@pytest.mark.usefixtures("two_notices")
+def test_a_withdrawn_notice_stays_in_the_investigation(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    notice_store.record_refresh(DUPONT_SERVICES, bodacc_response(connection, REFRESH), ["kept"])
+    notices = notice_store.notices_of_company(DUPONT_SERVICES)
+    gone = notices[NoticeFamily.INSOLVENCY][0].notice
+    assert gone.identifier == "gone"
+    assert gone.is_withdrawn
+
+
+@pytest.mark.usefixtures("two_notices")
+def test_a_notice_is_withdrawn_once_and_keeps_its_withdrawal_date(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    notice_store.record_refresh(DUPONT_SERVICES, bodacc_response(connection, REFRESH), ["kept"])
+    later = notice_store.record_refresh(
+        DUPONT_SERVICES, bodacc_response(connection, LATER_REFRESH), ["kept"]
+    )
+    assert later == []
+    assert notice_store.require_notice("gone").withdrawn_at == REFRESH
+
+
+@pytest.mark.usefixtures("two_notices")
+def test_a_withdrawn_notice_published_again_is_no_longer_withdrawn(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    notice_store.record_refresh(DUPONT_SERVICES, bodacc_response(connection, REFRESH), ["kept"])
+    notice_store.save_notice(
+        notice_of("gone", NoticeFamily.INSOLVENCY, date(2022, 12, 5), SUBJECT),
+        bodacc_response(connection, LATER_REFRESH),
+    )
+    assert not notice_store.require_notice("gone").is_withdrawn
+
+
+@pytest.mark.usefixtures("two_notices")
+def test_an_older_collection_does_not_bring_a_withdrawn_notice_back(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    notice_store.record_refresh(DUPONT_SERVICES, bodacc_response(connection, REFRESH), ["kept"])
+    notice_store.save_notice(
+        notice_of("gone", NoticeFamily.INSOLVENCY, date(2022, 12, 5), SUBJECT),
+        bodacc_response(connection, EARLIER_COLLECTION),
+    )
+    assert notice_store.require_notice("gone").is_withdrawn
+
+
+@pytest.mark.usefixtures("companies")
+def test_a_refresh_only_withdraws_notices_about_the_company_itself(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    notice_store.save_notice(
+        notice_of(
+            "sale",
+            NoticeFamily.SALE,
+            date(2022, 5, 1),
+            {DUPONT_SERVICES: NoticeRole.MENTIONED, ACME_PLOMBERIE: NoticeRole.SUBJECT},
+        ),
+        bodacc_response(connection, FIRST_COLLECTION),
+    )
+    withdrawn = notice_store.record_refresh(
+        DUPONT_SERVICES, bodacc_response(connection, REFRESH), []
+    )
+    assert withdrawn == []
+    assert not notice_store.require_notice("sale").is_withdrawn
+
+
+@pytest.mark.usefixtures("two_notices")
+def test_notices_collected_by_the_refresh_itself_are_not_withdrawn(
+    connection: sqlite3.Connection, notice_store: NoticeStore
+) -> None:
+    refresh = bodacc_response(connection, REFRESH)
+    notice_store.save_notice(
+        notice_of("new", NoticeFamily.AMENDMENT, date(2024, 2, 1), SUBJECT), refresh
+    )
+    withdrawn = notice_store.record_refresh(DUPONT_SERVICES, refresh, ["kept"])
+    assert [notice.identifier for notice in withdrawn] == ["gone"]
+    assert not notice_store.require_notice("new").is_withdrawn

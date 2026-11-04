@@ -128,6 +128,10 @@ def create_notice_company_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def add_notice_withdrawal(connection: sqlite3.Connection) -> None:
+    connection.execute("ALTER TABLE notice ADD COLUMN withdrawn_at TEXT")
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     create_investigation_table,
     create_entity_table,
@@ -136,6 +140,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     create_provenance_tables,
     create_notice_table,
     create_notice_company_table,
+    add_notice_withdrawal,
 )
 
 
