@@ -6,6 +6,7 @@ from PySide6.QtCore import QLocale
 from PySide6.QtWidgets import QApplication
 
 from lacis import __version__
+from lacis.ui.main_window import MainWindow
 
 APPLICATION_NAME = "Lacis"
 ORGANIZATION_NAME = "Lacis"
@@ -52,5 +53,7 @@ def create_application(arguments: Sequence[str]) -> QApplication:
 def main(command_line: Sequence[str] | None = None) -> int:
     arguments = list(sys.argv if command_line is None else command_line)
     parse_arguments(arguments[1:])
-    create_application(arguments)
-    return 0
+    application = create_application(arguments)
+    main_window = MainWindow()
+    main_window.show()
+    return application.exec()

@@ -13,6 +13,7 @@ from lacis.application import (
     create_application,
     main,
 )
+from lacis.ui.main_window import MainWindow
 
 
 def test_the_application_has_its_name_organisation_and_version(qapp: QApplication) -> None:
@@ -59,6 +60,20 @@ def test_an_unknown_option_is_refused(capsys: pytest.CaptureFixture[str]) -> Non
     assert "--unknown" in capsys.readouterr().err
 
 
-def test_the_command_without_option_starts_the_application(qapp: QApplication) -> None:
+def test_the_command_without_option_shows_the_main_window_and_runs_the_event_loop(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    visible_main_windows: list[MainWindow] = []
+
+    def run_event_loop_once() -> int:
+        visible_main_windows.extend(
+            widget
+            for widget in qapp.topLevelWidgets()
+            if isinstance(widget, MainWindow) and widget.isVisible()
+        )
+        return 0
+
+    monkeypatch.setattr(QApplication, "exec", staticmethod(run_event_loop_once))
     assert main(["lacis"]) == 0
-    assert qapp.applicationName() == APPLICATION_NAME
+    assert len(visible_main_windows) == 1
+    assert visible_main_windows[0].windowTitle() == "Lacis"
