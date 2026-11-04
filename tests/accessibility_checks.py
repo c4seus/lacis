@@ -23,3 +23,22 @@ def interactive_widgets_without_accessible_name(window: QWidget) -> list[QWidget
         for widget in widgets_in(window)
         if widget.isVisibleTo(window) and is_interactive(widget) and not accessible_name(widget)
     ]
+
+
+def is_reachable_with_tab(widget: QWidget, window: QWidget) -> bool:
+    return (
+        bool(widget.focusPolicy() & Qt.FocusPolicy.TabFocus)
+        and widget.isEnabled()
+        and widget.isVisibleTo(window)
+        and widget.focusProxy() is None
+    )
+
+
+def tab_order(window: QWidget) -> list[QWidget]:
+    order: list[QWidget] = []
+    widget = window.nextInFocusChain()
+    while widget is not None and widget is not window:
+        if is_reachable_with_tab(widget, window):
+            order.append(widget)
+        widget = widget.nextInFocusChain()
+    return order
