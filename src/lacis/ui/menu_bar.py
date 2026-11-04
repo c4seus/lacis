@@ -1,25 +1,28 @@
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QMenuBar, QWidget
 
+from lacis.ui.help_menu import HelpMenu
 from lacis.ui.theme_menu import ThemeMenu
 
 FILE_MENU_TITLE = "&Fichier"
 EDIT_MENU_TITLE = "&Édition"
 VIEW_MENU_TITLE = "&Affichage"
 INVESTIGATION_MENU_TITLE = "&Enquête"
-HELP_MENU_TITLE = "Ai&de"
 QUIT_ACTION_TEXT = "&Quitter"
 QUIT_SHORTCUT = QKeySequence("Ctrl+Q")
 
 
 class MainMenuBar(QMenuBar):
-    def __init__(self, theme_menu: ThemeMenu, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, theme_menu: ThemeMenu, help_menu: HelpMenu, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self.file_menu = self.addMenu(FILE_MENU_TITLE)
         self.edit_menu = self.addMenu(EDIT_MENU_TITLE)
         self.view_menu = self.addMenu(VIEW_MENU_TITLE)
         self.investigation_menu = self.addMenu(INVESTIGATION_MENU_TITLE)
-        self.help_menu = self.addMenu(HELP_MENU_TITLE)
+        self.help_menu = help_menu
+        self.addMenu(help_menu)
 
         self.quit_action = QAction(QUIT_ACTION_TEXT, self)
         self.quit_action.setShortcut(QUIT_SHORTCUT)

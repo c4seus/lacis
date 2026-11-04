@@ -1,10 +1,8 @@
 from collections.abc import Sequence
 from typing import override
 
-from PySide6.QtCore import QRect, QSize, Qt, QUrl
+from PySide6.QtCore import QRect, QSize, Qt
 from PySide6.QtGui import (
-    QAction,
-    QDesktopServices,
     QIcon,
     QPainter,
     QPaintEvent,
@@ -14,7 +12,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMenu,
     QPushButton,
     QSizePolicy,
     QToolButton,
@@ -24,6 +21,7 @@ from PySide6.QtWidgets import (
 from lacis import __version__
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController, ThemePreference
+from lacis.ui.help_menu import HelpMenu
 from lacis.ui.theme_menu import ThemeMenu
 
 HEADER_BAR_HEIGHT = 52
@@ -42,9 +40,6 @@ SEARCH_BUTTON_TEXT = "Rechercher"
 SEARCH_MAXIMUM_WIDTH = 760
 ICON_BUTTON_SIZE = QSize(32, 32)
 HELP_BUTTON_NAME = "Aide"
-HELP_MENU_TITLE = "Aide"
-DOCUMENTATION_ACTION_TEXT = "Documentation"
-DOCUMENTATION_URL = "https://github.com/c4seus/lacis#readme"
 THEME_BUTTON_NAME = "Thème de l'interface"
 THEME_BUTTON_TOOLTIP = "Thème"
 THEME_PREFERENCE_ICONS = {
@@ -125,17 +120,6 @@ def create_icon_button(
     button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
     return button
-
-
-class HelpMenu(QMenu):
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(HELP_MENU_TITLE, parent)
-        self.documentation_action = QAction(DOCUMENTATION_ACTION_TEXT, self)
-        self.documentation_action.triggered.connect(self.open_documentation)
-        self.addAction(self.documentation_action)
-
-    def open_documentation(self) -> None:
-        QDesktopServices.openUrl(QUrl(DOCUMENTATION_URL))
 
 
 class HeaderBar(QWidget):
