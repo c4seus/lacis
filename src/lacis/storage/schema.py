@@ -112,6 +112,22 @@ def create_notice_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def create_notice_company_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE notice_company (
+            notice_identifier TEXT NOT NULL REFERENCES notice (identifier),
+            company_identifier TEXT NOT NULL REFERENCES entity (identifier),
+            role TEXT NOT NULL,
+            PRIMARY KEY (notice_identifier, company_identifier)
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX notice_company_by_company ON notice_company (company_identifier)"
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     create_investigation_table,
     create_entity_table,
@@ -119,6 +135,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     create_response_table,
     create_provenance_tables,
     create_notice_table,
+    create_notice_company_table,
 )
 
 
