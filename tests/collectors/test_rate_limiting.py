@@ -2,14 +2,15 @@ import httpx
 import pytest
 
 from fake_time import FakeTime
-from lacis.collectors.http_client import CollectorHttpClient
+from lacis.collectors.http_client import CollectorHttpClient, CollectorTiming
 from lacis.collectors.rate_limiting import (
     REQUESTS_PER_SECOND,
     SHARED_RATE_LIMITERS,
     RateLimiter,
     RateLimiters,
 )
-from lacis.storage.responses import ResponseSource
+from lacis.storage.collection_log import CollectionLog
+from lacis.storage.responses import ResponseSource, ResponseStore
 
 DOCUMENTED_COMPANY_REGISTER_QUOTA = 7
 
@@ -83,7 +84,9 @@ def test_each_source_has_its_own_rate() -> None:
     assert fake_time.sleeps == [pytest.approx(1.0)]
 
 
-def test_the_client_waits_for_the_rate_of_the_source_before_each_request() -> None:
+def test_the_client_waits_for_the_rate_of_the_source_before_each_request(
+    response_store: ResponseStore, collection_log: CollectionLog
+) -> None:
     fake_time = FakeTime()
     request_times: list[float] = []
 
@@ -92,7 +95,13 @@ def test_the_client_waits_for_the_rate_of_the_source_before_each_request() -> No
         return httpx.Response(200)
 
     client = CollectorHttpClient(
-        httpx.MockTransport(answer), RateLimiters(clock=fake_time.clock, sleep=fake_time.sleep)
+        response_store,
+        collection_log,
+        httpx.MockTransport(answer),
+        CollectorTiming(
+            rate_limiters=RateLimiters(clock=fake_time.clock, sleep=fake_time.sleep),
+            monotonic=fake_time.clock,
+        ),
     )
     try:
         for _ in range(20):

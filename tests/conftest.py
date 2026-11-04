@@ -1,5 +1,6 @@
 import logging
 import os
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -10,7 +11,10 @@ from PySide6.QtWidgets import QApplication
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.diagnostics import LOG_DIRECTORY_VARIABLE, LOGGER_NAME
+from lacis.storage.collection_log import CollectionLog
+from lacis.storage.investigations import InvestigationLibrary
 from lacis.storage.locations import DATA_DIRECTORY_VARIABLE
+from lacis.storage.responses import ResponseStore
 
 OFFSCREEN_SCREEN_CONFIGURATION = Path(__file__).with_name("offscreen-screen.json")
 
@@ -71,3 +75,21 @@ def theme_controller(qapp: QApplication, settings: QSettings) -> Iterator[ThemeC
 @pytest.fixture
 def icon_factory(theme_controller: ThemeController) -> IconFactory:
     return IconFactory(lambda: theme_controller.current_theme.colours)
+
+
+@pytest.fixture
+def investigation_connection(tmp_path: Path) -> Iterator[sqlite3.Connection]:
+    library = InvestigationLibrary(tmp_path)
+    library.create("faux-plombiers-31", "")
+    with library.open("faux-plombiers-31") as opened:
+        yield opened.connection
+
+
+@pytest.fixture
+def response_store(investigation_connection: sqlite3.Connection) -> ResponseStore:
+    return ResponseStore(investigation_connection)
+
+
+@pytest.fixture
+def collection_log(investigation_connection: sqlite3.Connection) -> CollectionLog:
+    return CollectionLog(investigation_connection)
