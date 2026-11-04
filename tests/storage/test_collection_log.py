@@ -1,5 +1,6 @@
 import sqlite3
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -154,6 +155,10 @@ def request_at(
     )
 
 
+def request_from_cache_at(minute: int, source: ResponseSource) -> LoggedRequest:
+    return replace(request_at(minute, source, None), served_from_cache=True)
+
+
 @pytest.fixture
 def filled_log(collection_log: CollectionLog) -> CollectionLog:
     for request in [
@@ -162,6 +167,7 @@ def filled_log(collection_log: CollectionLog) -> CollectionLog:
         request_at(14, ResponseSource.COMPANY_REGISTER, 429, "Trop de requêtes"),
         request_at(16, ResponseSource.BODACC, None, "Délai dépassé"),
         request_at(18, ResponseSource.COMPANY_REGISTER, 200, "Réponse illisible"),
+        request_from_cache_at(20, ResponseSource.BODACC),
     ]:
         collection_log.record(request)
     return collection_log
@@ -172,7 +178,7 @@ def minutes_of(entries: list[CollectionLogEntry]) -> list[int]:
 
 
 def test_the_log_is_read_from_the_most_recent_to_the_oldest(filled_log: CollectionLog) -> None:
-    assert minutes_of(filled_log.entries()) == [18, 16, 14, 12, 10]
+    assert minutes_of(filled_log.entries()) == [20, 18, 16, 14, 12, 10]
 
 
 def test_requests_at_the_same_time_keep_their_recording_order_reversed(
@@ -187,12 +193,12 @@ def test_requests_at_the_same_time_keep_their_recording_order_reversed(
 
 
 def test_the_log_can_be_filtered_by_source(filled_log: CollectionLog) -> None:
-    assert minutes_of(filled_log.entries(source=ResponseSource.BODACC)) == [16, 12]
+    assert minutes_of(filled_log.entries(source=ResponseSource.BODACC)) == [20, 16, 12]
     assert minutes_of(filled_log.entries(source=ResponseSource.COMPANY_REGISTER)) == [18, 14, 10]
 
 
 def test_the_log_can_be_filtered_by_status(filled_log: CollectionLog) -> None:
-    assert minutes_of(filled_log.entries(status=RequestStatus.SUCCEEDED)) == [12, 10]
+    assert minutes_of(filled_log.entries(status=RequestStatus.SUCCEEDED)) == [20, 12, 10]
     assert minutes_of(filled_log.entries(status=RequestStatus.FAILED)) == [18, 16, 14]
 
 
@@ -219,6 +225,12 @@ def test_a_request_succeeds_only_with_a_2xx_status_and_no_error(
     http_status: int | None, error: str, status: RequestStatus
 ) -> None:
     assert request_at(10, ResponseSource.BODACC, http_status, error).status is status
+
+
+def test_a_request_served_from_the_cache_succeeds_without_an_http_status() -> None:
+    cached_request = request_from_cache_at(10, ResponseSource.BODACC)
+    assert cached_request.status is RequestStatus.SUCCEEDED
+    assert replace(cached_request, error="Réponse illisible").status is RequestStatus.FAILED
 
 
 def test_an_empty_log_has_no_entries(collection_log: CollectionLog) -> None:

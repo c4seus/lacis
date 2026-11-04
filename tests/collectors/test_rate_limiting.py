@@ -104,8 +104,10 @@ def test_the_client_waits_for_the_rate_of_the_source_before_each_request(
         ),
     )
     try:
-        for _ in range(20):
-            client.get(ResponseSource.COMPANY_REGISTER, "https://example.test/search", {})
+        for page in range(20):
+            client.get(
+                ResponseSource.COMPANY_REGISTER, "https://example.test/search", {"page": str(page)}
+            )
     finally:
         client.close()
     assert most_requests_in_one_second(request_times) == 6

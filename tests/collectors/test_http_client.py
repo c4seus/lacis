@@ -7,9 +7,10 @@ from email.utils import format_datetime
 import httpx
 import pytest
 
-from fake_time import FakeTime
+from fake_time import FakeTime, FakeWallClock
 from lacis import __version__
 from lacis.collectors.http_client import (
+    CACHE_LIFETIME,
     COLLECTORS_LOGGER_NAME,
     REQUEST_TIMEOUT,
     USER_AGENT,
@@ -49,12 +50,29 @@ def fake_time() -> FakeTime:
 
 
 @pytest.fixture
+def wall_clock() -> FakeWallClock:
+    return FakeWallClock(NOW)
+
+
+@pytest.fixture
+def collector_timing(
+    fake_time: FakeTime, wall_clock: FakeWallClock, retry_sleeps: list[float]
+) -> CollectorTiming:
+    return CollectorTiming(
+        rate_limiters=RateLimiters(clock=fake_time.clock, sleep=fake_time.sleep),
+        sleep=retry_sleeps.append,
+        now=wall_clock.now,
+        monotonic=fake_time.clock,
+    )
+
+
+@pytest.fixture
 def client_factory(
     response_store: ResponseStore,
     collection_log: CollectionLog,
+    collector_timing: CollectorTiming,
     fake_time: FakeTime,
     received_requests: list[httpx.Request],
-    retry_sleeps: list[float],
 ) -> Iterator[Callable[[Handler], CollectorHttpClient]]:
     created_clients: list[CollectorHttpClient] = []
 
@@ -68,12 +86,7 @@ def client_factory(
             response_store,
             collection_log,
             httpx.MockTransport(recording_handler),
-            CollectorTiming(
-                rate_limiters=RateLimiters(clock=fake_time.clock, sleep=fake_time.sleep),
-                sleep=retry_sleeps.append,
-                now=lambda: NOW,
-                monotonic=fake_time.clock,
-            ),
+            collector_timing,
         )
         created_clients.append(client)
         return client
@@ -378,3 +391,87 @@ def test_requests_are_written_to_the_application_log(
         f"GET {SEARCH_URL} returned 200, fingerprint {stored.summary.fingerprint}",
     ]
     assert [record.levelno for record in caplog.records] == [logging.WARNING, logging.INFO]
+
+
+def test_a_second_identical_request_within_24_hours_is_served_from_the_cache(
+    client_factory: Callable[[Handler], CollectorHttpClient],
+    received_requests: list[httpx.Request],
+    collection_log: CollectionLog,
+    wall_clock: FakeWallClock,
+) -> None:
+    client = client_factory(lambda request: httpx.Response(200, content=b'{"results": []}'))
+    collected = client.get(ResponseSource.COMPANY_REGISTER, SEARCH_URL, {"q": "222222222"})
+    wall_clock.advance(CACHE_LIFETIME - timedelta(seconds=1))
+    served = client.get(ResponseSource.COMPANY_REGISTER, SEARCH_URL, {"q": "222222222"})
+    assert served == collected
+    assert len(received_requests) == 1
+    latest_entry = collection_log.entries()[0]
+    assert latest_entry.request.served_from_cache
+    assert latest_entry.request.requested_at == wall_clock.now()
+    assert latest_entry.request.http_status is None
+    assert latest_entry.request.duration == timedelta(0)
+    assert latest_entry.request.response_identifier == collected.summary.identifier
+    assert latest_entry.request.status is RequestStatus.SUCCEEDED
+
+
+def test_a_cache_hit_waits_for_no_rate_limit(
+    client_factory: Callable[[Handler], CollectorHttpClient],
+    fake_time: FakeTime,
+) -> None:
+    client = client_factory(lambda request: httpx.Response(200))
+    client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    for _ in range(20):
+        client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    assert fake_time.sleeps == []
+
+
+def test_a_response_24_hours_old_has_expired(
+    client_factory: Callable[[Handler], CollectorHttpClient],
+    received_requests: list[httpx.Request],
+    response_store: ResponseStore,
+    wall_clock: FakeWallClock,
+) -> None:
+    client = client_factory(
+        answers(httpx.Response(200, content=b"1"), httpx.Response(200, content=b"2"))
+    )
+    client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    wall_clock.advance(CACHE_LIFETIME)
+    refreshed = client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    assert refreshed.body == b"2"
+    assert len(received_requests) == 2
+    assert len(response_store.summaries()) == 2
+
+
+def test_only_the_same_request_is_served_from_the_cache(
+    client_factory: Callable[[Handler], CollectorHttpClient],
+    received_requests: list[httpx.Request],
+) -> None:
+    client = client_factory(lambda request: httpx.Response(200))
+    client.get(ResponseSource.COMPANY_REGISTER, SEARCH_URL, {"q": "222222222"})
+    client.get(ResponseSource.COMPANY_REGISTER, SEARCH_URL, {"q": "333333333"})
+    client.get(ResponseSource.BODACC, SEARCH_URL, {"q": "222222222"})
+    assert len(received_requests) == 3
+
+
+def test_failed_requests_are_never_served_from_the_cache(
+    client_factory: Callable[[Handler], CollectorHttpClient],
+    received_requests: list[httpx.Request],
+) -> None:
+    client = client_factory(answers(httpx.Response(404), httpx.Response(200)))
+    with pytest.raises(CollectionError):
+        client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    assert len(received_requests) == 2
+
+
+def test_a_cache_hit_is_written_to_the_application_log(
+    client_factory: Callable[[Handler], CollectorHttpClient],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = client_factory(lambda request: httpx.Response(200))
+    stored = client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    with caplog.at_level(logging.INFO, logger=COLLECTORS_LOGGER_NAME):
+        client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    assert [record.getMessage() for record in caplog.records] == [
+        f"GET {SEARCH_URL} served from the cache, fingerprint {stored.summary.fingerprint}"
+    ]

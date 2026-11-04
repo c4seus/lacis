@@ -1,7 +1,8 @@
 import hashlib
 import sqlite3
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -141,3 +142,75 @@ def test_a_response_whose_fingerprint_was_modified_is_reported_when_read(
     )
     with pytest.raises(TamperedResponseError):
         response_store.read(summary.identifier)
+
+
+def test_the_latest_response_collected_since_a_date_is_found(
+    response_store: ResponseStore,
+) -> None:
+    response_store.save(replace(SEARCH_RESPONSE, collected_at=COLLECTED_AT - timedelta(hours=2)))
+    latest = response_store.save(replace(SEARCH_RESPONSE, body=b'{"results": []}'))
+    response_store.save(replace(SEARCH_RESPONSE, collected_at=COLLECTED_AT - timedelta(hours=1)))
+    found = response_store.latest_collected_since(
+        SEARCH_RESPONSE.source,
+        SEARCH_RESPONSE.url,
+        {"page": "1", "q": "222222222"},
+        COLLECTED_AT - timedelta(days=1),
+    )
+    assert found is not None
+    assert found.summary == latest
+    assert found.body == b'{"results": []}'
+
+
+def test_responses_collected_at_the_same_time_are_told_apart_by_their_order(
+    response_store: ResponseStore,
+) -> None:
+    response_store.save(SEARCH_RESPONSE)
+    second = response_store.save(SEARCH_RESPONSE)
+    found = response_store.latest_collected_since(
+        SEARCH_RESPONSE.source,
+        SEARCH_RESPONSE.url,
+        SEARCH_RESPONSE.parameters,
+        COLLECTED_AT - timedelta(days=1),
+    )
+    assert found is not None
+    assert found.summary == second
+
+
+def test_dates_in_another_time_zone_are_compared_as_instants(
+    response_store: ResponseStore,
+) -> None:
+    paris_time = timezone(timedelta(hours=1))
+    response_store.save(replace(SEARCH_RESPONSE, collected_at=COLLECTED_AT.astimezone(paris_time)))
+    find = response_store.latest_collected_since
+    arguments = (SEARCH_RESPONSE.source, SEARCH_RESPONSE.url, SEARCH_RESPONSE.parameters)
+    assert find(*arguments, COLLECTED_AT - timedelta(minutes=30)) is not None
+    assert find(*arguments, COLLECTED_AT) is None
+
+
+@pytest.mark.parametrize(
+    ("source", "url", "parameters"),
+    [
+        (ResponseSource.BODACC, SEARCH_RESPONSE.url, SEARCH_RESPONSE.parameters),
+        (SEARCH_RESPONSE.source, "https://recherche-entreprises.api.gouv.fr/near_point", {}),
+        (SEARCH_RESPONSE.source, SEARCH_RESPONSE.url, {"q": "222222222", "page": "2"}),
+        (SEARCH_RESPONSE.source, SEARCH_RESPONSE.url, {"q": "222222222"}),
+    ],
+)
+def test_only_a_response_to_the_same_request_is_found(
+    response_store: ResponseStore, source: ResponseSource, url: str, parameters: dict[str, str]
+) -> None:
+    response_store.save(SEARCH_RESPONSE)
+    since = COLLECTED_AT - timedelta(days=1)
+    assert response_store.latest_collected_since(source, url, parameters, since) is None
+
+
+def test_a_response_collected_at_or_before_the_date_is_not_found(
+    response_store: ResponseStore,
+) -> None:
+    response_store.save(SEARCH_RESPONSE)
+    assert (
+        response_store.latest_collected_since(
+            SEARCH_RESPONSE.source, SEARCH_RESPONSE.url, SEARCH_RESPONSE.parameters, COLLECTED_AT
+        )
+        is None
+    )

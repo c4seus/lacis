@@ -12,8 +12,8 @@ COLLECTION_LOG_COLUMNS = (
 MILLISECOND = timedelta(milliseconds=1)
 SUCCESSFUL_HTTP_STATUSES = range(200, 300)
 SUCCESSFUL_REQUEST_CONDITION = (
-    "(error = '' AND http_status BETWEEN "
-    f"{SUCCESSFUL_HTTP_STATUSES.start} AND {SUCCESSFUL_HTTP_STATUSES.stop - 1})"
+    "(error = '' AND (served_from_cache OR http_status BETWEEN "
+    f"{SUCCESSFUL_HTTP_STATUSES.start} AND {SUCCESSFUL_HTTP_STATUSES.stop - 1}))"
 )
 
 
@@ -41,7 +41,8 @@ class LoggedRequest:
 
     @property
     def status(self) -> RequestStatus:
-        succeeded = not self.error and self.http_status in SUCCESSFUL_HTTP_STATUSES
+        answered = self.served_from_cache or self.http_status in SUCCESSFUL_HTTP_STATUSES
+        succeeded = not self.error and answered
         return RequestStatus.SUCCEEDED if succeeded else RequestStatus.FAILED
 
 
