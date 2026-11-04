@@ -61,7 +61,7 @@ Every issue gets exactly one type label, one or more area labels, and a priority
 |---|---|
 | Type | `bug`, `enhancement`, `documentation`, `refactor`, `test`, `ci`, `build`, `chore` |
 | Planning | `epic` |
-| Area | `collectors`, `storage`, `graph`, `identity`, `signals`, `interface`, `design`, `accessibility`, `packaging` |
+| Area | `collectors`, `storage`, `graph`, `identity`, `signals`, `exports`, `interface`, `design`, `accessibility`, `packaging` |
 | Priority | `priority: critical`, `priority: high`, `priority: medium`, `priority: low` |
 | Status | `triage`, `question`, `blocked` |
 | Resolution | `duplicate`, `invalid`, `wontfix` |
