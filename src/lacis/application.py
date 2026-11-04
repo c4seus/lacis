@@ -8,21 +8,19 @@ from PySide6.QtWidgets import QApplication
 from lacis import __version__
 from lacis.design.fonts import application_font, load_bundled_fonts
 from lacis.design.theme_controller import ThemeController
+from lacis.product import PRODUCT_DESCRIPTION
 from lacis.ui.main_window import MainWindow
 
 APPLICATION_NAME = "Lacis"
 ORGANIZATION_NAME = "Lacis"
 APPLICATION_LOCALE = QLocale(QLocale.Language.French, QLocale.Country.France)
-COMMAND_DESCRIPTION = (
-    "Cartographie des entreprises françaises, de leurs dirigeants et de leurs adresses."
-)
 VERSION_OPTION_HELP = "affiche la version de Lacis et quitte"
 
 
 def parse_arguments(arguments: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="lacis",
-        description=COMMAND_DESCRIPTION,
+        description=PRODUCT_DESCRIPTION,
     )
     parser.add_argument(
         "--version",

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
+from lacis.ui.about_dialog import AboutDialog
 from lacis.ui.header_bar import HeaderBar
 from lacis.ui.menu_bar import MainMenuBar
 
@@ -34,6 +35,8 @@ class MainWindow(QMainWindow):
             self.header_bar.theme_menu, self.header_bar.help_menu, self
         )
         self.main_menu_bar.quit_action.triggered.connect(self.close)
+        self.header_bar.help_menu.about_action.triggered.connect(self.show_about_dialog)
+        self.about_dialog: AboutDialog | None = None
         self.setMenuBar(self.main_menu_bar)
         self.content_area = QWidget()
         self.content_area.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -47,6 +50,11 @@ class MainWindow(QMainWindow):
 
         self.content_area.setFocus()
         self.restore_saved_geometry()
+
+    def show_about_dialog(self) -> None:
+        if self.about_dialog is None:
+            self.about_dialog = AboutDialog(self.icon_factory, self)
+        self.about_dialog.open()
 
     def restore_saved_geometry(self) -> None:
         saved_geometry = self.settings.value(GEOMETRY_SETTING_KEY)

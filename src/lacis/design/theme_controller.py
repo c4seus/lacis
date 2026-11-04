@@ -1,6 +1,7 @@
 from enum import StrEnum
 
 from PySide6.QtCore import QObject, QSettings, Qt, Signal
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
 from lacis.design.style_sheet import build_style_sheet
@@ -64,11 +65,19 @@ class ThemeController(QObject):
         self.style_hints.setColorScheme(forced_colour_scheme)
         self.apply_theme(theme_for_colour_scheme(forced_colour_scheme))
 
+    def apply_link_colours(self, theme: Theme) -> None:
+        palette = self.application.palette()
+        link_colour = QColor(theme.colours.accent)
+        palette.setColor(QPalette.ColorRole.Link, link_colour)
+        palette.setColor(QPalette.ColorRole.LinkVisited, link_colour)
+        self.application.setPalette(palette)
+
     def follow_system_colour_scheme(self, colour_scheme: Qt.ColorScheme) -> None:
         if self.preference == ThemePreference.SYSTEM:
             self.apply_theme(theme_for_colour_scheme(colour_scheme))
 
     def apply_theme(self, theme: Theme) -> None:
         self.current_theme = theme
+        self.apply_link_colours(theme)
         self.application.setStyleSheet(build_style_sheet(theme))
         self.theme_changed.emit(theme)

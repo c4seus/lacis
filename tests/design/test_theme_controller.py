@@ -2,6 +2,7 @@ from collections.abc import Callable, Iterator
 
 import pytest
 from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
@@ -149,3 +150,19 @@ def test_an_unknown_stored_choice_falls_back_to_the_system(
     if stored_value is not None:
         settings.setValue(THEME_PREFERENCE_SETTING_KEY, stored_value)
     assert read_theme_preference(settings) == ThemePreference.SYSTEM
+
+
+@pytest.mark.parametrize(
+    ("preference", "theme"),
+    [(ThemePreference.LIGHT, LIGHT_THEME), (ThemePreference.DARK, DARK_THEME)],
+    ids=["light", "dark"],
+)
+def test_links_take_the_accent_colour_of_the_theme(
+    qapp: QApplication,
+    create_theme_controller: ControllerFactory,
+    preference: ThemePreference,
+    theme: Theme,
+) -> None:
+    create_theme_controller().set_preference(preference)
+    for role in (QPalette.ColorRole.Link, QPalette.ColorRole.LinkVisited):
+        assert qapp.palette().color(role) == QColor(theme.colours.accent)

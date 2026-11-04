@@ -8,6 +8,7 @@ DOCUMENTATION_URL = "https://github.com/c4seus/lacis#readme"
 DOCUMENTATION_SHORTCUT = QKeySequence("F1")
 REPORT_PROBLEM_ACTION_TEXT = "&Signaler un problème…"
 REPORT_PROBLEM_URL = "https://github.com/c4seus/lacis/issues/new/choose"
+ABOUT_ACTION_TEXT = "À &propos de Lacis"
 
 
 class HelpMenu(QMenu):
@@ -17,6 +18,10 @@ class HelpMenu(QMenu):
             DOCUMENTATION_ACTION_TEXT, DOCUMENTATION_URL, DOCUMENTATION_SHORTCUT
         )
         self.report_problem_action = self.add_link(REPORT_PROBLEM_ACTION_TEXT, REPORT_PROBLEM_URL)
+        self.addSeparator()
+        self.about_action = QAction(ABOUT_ACTION_TEXT, self)
+        self.about_action.setMenuRole(QAction.MenuRole.AboutRole)
+        self.addAction(self.about_action)
 
     def add_link(self, text: str, url: str, shortcut: QKeySequence | None = None) -> QAction:
         action = QAction(text, self)
