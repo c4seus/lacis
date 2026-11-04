@@ -73,11 +73,33 @@ def create_response_table(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX response_by_url ON response (url, collected_at)")
 
 
+def create_provenance_tables(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE entity_source (
+            entity_identifier TEXT NOT NULL REFERENCES entity (identifier),
+            response_identifier INTEGER NOT NULL REFERENCES response (identifier),
+            PRIMARY KEY (entity_identifier, response_identifier)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE link_source (
+            link_identifier TEXT NOT NULL REFERENCES link (identifier),
+            response_identifier INTEGER NOT NULL REFERENCES response (identifier),
+            PRIMARY KEY (link_identifier, response_identifier)
+        )
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     create_investigation_table,
     create_entity_table,
     create_link_table,
     create_response_table,
+    create_provenance_tables,
 )
 
 

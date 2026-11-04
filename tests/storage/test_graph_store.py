@@ -22,6 +22,12 @@ from lacis.storage.entities import (
 )
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.investigations import InvestigationLibrary
+from lacis.storage.responses import (
+    CollectedResponse,
+    ResponseSource,
+    ResponseStore,
+    ResponseSummary,
+)
 
 FIRST_COLLECTION = datetime(2026, 11, 2, 23, 11, tzinfo=UTC)
 
@@ -53,6 +59,17 @@ DUPONT_INVEST = CollectedEntity(
 EVERY_KIND = [DUPONT_SERVICES, TOULOUSE_ESTABLISHMENT, JEAN_DUPONT, LILAS_ADDRESS, DUPONT_INVEST]
 
 
+def response_at(store: GraphStore, collected_at: datetime) -> ResponseSummary:
+    return ResponseStore(store.connection).save(
+        CollectedResponse(
+            ResponseSource.COMPANY_REGISTER,
+            "https://recherche-entreprises.api.gouv.fr/search",
+            b"{}",
+            collected_at,
+        )
+    )
+
+
 @pytest.fixture
 def connection(tmp_path: Path) -> Iterator[sqlite3.Connection]:
     library = InvestigationLibrary(tmp_path)
@@ -70,7 +87,7 @@ def graph_store(connection: sqlite3.Connection) -> GraphStore:
 def test_every_entity_kind_is_stored_and_read_back(
     graph_store: GraphStore, collected_entity: CollectedEntity
 ) -> None:
-    stored = graph_store.save_entity(collected_entity, FIRST_COLLECTION)
+    stored = graph_store.save_entity(collected_entity, response_at(graph_store, FIRST_COLLECTION))
     assert stored.identifier == collected_entity.identifier
     assert stored.kind is collected_entity.kind
     assert stored.label == collected_entity.label
@@ -88,7 +105,7 @@ def test_a_missing_entity_is_none(graph_store: GraphStore) -> None:
 
 def test_entities_are_listed_by_identifier_and_by_kind(graph_store: GraphStore) -> None:
     for collected_entity in EVERY_KIND:
-        graph_store.save_entity(collected_entity, FIRST_COLLECTION)
+        graph_store.save_entity(collected_entity, response_at(graph_store, FIRST_COLLECTION))
     assert len(graph_store.entities()) == len(EVERY_KIND)
     assert [entity.identifier for entity in graph_store.entities()] == sorted(
         entity.identifier for entity in EVERY_KIND
@@ -108,7 +125,7 @@ def test_attributes_keep_accents_and_types(graph_store: GraphStore) -> None:
                 "closed_on": None,
             },
         ),
-        FIRST_COLLECTION,
+        response_at(graph_store, FIRST_COLLECTION),
     )
     assert stored.attributes == {
         "activity": "Travaux d'installation d'eau et de gaz",
@@ -135,7 +152,7 @@ EVERY_LINK_KIND = [
 @pytest.fixture
 def scenario_store(graph_store: GraphStore) -> GraphStore:
     for collected_entity in [*EVERY_KIND, ACME_PLOMBERIE, JEAN_PIERRE_DUPONT]:
-        graph_store.save_entity(collected_entity, FIRST_COLLECTION)
+        graph_store.save_entity(collected_entity, response_at(graph_store, FIRST_COLLECTION))
     return graph_store
 
 
@@ -143,7 +160,9 @@ def scenario_store(graph_store: GraphStore) -> GraphStore:
 def test_every_link_kind_is_stored_and_read_back(
     scenario_store: GraphStore, collected_link: CollectedLink
 ) -> None:
-    stored = scenario_store.save_link(collected_link, FIRST_COLLECTION)
+    stored = scenario_store.save_link(
+        collected_link, response_at(scenario_store, FIRST_COLLECTION)
+    )
     assert (stored.source, stored.target, stored.kind, stored.role) == (
         collected_link.source,
         collected_link.target,
@@ -157,7 +176,7 @@ def test_every_link_kind_is_stored_and_read_back(
 
 def test_the_links_of_an_entity_include_both_directions(scenario_store: GraphStore) -> None:
     for collected_link in EVERY_LINK_KIND:
-        scenario_store.save_link(collected_link, FIRST_COLLECTION)
+        scenario_store.save_link(collected_link, response_at(scenario_store, FIRST_COLLECTION))
     kinds_around_dupont_services = sorted(
         link.kind.value for link in scenario_store.links_of(DUPONT_SERVICES.identifier)
     )
@@ -166,11 +185,11 @@ def test_the_links_of_an_entity_include_both_directions(scenario_store: GraphSto
 
 
 def test_a_link_to_an_unknown_entity_is_refused(graph_store: GraphStore) -> None:
-    graph_store.save_entity(JEAN_DUPONT, FIRST_COLLECTION)
+    graph_store.save_entity(JEAN_DUPONT, response_at(graph_store, FIRST_COLLECTION))
     with pytest.raises(sqlite3.IntegrityError):
         graph_store.save_link(
             mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président"),
-            FIRST_COLLECTION,
+            response_at(graph_store, FIRST_COLLECTION),
         )
     assert graph_store.links() == []
 
@@ -186,17 +205,18 @@ EARLIER_COLLECTION = datetime(2026, 10, 1, 8, 0, tzinfo=UTC)
 
 
 def collect_dupont_services(store: GraphStore, collected_at: datetime) -> None:
-    store.save_entity(DUPONT_SERVICES, collected_at)
-    store.save_entity(TOULOUSE_ESTABLISHMENT, collected_at)
-    store.save_entity(LILAS_ADDRESS, collected_at)
-    store.save_entity(JEAN_DUPONT, collected_at)
+    response = response_at(store, collected_at)
+    store.save_entity(DUPONT_SERVICES, response)
+    store.save_entity(TOULOUSE_ESTABLISHMENT, response)
+    store.save_entity(LILAS_ADDRESS, response)
+    store.save_entity(JEAN_DUPONT, response)
     for collected_link in [
         mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président"),
         registered_office_link(DUPONT_SERVICES.identifier, LILAS_ADDRESS.identifier),
         located_at_link(TOULOUSE_ESTABLISHMENT.identifier, LILAS_ADDRESS.identifier),
         establishment_of_link(TOULOUSE_ESTABLISHMENT.identifier, DUPONT_SERVICES.identifier),
     ]:
-        store.save_link(collected_link, collected_at)
+        store.save_link(collected_link, response)
 
 
 def test_collecting_the_same_company_twice_leaves_one_entity_and_the_same_links(
@@ -214,8 +234,8 @@ def test_collecting_the_same_company_twice_leaves_one_entity_and_the_same_links(
 def test_updating_an_entity_keeps_its_first_collection_date_and_updates_its_last_one(
     graph_store: GraphStore,
 ) -> None:
-    graph_store.save_entity(DUPONT_SERVICES, FIRST_COLLECTION)
-    updated = graph_store.save_entity(DUPONT_SERVICES, SECOND_COLLECTION)
+    graph_store.save_entity(DUPONT_SERVICES, response_at(graph_store, FIRST_COLLECTION))
+    updated = graph_store.save_entity(DUPONT_SERVICES, response_at(graph_store, SECOND_COLLECTION))
     assert updated.first_collected_at == FIRST_COLLECTION
     assert updated.last_collected_at == SECOND_COLLECTION
 
@@ -223,11 +243,11 @@ def test_updating_an_entity_keeps_its_first_collection_date_and_updates_its_last
 def test_a_newer_collection_updates_the_label_and_the_attributes_it_brings(
     graph_store: GraphStore,
 ) -> None:
-    graph_store.save_entity(DUPONT_SERVICES, FIRST_COLLECTION)
+    graph_store.save_entity(DUPONT_SERVICES, response_at(graph_store, FIRST_COLLECTION))
     renamed = CollectedEntity(
         DUPONT_SERVICES.identifier, "DUPONT SERVICES SAS", {"active": True, "employees": 3}
     )
-    updated = graph_store.save_entity(renamed, SECOND_COLLECTION)
+    updated = graph_store.save_entity(renamed, response_at(graph_store, SECOND_COLLECTION))
     assert updated.label == "DUPONT SERVICES SAS"
     assert updated.attributes == {
         "siren": "222222222",
@@ -239,11 +259,11 @@ def test_a_newer_collection_updates_the_label_and_the_attributes_it_brings(
 
 
 def test_an_older_collection_never_overwrites_newer_facts(graph_store: GraphStore) -> None:
-    graph_store.save_entity(DUPONT_SERVICES, SECOND_COLLECTION)
+    graph_store.save_entity(DUPONT_SERVICES, response_at(graph_store, SECOND_COLLECTION))
     older = CollectedEntity(
         DUPONT_SERVICES.identifier, "ANCIEN NOM", {"active": True, "former_name": "ANCIEN NOM"}
     )
-    updated = graph_store.save_entity(older, EARLIER_COLLECTION)
+    updated = graph_store.save_entity(older, response_at(graph_store, EARLIER_COLLECTION))
     assert updated.label == "DUPONT SERVICES"
     assert updated.attributes["active"] is False
     assert updated.attributes["former_name"] == "ANCIEN NOM"
@@ -255,11 +275,11 @@ def test_collecting_a_link_again_keeps_its_first_collection_date(
     scenario_store: GraphStore,
 ) -> None:
     president = mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président")
-    scenario_store.save_link(president, FIRST_COLLECTION)
-    updated = scenario_store.save_link(president, SECOND_COLLECTION)
+    scenario_store.save_link(president, response_at(scenario_store, FIRST_COLLECTION))
+    updated = scenario_store.save_link(president, response_at(scenario_store, SECOND_COLLECTION))
     assert updated.first_collected_at == FIRST_COLLECTION
     assert updated.last_collected_at == SECOND_COLLECTION
-    earlier = scenario_store.save_link(president, EARLIER_COLLECTION)
+    earlier = scenario_store.save_link(president, response_at(scenario_store, EARLIER_COLLECTION))
     assert earlier.first_collected_at == EARLIER_COLLECTION
     assert earlier.last_collected_at == SECOND_COLLECTION
     assert len(scenario_store.links()) == 1
@@ -270,10 +290,10 @@ def test_a_new_role_between_the_same_entities_is_a_new_mandate(
 ) -> None:
     scenario_store.save_link(
         mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président"),
-        FIRST_COLLECTION,
+        response_at(scenario_store, FIRST_COLLECTION),
     )
     scenario_store.save_link(
         mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Associé"),
-        FIRST_COLLECTION,
+        response_at(scenario_store, FIRST_COLLECTION),
     )
     assert sorted(link.role for link in scenario_store.links()) == ["Associé", "Président"]
