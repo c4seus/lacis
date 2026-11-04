@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lacis"
+dynamic = ["version"]
+description = "Desktop OSINT tool that maps French companies, their directors and addresses into a sourced link graph, and flags patterns worth a closer look."
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "c4seus" }]
+requires-python = ">=3.12"
+keywords = ["osint", "france", "company-data", "investigation", "link-analysis", "sirene", "bodacc"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Legal Industry",
+    "Natural Language :: French",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Office/Business",
+    "Topic :: Security",
+]
+dependencies = [
+    "PySide6-Essentials>=6.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "pytest-qt>=4.4",
+    "ruff>=0.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/c4seus/lacis"
+Issues = "https://github.com/c4seus/lacis/issues"
+
+[tool.hatch.version]
+path = "src/lacis/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lacis"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "B", "UP", "SIM", "RUF", "PL", "PT", "C4", "PIE", "RET", "ERA"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "scripts", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+addopts = ["--strict-markers"]
+qt_api = "pyside6"
+
+[tool.coverage.run]
+source = ["lacis"]
+branch = true
+omit = ["*/lacis/ui/*"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
