@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from lacis.storage.collection_log import CollectionLog, LoggedRequest
+from lacis.storage.collection_log import (
+    CollectionLog,
+    CollectionLogEntry,
+    LoggedRequest,
+    RequestStatus,
+)
 from lacis.storage.investigations import InvestigationLibrary
 from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 
@@ -130,3 +135,91 @@ def test_a_log_entry_cannot_cite_a_response_that_was_never_stored(
 def test_an_unknown_entry_is_refused(collection_log: CollectionLog) -> None:
     with pytest.raises(KeyError):
         collection_log.entry(404)
+
+
+def request_at(
+    minute: int,
+    source: ResponseSource,
+    http_status: int | None,
+    error: str = "",
+) -> LoggedRequest:
+    endpoint = SEARCH_ENDPOINT if source is ResponseSource.COMPANY_REGISTER else BODACC_ENDPOINT
+    return LoggedRequest(
+        requested_at=REQUESTED_AT.replace(minute=minute),
+        source=source,
+        endpoint=endpoint,
+        http_status=http_status,
+        duration=timedelta(milliseconds=50),
+        error=error,
+    )
+
+
+@pytest.fixture
+def filled_log(collection_log: CollectionLog) -> CollectionLog:
+    for request in [
+        request_at(10, ResponseSource.COMPANY_REGISTER, 200),
+        request_at(12, ResponseSource.BODACC, 200),
+        request_at(14, ResponseSource.COMPANY_REGISTER, 429, "Trop de requêtes"),
+        request_at(16, ResponseSource.BODACC, None, "Délai dépassé"),
+        request_at(18, ResponseSource.COMPANY_REGISTER, 200, "Réponse illisible"),
+    ]:
+        collection_log.record(request)
+    return collection_log
+
+
+def minutes_of(entries: list[CollectionLogEntry]) -> list[int]:
+    return [entry.request.requested_at.minute for entry in entries]
+
+
+def test_the_log_is_read_from_the_most_recent_to_the_oldest(filled_log: CollectionLog) -> None:
+    assert minutes_of(filled_log.entries()) == [18, 16, 14, 12, 10]
+
+
+def test_requests_at_the_same_time_keep_their_recording_order_reversed(
+    collection_log: CollectionLog,
+) -> None:
+    first = collection_log.record(request_at(10, ResponseSource.BODACC, 200))
+    second = collection_log.record(request_at(10, ResponseSource.BODACC, 200))
+    assert [entry.identifier for entry in collection_log.entries()] == [
+        second.identifier,
+        first.identifier,
+    ]
+
+
+def test_the_log_can_be_filtered_by_source(filled_log: CollectionLog) -> None:
+    assert minutes_of(filled_log.entries(source=ResponseSource.BODACC)) == [16, 12]
+    assert minutes_of(filled_log.entries(source=ResponseSource.COMPANY_REGISTER)) == [18, 14, 10]
+
+
+def test_the_log_can_be_filtered_by_status(filled_log: CollectionLog) -> None:
+    assert minutes_of(filled_log.entries(status=RequestStatus.SUCCEEDED)) == [12, 10]
+    assert minutes_of(filled_log.entries(status=RequestStatus.FAILED)) == [18, 16, 14]
+
+
+def test_the_log_can_be_filtered_by_source_and_status(filled_log: CollectionLog) -> None:
+    failed_register_requests = filled_log.entries(
+        source=ResponseSource.COMPANY_REGISTER, status=RequestStatus.FAILED
+    )
+    assert minutes_of(failed_register_requests) == [18, 14]
+
+
+@pytest.mark.parametrize(
+    ("http_status", "error", "status"),
+    [
+        (200, "", RequestStatus.SUCCEEDED),
+        (204, "", RequestStatus.SUCCEEDED),
+        (304, "", RequestStatus.FAILED),
+        (404, "", RequestStatus.FAILED),
+        (503, "Service indisponible", RequestStatus.FAILED),
+        (None, "Délai dépassé", RequestStatus.FAILED),
+        (200, "Réponse illisible", RequestStatus.FAILED),
+    ],
+)
+def test_a_request_succeeds_only_with_a_2xx_status_and_no_error(
+    http_status: int | None, error: str, status: RequestStatus
+) -> None:
+    assert request_at(10, ResponseSource.BODACC, http_status, error).status is status
+
+
+def test_an_empty_log_has_no_entries(collection_log: CollectionLog) -> None:
+    assert collection_log.entries() == []
