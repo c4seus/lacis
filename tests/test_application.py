@@ -1,8 +1,9 @@
 import runpy
 import sys
+from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QLocale
+from PySide6.QtCore import QLocale, QSettings
 from PySide6.QtWidgets import QApplication
 
 from lacis import __version__
@@ -11,6 +12,7 @@ from lacis.application import (
     ORGANIZATION_NAME,
     configure_application,
     create_application,
+    create_settings,
     main,
 )
 from lacis.ui.main_window import MainWindow
@@ -77,3 +79,9 @@ def test_the_command_without_option_shows_the_main_window_and_runs_the_event_loo
     assert main(["lacis"]) == 0
     assert len(visible_main_windows) == 1
     assert visible_main_windows[0].windowTitle() == "Lacis"
+
+
+def test_settings_are_stored_in_an_ini_file_of_the_user(isolated_user_settings: Path) -> None:
+    settings = create_settings()
+    assert settings.format() == QSettings.Format.IniFormat
+    assert Path(settings.fileName()) == isolated_user_settings / "Lacis" / "Lacis.ini"
