@@ -142,6 +142,20 @@ python scripts/check_commits.py develop HEAD
 
 ## Code style
 
+### PEP 8
+
+Python code follows [PEP 8](https://peps.python.org/pep-0008/), the style guide of the Python standard library. ruff enforces it on every pull request:
+
+| PEP 8 topic | Enforced by |
+|---|---|
+| Indentation, whitespace, blank lines, line breaks around operators | `ruff format`, and the `E` and `W` rules (pycodestyle) |
+| Naming: `snake_case` functions and variables, `CapWords` classes, `UPPER_CASE` constants | the `N` rules (pep8-naming) |
+| Import order and grouping | the `I` rules (isort) |
+| Comparisons to `None`, type checks, simplifiable expressions | the `E7` rules and the `SIM` rules |
+| Maximum line length | `ruff format` and the `E501` rule, set to 99 characters |
+
+PEP 8 recommends 79 characters, and allows up to 99 when a team agrees on it. Lacis uses 99: names are explicit and never abbreviated, and a 79 character limit would split many lines and make them harder to read.
+
 ### No comments
 
 Lacis code carries no comments and no docstrings. If a piece of code needs an explanation, rename it or extract it until it explains itself: a well-named function replaces a comment, and a well-named constant replaces a magic number.
