@@ -1,6 +1,7 @@
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from enum import StrEnum
 
 from lacis.storage.responses import ResponseSource
 
@@ -9,6 +10,22 @@ COLLECTION_LOG_COLUMNS = (
     "served_from_cache, error, response_identifier"
 )
 MILLISECOND = timedelta(milliseconds=1)
+SUCCESSFUL_HTTP_STATUSES = range(200, 300)
+SUCCESSFUL_REQUEST_CONDITION = (
+    "(error = '' AND http_status BETWEEN "
+    f"{SUCCESSFUL_HTTP_STATUSES.start} AND {SUCCESSFUL_HTTP_STATUSES.stop - 1})"
+)
+
+
+class RequestStatus(StrEnum):
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+STATUS_CONDITIONS = {
+    RequestStatus.SUCCEEDED: SUCCESSFUL_REQUEST_CONDITION,
+    RequestStatus.FAILED: f"NOT {SUCCESSFUL_REQUEST_CONDITION}",
+}
 
 
 @dataclass(frozen=True)
@@ -21,6 +38,11 @@ class LoggedRequest:
     served_from_cache: bool = False
     error: str = ""
     response_identifier: int | None = None
+
+    @property
+    def status(self) -> RequestStatus:
+        succeeded = not self.error and self.http_status in SUCCESSFUL_HTTP_STATUSES
+        return RequestStatus.SUCCEEDED if succeeded else RequestStatus.FAILED
 
 
 @dataclass(frozen=True)
@@ -94,3 +116,24 @@ class CollectionLog:
         if row is None:
             raise KeyError(identifier)
         return entry_from_row(row)
+
+    def entries(
+        self, source: ResponseSource | None = None, status: RequestStatus | None = None
+    ) -> list[CollectionLogEntry]:
+        conditions: list[str] = []
+        parameters: list[str] = []
+        if source is not None:
+            conditions.append("source = ?")
+            parameters.append(source.value)
+        if status is not None:
+            conditions.append(STATUS_CONDITIONS[status])
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        rows = self.connection.execute(
+            f"""
+            SELECT {COLLECTION_LOG_COLUMNS} FROM collection_log
+            {where_clause}
+            ORDER BY requested_at DESC, identifier DESC
+            """,
+            parameters,
+        ).fetchall()
+        return [entry_from_row(row) for row in rows]
