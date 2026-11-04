@@ -11,6 +11,11 @@ from lacis.storage.entities import (
     Link,
     LinkKind,
 )
+from lacis.storage.responses import (
+    RESPONSE_SUMMARY_COLUMNS,
+    ResponseSummary,
+    summary_from_row,
+)
 
 ENTITY_COLUMNS = "identifier, kind, label, attributes, first_collected_at, last_collected_at"
 LINK_COLUMNS = "identifier, kind, source, target, role, first_collected_at, last_collected_at"
@@ -49,7 +54,8 @@ class GraphStore:
     def __init__(self, connection: sqlite3.Connection) -> None:
         self.connection = connection
 
-    def save_entity(self, collected_entity: CollectedEntity, collected_at: datetime) -> Entity:
+    def save_entity(self, collected_entity: CollectedEntity, response: ResponseSummary) -> Entity:
+        collected_at = response.collected_at
         with self.connection:
             existing = self.entity(collected_entity.identifier)
             if existing is None:
@@ -66,6 +72,13 @@ class GraphStore:
                 )
             else:
                 self.update_entity(existing, collected_entity, collected_at)
+            self.connection.execute(
+                """
+                INSERT OR IGNORE INTO entity_source (entity_identifier, response_identifier)
+                VALUES (?, ?)
+                """,
+                (collected_entity.identifier, response.identifier),
+            )
         return self.require_entity(collected_entity.identifier)
 
     def update_entity(
@@ -117,7 +130,8 @@ class GraphStore:
             ).fetchall()
         return [entity_from_row(row) for row in rows]
 
-    def save_link(self, collected_link: CollectedLink, collected_at: datetime) -> Link:
+    def save_link(self, collected_link: CollectedLink, response: ResponseSummary) -> Link:
+        collected_at = response.collected_at
         with self.connection:
             existing = self.link(collected_link.identifier)
             if existing is None:
@@ -145,6 +159,13 @@ class GraphStore:
                         existing.identifier,
                     ),
                 )
+            self.connection.execute(
+                """
+                INSERT OR IGNORE INTO link_source (link_identifier, response_identifier)
+                VALUES (?, ?)
+                """,
+                (collected_link.identifier, response.identifier),
+            )
         return self.require_link(collected_link.identifier)
 
     def link(self, identifier: str) -> Link | None:
@@ -171,3 +192,26 @@ class GraphStore:
             (entity_identifier, entity_identifier),
         ).fetchall()
         return [link_from_row(row) for row in rows]
+
+    def sources_of_entity(self, entity_identifier: str) -> list[ResponseSummary]:
+        return self.sources(
+            "SELECT response_identifier FROM entity_source WHERE entity_identifier = ?",
+            entity_identifier,
+        )
+
+    def sources_of_link(self, link_identifier: str) -> list[ResponseSummary]:
+        return self.sources(
+            "SELECT response_identifier FROM link_source WHERE link_identifier = ?",
+            link_identifier,
+        )
+
+    def sources(self, source_query: str, identifier: str) -> list[ResponseSummary]:
+        rows = self.connection.execute(
+            f"""
+            SELECT {RESPONSE_SUMMARY_COLUMNS} FROM response
+            WHERE identifier IN ({source_query})
+            ORDER BY collected_at, identifier
+            """,
+            (identifier,),
+        ).fetchall()
+        return [summary_from_row(row) for row in rows]
