@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in Lacis does not work as expected.
+labels: [type:bug, status:triage]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a bug. Please write in English; the interface itself stays in French.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: A clear description of the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Lacis
+        2. Search for "..."
+        3. Click on "..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Lacis version
+      description: Shown in « À propos de Lacis ».
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Debian or Ubuntu (.deb)
+        - Fedora or RHEL (.rpm)
+        - Arch Linux (.pkg.tar.zst)
+        - Windows (installer)
+        - From source
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Remove any personal data before posting.
+      render: text
