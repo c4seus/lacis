@@ -38,7 +38,29 @@ def create_entity_table(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX entity_by_kind ON entity (kind)")
 
 
-MIGRATIONS: tuple[Migration, ...] = (create_investigation_table, create_entity_table)
+def create_link_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE link (
+            identifier TEXT PRIMARY KEY,
+            kind TEXT NOT NULL,
+            source TEXT NOT NULL REFERENCES entity (identifier),
+            target TEXT NOT NULL REFERENCES entity (identifier),
+            role TEXT NOT NULL,
+            first_collected_at TEXT NOT NULL,
+            last_collected_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute("CREATE INDEX link_by_source ON link (source)")
+    connection.execute("CREATE INDEX link_by_target ON link (target)")
+
+
+MIGRATIONS: tuple[Migration, ...] = (
+    create_investigation_table,
+    create_entity_table,
+    create_link_table,
+)
 
 
 def schema_version(connection: sqlite3.Connection) -> int:
