@@ -1,11 +1,18 @@
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from types import TracebackType
+from typing import Self
+
+from PySide6.QtCore import QFile
 
 from lacis.storage.errors import (
     InvalidInvestigationQuestionError,
     InvestigationAlreadyExistsError,
+    InvestigationNotFoundError,
+    InvestigationNotTrashedError,
 )
 from lacis.storage.names import validate_investigation_name
 
@@ -34,6 +41,30 @@ class Investigation:
         return self.directory / DATABASE_FILE_NAME
 
 
+class OpenInvestigation:
+    def __init__(self, investigation: Investigation, connection: sqlite3.Connection) -> None:
+        self.investigation = investigation
+        self.connection = connection
+
+    def close(self) -> None:
+        self.connection.close()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
+
+
+def move_to_system_trash(path: Path) -> bool:
+    return bool(QFile.moveToTrash(str(path)))
+
+
 def current_time() -> datetime:
     return datetime.now(UTC).replace(microsecond=0)
 
@@ -52,11 +83,57 @@ def connect(database_path: Path) -> sqlite3.Connection:
 
 
 class InvestigationLibrary:
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self, root: Path, move_to_trash: Callable[[Path], bool] = move_to_system_trash
+    ) -> None:
         self.root = root
+        self.move_to_trash = move_to_trash
 
     def directory_of(self, name: str) -> Path:
         return self.root / name
+
+    def existing_directory_of(self, name: str) -> Path:
+        directory = self.directory_of(name)
+        if not (directory / DATABASE_FILE_NAME).is_file():
+            raise InvestigationNotFoundError(name)
+        return directory
+
+    def names(self) -> list[str]:
+        if not self.root.is_dir():
+            return []
+        return sorted(
+            directory.name
+            for directory in self.root.iterdir()
+            if (directory / DATABASE_FILE_NAME).is_file()
+        )
+
+    def open(self, name: str) -> OpenInvestigation:
+        directory = self.existing_directory_of(name)
+        connection = connect(directory / DATABASE_FILE_NAME)
+        try:
+            question, created_at = connection.execute(
+                "SELECT question, created_at FROM investigation"
+            ).fetchone()
+        except BaseException:
+            connection.close()
+            raise
+        investigation = Investigation(
+            name, question, datetime.fromisoformat(created_at), directory
+        )
+        return OpenInvestigation(investigation, connection)
+
+    def rename(self, name: str, new_name: str) -> None:
+        directory = self.existing_directory_of(name)
+        validated_new_name = validate_investigation_name(new_name)
+        new_directory = self.directory_of(validated_new_name)
+        if new_directory.exists():
+            raise InvestigationAlreadyExistsError(validated_new_name)
+        directory.rename(new_directory)
+
+    def delete(self, name: str) -> None:
+        directory = self.existing_directory_of(name)
+        if not self.move_to_trash(directory):
+            raise InvestigationNotTrashedError(name)
 
     def create(self, name: str, question: str) -> Investigation:
         validated_name = validate_investigation_name(name)
