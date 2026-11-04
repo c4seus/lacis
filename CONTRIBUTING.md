@@ -53,6 +53,29 @@ ruff check . ; ruff format --check . ; python scripts/check_no_comments.py ; myp
 | `make coverage` | Runs the tests with the coverage report and threshold |
 | `make check` | Runs everything the CI runs. Run it before every push |
 
+## Labels
+
+Every issue gets exactly one type label, one or more area labels, and a priority label once it is planned in a milestone.
+
+| Family | Labels |
+|---|---|
+| Type | `bug`, `enhancement`, `documentation`, `refactor`, `test`, `ci`, `build`, `chore` |
+| Planning | `epic` |
+| Area | `collectors`, `storage`, `graph`, `identity`, `signals`, `interface`, `design`, `accessibility`, `packaging` |
+| Priority | `priority: critical`, `priority: high`, `priority: medium`, `priority: low` |
+| Status | `triage`, `question`, `blocked` |
+| Resolution | `duplicate`, `invalid`, `wontfix` |
+| Other | `dependencies`, `security`, `no-tests-needed`, `good first issue`, `help wanted` |
+
+| Priority | Meaning |
+|---|---|
+| `priority: critical` | Crashes the application, loses or corrupts data, or exposes a security flaw. Fixed before anything else, even outside the current milestone. |
+| `priority: high` | Required for the milestone, and other issues depend on it. Worked on first. |
+| `priority: medium` | Required for the milestone. Worked on once the high priority issues are done. |
+| `priority: low` | Improves the milestone but is not required. Moves to the next milestone if time runs short. |
+
+An epic groups the issues of one capability. Its description lists its sub-issues as a task list, and it is closed when all of them are.
+
 ## Branches
 
 | Branch | Role |
