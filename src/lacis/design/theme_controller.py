@@ -13,11 +13,6 @@ class ThemePreference(StrEnum):
     DARK = "dark"
 
 
-THEME_PREFERENCE_LABELS = {
-    ThemePreference.SYSTEM: "Système",
-    ThemePreference.LIGHT: "Clair",
-    ThemePreference.DARK: "Sombre",
-}
 THEME_PREFERENCE_SETTING_KEY = "appearance/theme"
 FORCED_COLOUR_SCHEMES = {
     ThemePreference.LIGHT: Qt.ColorScheme.Light,

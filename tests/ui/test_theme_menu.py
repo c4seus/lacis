@@ -29,8 +29,8 @@ def test_the_menu_offers_the_three_choices_in_french(
     qtbot: QtBot, theme_controller: ThemeController
 ) -> None:
     menu = create_menu(qtbot, theme_controller)
-    assert menu.title() == "Thème"
-    assert [action.text() for action in menu.actions()] == ["Système", "Clair", "Sombre"]
+    assert menu.title() == "&Thème"
+    assert [action.text() for action in menu.actions()] == ["&Système", "&Clair", "S&ombre"]
 
 
 def test_the_current_choice_is_checked(qtbot: QtBot, theme_controller: ThemeController) -> None:

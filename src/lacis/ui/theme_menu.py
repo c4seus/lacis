@@ -1,13 +1,14 @@
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QMenu, QWidget
 
-from lacis.design.theme_controller import (
-    THEME_PREFERENCE_LABELS,
-    ThemeController,
-    ThemePreference,
-)
+from lacis.design.theme_controller import ThemeController, ThemePreference
 
-THEME_MENU_TITLE = "Thème"
+THEME_MENU_TITLE = "&Thème"
+THEME_MENU_ENTRIES = {
+    ThemePreference.SYSTEM: "&Système",
+    ThemePreference.LIGHT: "&Clair",
+    ThemePreference.DARK: "S&ombre",
+}
 
 
 class ThemeMenu(QMenu):
@@ -17,7 +18,7 @@ class ThemeMenu(QMenu):
         self.preference_actions: dict[ThemePreference, QAction] = {}
         action_group = QActionGroup(self)
         action_group.setExclusive(True)
-        for preference, label in THEME_PREFERENCE_LABELS.items():
+        for preference, label in THEME_MENU_ENTRIES.items():
             action = QAction(label, self)
             action.setCheckable(True)
             action.triggered.connect(
