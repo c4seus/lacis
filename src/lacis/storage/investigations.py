@@ -1,5 +1,5 @@
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,20 +13,16 @@ from lacis.storage.errors import (
     InvestigationAlreadyExistsError,
     InvestigationNotFoundError,
     InvestigationNotTrashedError,
+    NewerInvestigationError,
 )
 from lacis.storage.names import validate_investigation_name
+from lacis.storage.schema import MIGRATIONS, Migration, NewerSchemaError, migrate
 
 DATABASE_FILE_NAME = "investigation.sqlite3"
 MAXIMUM_QUESTION_LENGTH = 500
 TOO_LONG_QUESTION_MESSAGE = (
     f"La question de départ ne doit pas dépasser {MAXIMUM_QUESTION_LENGTH} caractères."
 )
-INVESTIGATION_TABLE_SCHEMA = """
-CREATE TABLE investigation (
-    question TEXT NOT NULL,
-    created_at TEXT NOT NULL
-)
-"""
 
 
 @dataclass(frozen=True)
@@ -77,17 +73,22 @@ def validate_question(question: str) -> str:
 
 
 def connect(database_path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(database_path)
+    connection = sqlite3.connect(database_path, autocommit=True)
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.autocommit = False
     return connection
 
 
 class InvestigationLibrary:
     def __init__(
-        self, root: Path, move_to_trash: Callable[[Path], bool] = move_to_system_trash
+        self,
+        root: Path,
+        move_to_trash: Callable[[Path], bool] = move_to_system_trash,
+        migrations: Sequence[Migration] = MIGRATIONS,
     ) -> None:
         self.root = root
         self.move_to_trash = move_to_trash
+        self.migrations = migrations
 
     def directory_of(self, name: str) -> Path:
         return self.root / name
@@ -111,9 +112,15 @@ class InvestigationLibrary:
         directory = self.existing_directory_of(name)
         connection = connect(directory / DATABASE_FILE_NAME)
         try:
+            migrate(connection, self.migrations)
             question, created_at = connection.execute(
                 "SELECT question, created_at FROM investigation"
             ).fetchone()
+        except NewerSchemaError as newer_schema:
+            connection.close()
+            raise NewerInvestigationError(
+                name, newer_schema.version, newer_schema.supported_version
+            ) from newer_schema
         except BaseException:
             connection.close()
             raise
@@ -146,8 +153,8 @@ class InvestigationLibrary:
         investigation = Investigation(validated_name, validated_question, created_at, directory)
         connection = connect(investigation.database_path)
         try:
+            migrate(connection, self.migrations)
             with connection:
-                connection.execute(INVESTIGATION_TABLE_SCHEMA)
                 connection.execute(
                     "INSERT INTO investigation (question, created_at) VALUES (?, ?)",
                     (validated_question, created_at.isoformat()),
