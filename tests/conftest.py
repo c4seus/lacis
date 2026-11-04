@@ -1,8 +1,13 @@
 import os
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtWidgets import QApplication
+
+from lacis.design.icons import IconFactory
+from lacis.design.theme_controller import ThemeController
 
 OFFSCREEN_SCREEN_CONFIGURATION = Path(__file__).with_name("offscreen-screen.json")
 
@@ -31,3 +36,17 @@ def settings(isolated_user_settings: Path) -> QSettings:
     return QSettings(
         str(isolated_user_settings / "Lacis" / "Lacis.ini"), QSettings.Format.IniFormat
     )
+
+
+@pytest.fixture
+def theme_controller(qapp: QApplication, settings: QSettings) -> Iterator[ThemeController]:
+    controller = ThemeController(qapp, settings)
+    yield controller
+    qapp.styleHints().colorSchemeChanged.disconnect(controller.follow_system_colour_scheme)
+    qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
+    qapp.setStyleSheet("")
+
+
+@pytest.fixture
+def icon_factory(theme_controller: ThemeController) -> IconFactory:
+    return IconFactory(lambda: theme_controller.current_theme.colours)
