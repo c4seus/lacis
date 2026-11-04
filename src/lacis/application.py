@@ -6,6 +6,7 @@ from PySide6.QtCore import QLocale, QSettings
 from PySide6.QtWidgets import QApplication
 
 from lacis import __version__
+from lacis.design.fonts import application_font, load_bundled_fonts
 from lacis.design.theme_controller import ThemeController
 from lacis.ui.main_window import MainWindow
 
@@ -38,6 +39,8 @@ def configure_application(application: QApplication) -> None:
     application.setOrganizationName(ORGANIZATION_NAME)
     application.setApplicationVersion(__version__)
     QLocale.setDefault(APPLICATION_LOCALE)
+    load_bundled_fonts()
+    application.setFont(application_font())
 
 
 def create_application(arguments: Sequence[str]) -> QApplication:
