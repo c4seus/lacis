@@ -94,12 +94,31 @@ def create_provenance_tables(connection: sqlite3.Connection) -> None:
     )
 
 
+def create_notice_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE notice (
+            identifier TEXT PRIMARY KEY,
+            family TEXT NOT NULL,
+            published_on TEXT NOT NULL,
+            court TEXT NOT NULL,
+            judgment TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            response_identifier INTEGER NOT NULL REFERENCES response (identifier),
+            first_collected_at TEXT NOT NULL,
+            last_collected_at TEXT NOT NULL
+        )
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     create_investigation_table,
     create_entity_table,
     create_link_table,
     create_response_table,
     create_provenance_tables,
+    create_notice_table,
 )
 
 
