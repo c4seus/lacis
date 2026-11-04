@@ -30,7 +30,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(MINIMUM_SIZE)
 
         self.header_bar = HeaderBar(self.icon_factory, theme_controller)
-        self.main_menu_bar = MainMenuBar(self)
+        self.main_menu_bar = MainMenuBar(self.header_bar.theme_menu, self)
         self.main_menu_bar.quit_action.triggered.connect(self.close)
         self.setMenuBar(self.main_menu_bar)
         self.content_area = QWidget()

@@ -196,9 +196,9 @@ def test_the_theme_button_opens_the_theme_choice(
     assert header_bar.theme_button.accessibleName() == "Thème de l'interface"
     assert header_bar.theme_button.menu() is header_bar.theme_menu
     assert [action.text() for action in header_bar.theme_menu.actions()] == [
-        "Système",
-        "Clair",
-        "Sombre",
+        "&Système",
+        "&Clair",
+        "S&ombre",
     ]
     header_bar.theme_menu.preference_actions[ThemePreference.DARK].trigger()
     assert theme_controller.preference == ThemePreference.DARK

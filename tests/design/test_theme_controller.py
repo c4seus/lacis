@@ -7,7 +7,6 @@ from pytestqt.qtbot import QtBot
 
 from lacis.design.style_sheet import build_style_sheet
 from lacis.design.theme_controller import (
-    THEME_PREFERENCE_LABELS,
     THEME_PREFERENCE_SETTING_KEY,
     ThemeController,
     ThemePreference,
@@ -54,14 +53,6 @@ def test_each_system_colour_scheme_has_its_theme(
     colour_scheme: Qt.ColorScheme, expected_theme: Theme
 ) -> None:
     assert theme_for_colour_scheme(colour_scheme) is expected_theme
-
-
-def test_the_three_choices_have_french_labels() -> None:
-    assert THEME_PREFERENCE_LABELS == {
-        ThemePreference.SYSTEM: "Système",
-        ThemePreference.LIGHT: "Clair",
-        ThemePreference.DARK: "Sombre",
-    }
 
 
 def test_without_a_choice_the_theme_of_the_system_is_used(
