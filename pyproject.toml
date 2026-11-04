@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.26"]
+requires = ["hatchling>=1.26", "hatch-vcs>=0.4"]
 build-backend = "hatchling.build"
 
 [project]
@@ -45,7 +45,7 @@ Homepage = "https://github.com/c4seus/lacis"
 Issues = "https://github.com/c4seus/lacis/issues"
 
 [tool.hatch.version]
-path = "src/lacis/__init__.py"
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lacis"]
