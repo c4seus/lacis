@@ -110,3 +110,8 @@ def test_notice_details_are_kept_as_json_text() -> None:
     assert json.loads(record["listepersonnes"])["personne"]["denomination"] == "ÉCOLE IMAGINAIRE"
     assert record["parution"] == "20220003"
     assert record["numeroannonce"] == 3
+
+
+def test_a_company_has_the_vat_number_derived_from_its_siren() -> None:
+    assert COMPANY.vat_number == "FR23111111111"
+    assert COMPANY.record([])["tva"] == ["FR23111111111"]

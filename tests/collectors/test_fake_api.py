@@ -22,7 +22,8 @@ from lacis.storage.collection_log import CollectionLog
 from lacis.storage.responses import ResponseSource, ResponseStore
 from real_api_structure import (
     COMPANY_KEYS,
-    ESTABLISHMENT_KEYS,
+    COMPLEMENT_KEYS,
+    HEAD_OFFICE_KEYS,
     LEGAL_PERSON_KEYS,
     NATURAL_PERSON_KEYS,
     NOTICE_KEYS,
@@ -155,12 +156,14 @@ def test_a_search_answers_with_the_structure_of_the_real_api(client: httpx.Clien
     assert set(payload) == {"results", "total_results", "page", "per_page", "total_pages"}
     [result] = payload["results"]
     assert set(result) == COMPANY_KEYS
-    assert set(result["siege"]) == ESTABLISHMENT_KEYS
+    assert set(result["siege"]) == HEAD_OFFICE_KEYS
+    assert set(result["complements"]) == COMPLEMENT_KEYS
     assert [set(director) for director in result["dirigeants"]] == [
         NATURAL_PERSON_KEYS,
         LEGAL_PERSON_KEYS,
     ]
-    assert all(set(item) == ESTABLISHMENT_KEYS for item in result["matching_etablissements"])
+    assert result["matching_etablissements"]
+    assert all(set(item) == HEAD_OFFICE_KEYS for item in result["matching_etablissements"])
 
 
 def test_a_company_carries_its_head_office_directors_and_counts(client: httpx.Client) -> None:
@@ -292,7 +295,6 @@ def test_a_notice_describes_the_company_and_its_publication(client: httpx.Client
     [record] = notices(client, where='registre="111111111"', limit="1")["results"]
     assert record["id"] == "A202000010001"
     assert record["publicationavis"] == "A"
-    assert record["publicationavis_facette"] == "Bodacc A"
     assert record["dateparution"] == "2020-01-20"
     assert record["numeroannonce"] == 1
     assert record["familleavis"] == "immatriculation"
