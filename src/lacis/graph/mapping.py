@@ -10,6 +10,7 @@ from lacis.collectors.company_register import (
     LegalPersonDirector,
     NaturalPersonDirector,
 )
+from lacis.graph.roles import director_role
 from lacis.storage.entities import (
     MONTH_OF_BIRTH_PATTERN,
     CollectedEntity,
@@ -26,7 +27,6 @@ from lacis.storage.entities import (
     registered_office_link,
 )
 
-UNKNOWN_ROLE = "Fonction non précisée"
 HEAD_OFFICE_LABEL = "Siège"
 ESTABLISHMENT_LABEL = "Établissement"
 LABEL_SEPARATOR = " — "
@@ -218,7 +218,7 @@ def director_fragment(company: str, director: Director) -> GraphFragment:
     entity = director_entity(director)
     if entity is None or entity.identifier == company:
         return GraphFragment()
-    role = director.role or UNKNOWN_ROLE
+    role = director_role(director.role).value
     return GraphFragment((entity,), (mandate_link(entity.identifier, company, role),))
 
 
