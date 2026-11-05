@@ -115,3 +115,11 @@ def test_notice_details_are_kept_as_json_text() -> None:
 def test_a_company_has_the_vat_number_derived_from_its_siren() -> None:
     assert COMPANY.vat_number == "FR23111111111"
     assert COMPANY.record([])["tva"] == ["FR23111111111"]
+
+
+def test_a_matching_establishment_gives_its_address_as_text_only() -> None:
+    record = COMPANY.establishment_record(COMPANY.establishments[1])
+    assert record["adresse"] == "4 RUE DES ÉCOLES 81600 GAILLAC"
+    assert "libelle_voie" not in record
+    assert "departement" not in record
+    assert record["ancien_siege"] is False

@@ -25,6 +25,7 @@ from real_api_structure import (
     COMPLEMENT_KEYS,
     HEAD_OFFICE_KEYS,
     LEGAL_PERSON_KEYS,
+    MATCHING_ESTABLISHMENT_KEYS,
     NATURAL_PERSON_KEYS,
     NOTICE_KEYS,
 )
@@ -163,7 +164,9 @@ def test_a_search_answers_with_the_structure_of_the_real_api(client: httpx.Clien
         LEGAL_PERSON_KEYS,
     ]
     assert result["matching_etablissements"]
-    assert all(set(item) == HEAD_OFFICE_KEYS for item in result["matching_etablissements"])
+    assert all(
+        set(item) == MATCHING_ESTABLISHMENT_KEYS for item in result["matching_etablissements"]
+    )
 
 
 def test_a_company_carries_its_head_office_directors_and_counts(client: httpx.Client) -> None:

@@ -14,6 +14,89 @@ PARTIALLY_DIFFUSIBLE_STATUS = "P"
 NATURAL_PERSON_TYPE = "personne physique"
 LEGAL_PERSON_TYPE = "personne morale"
 FICTIONAL_EPCI = "200000000"
+HEAD_OFFICE_FIELDS = (
+    "a_opco",
+    "activite_principale",
+    "activite_principale_naf25",
+    "activite_principale_registre_metier",
+    "annee_tranche_effectif_salarie",
+    "adresse",
+    "caractere_employeur",
+    "cedex",
+    "code_pays_etranger",
+    "code_postal",
+    "commune",
+    "complement_adresse",
+    "coordonnees",
+    "date_creation",
+    "date_debut_activite",
+    "date_fermeture",
+    "date_mise_a_jour",
+    "date_mise_a_jour_insee",
+    "departement",
+    "distribution_speciale",
+    "epci",
+    "est_siege",
+    "etat_administratif",
+    "geo_adresse",
+    "geo_id",
+    "indice_repetition",
+    "latitude",
+    "libelle_cedex",
+    "libelle_commune",
+    "libelle_commune_etranger",
+    "libelle_pays_etranger",
+    "libelle_voie",
+    "liste_enseignes",
+    "liste_finess",
+    "liste_id_bio",
+    "liste_idcc",
+    "liste_id_organisme_formation",
+    "liste_rge",
+    "liste_uai",
+    "longitude",
+    "nom_commercial",
+    "numero_voie",
+    "dernier_numero_voie",
+    "region",
+    "siret",
+    "statut_diffusion_etablissement",
+    "tranche_effectif_salarie",
+    "type_voie",
+)
+MATCHING_ESTABLISHMENT_FIELDS = (
+    "a_opco",
+    "activite_principale",
+    "activite_principale_naf25",
+    "ancien_siege",
+    "annee_tranche_effectif_salarie",
+    "adresse",
+    "caractere_employeur",
+    "code_postal",
+    "commune",
+    "date_creation",
+    "date_debut_activite",
+    "date_fermeture",
+    "epci",
+    "est_siege",
+    "etat_administratif",
+    "geo_id",
+    "latitude",
+    "libelle_commune",
+    "liste_enseignes",
+    "liste_finess",
+    "liste_id_bio",
+    "liste_idcc",
+    "liste_id_organisme_formation",
+    "liste_rge",
+    "liste_uai",
+    "longitude",
+    "nom_commercial",
+    "region",
+    "siret",
+    "statut_diffusion_etablissement",
+    "tranche_effectif_salarie",
+)
 FALSE_COMPLEMENTS = (
     "convention_collective_renseignee",
     "egapro_renseignee",
@@ -140,6 +223,7 @@ class FictionalEstablishment:
             "activite_principale": self.activity,
             "activite_principale_naf25": self.activity,
             "activite_principale_registre_metier": None,
+            "ancien_siege": False,
             "annee_tranche_effectif_salarie": "2023",
             "caractere_employeur": "O",
             "cedex": None,
@@ -183,6 +267,14 @@ class FictionalEstablishment:
             "tranche_effectif_salarie": "01",
             **street_details,
         }
+
+    def head_office_record(self, siren: str, diffusible: bool) -> JsonObject:
+        record = self.record(siren, True, diffusible)
+        return {key: record[key] for key in HEAD_OFFICE_FIELDS}
+
+    def matching_record(self, siren: str, is_head_office: bool, diffusible: bool) -> JsonObject:
+        record = self.record(siren, is_head_office, diffusible)
+        return {key: record[key] for key in MATCHING_ESTABLISHMENT_FIELDS}
 
 
 @dataclass(frozen=True)
@@ -254,7 +346,7 @@ class FictionalCompany:
 
     def establishment_record(self, establishment: FictionalEstablishment) -> JsonObject:
         is_head_office = establishment is self.head_office
-        return establishment.record(self.siren, is_head_office, self.diffusible)
+        return establishment.matching_record(self.siren, is_head_office, self.diffusible)
 
     @property
     def vat_number(self) -> str:
@@ -273,7 +365,7 @@ class FictionalCompany:
             "nombre_etablissements_ouverts": sum(
                 establishment.closing_date is None for establishment in self.establishments
             ),
-            "siege": self.establishment_record(self.head_office),
+            "siege": self.head_office.head_office_record(self.siren, self.diffusible),
             "activite_principale": self.activity,
             "activite_principale_naf25": self.activity,
             "section_activite_principale": self.activity_section,
