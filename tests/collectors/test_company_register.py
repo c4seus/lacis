@@ -6,6 +6,7 @@ import pytest
 
 from fake_time import FakeTime
 from lacis.collectors.company_register import (
+    NON_DIFFUSIBLE,
     Company,
     CompanyRegister,
     Identifier,
@@ -14,6 +15,7 @@ from lacis.collectors.company_register import (
     LegalPersonDirector,
     NaturalPersonDirector,
     company_from,
+    disclosed,
     identifier_in,
 )
 from lacis.collectors.fake_api import FakeApi
@@ -322,3 +324,68 @@ def test_a_company_with_more_establishments_than_listed_says_so() -> None:
     assert company.head_office is None
     assert company.name is None
     assert company.directors == ()
+
+
+@pytest.mark.parametrize(
+    ("value", "shown"),
+    [
+        ("[NON-DIFFUSIBLE]", NON_DIFFUSIBLE),
+        ("DUPONT", "DUPONT"),
+        (12, "12"),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_a_non_diffusible_value_is_marked_as_such(value: object, shown: object) -> None:
+    assert disclosed(value) == shown
+
+
+def test_a_non_diffusible_company_is_marked_without_guessing_hidden_fields(
+    register: CompanyRegister,
+) -> None:
+    hidden = register.company("999999999")
+    assert hidden is not None
+    assert not hidden.diffusible
+    assert hidden.name is NON_DIFFUSIBLE
+    assert hidden.acronym is None
+    assert hidden.directors == (
+        NaturalPersonDirector(NON_DIFFUSIBLE, NON_DIFFUSIBLE, None, "Entrepreneur", None),
+    )
+    assert not hidden.directors[0].diffusible
+    assert hidden.head_office is not None
+    assert not hidden.head_office.diffusible
+    address = hidden.head_office.address
+    assert address.street_withheld
+    assert address.number is NON_DIFFUSIBLE
+    assert address.street_name is NON_DIFFUSIBLE
+    assert address.postcode == "31000"
+    assert address.city == "TOULOUSE"
+    assert address.full_text == "31000 TOULOUSE"
+    assert hidden.head_office.trade_name is None
+
+
+def test_a_non_diffusible_company_leaks_no_hidden_field(register: CompanyRegister) -> None:
+    hidden = register.company("999999999")
+    assert "BLANC" not in repr(hidden).upper()
+    assert "HUGO" not in repr(hidden).upper()
+    assert "1992" not in repr(hidden)
+    assert register.search("blanc hugo").companies == ()
+
+
+def test_a_non_diffusible_director_of_a_diffusible_company_is_marked_as_such(
+    register: CompanyRegister,
+) -> None:
+    acme = register.company("111111111")
+    assert acme is not None
+    assert acme.diffusible
+    hidden_partner = acme.directors[3]
+    assert hidden_partner == NaturalPersonDirector(
+        NON_DIFFUSIBLE, NON_DIFFUSIBLE, None, "Associé", None
+    )
+    assert isinstance(hidden_partner, NaturalPersonDirector)
+    assert not hidden_partner.diffusible
+    assert isinstance(acme.directors[0], NaturalPersonDirector)
+    assert acme.directors[0].diffusible
+    assert acme.head_office is not None
+    assert not acme.head_office.address.street_withheld
+    assert "LEROUX" not in repr(acme)
