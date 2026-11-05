@@ -175,3 +175,109 @@ def test_any_entity_of_the_investigation_can_be_the_starting_point(
     assert is_expanded(graph_store, head_office)
     expander.expand(SHARED_ADDRESS)
     assert is_expanded(graph_store, SHARED_ADDRESS)
+
+
+def capped_expander(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    maximum_new_entities: int,
+) -> GraphExpander:
+    return GraphExpander(
+        investigation_connection,
+        CompanyRegister(http_client),
+        Bodacc(http_client),
+        now=lambda: EXPANDED_AT,
+        maximum_new_entities=maximum_new_entities,
+    )
+
+
+@pytest.fixture
+def expander_capped_at_two(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    dupont_services_added: None,
+) -> GraphExpander:
+    return capped_expander(investigation_connection, http_client, 2)
+
+
+def test_an_expansion_stops_at_the_cap_of_new_entities_and_says_so(
+    expander_capped_at_two: GraphExpander, graph_store: GraphStore
+) -> None:
+    report = expander_capped_at_two.expand(DUPONT_SERVICES)
+    assert len(report.changes.new_entities) == 2
+    assert len(graph_store.entities()) == 3
+    assert report.cap_reached
+    assert report.cap == 2
+    assert report.cap_message == (
+        "Extension arrêtée à 2 nouvelles entités, la limite fixée. "
+        "Étendez les pistes restantes pour continuer."
+    )
+
+
+def test_a_company_cut_by_the_cap_stays_a_lead_with_consistent_links(
+    expander_capped_at_two: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander_capped_at_two.expand(DUPONT_SERVICES)
+    assert not is_expanded(graph_store, DUPONT_SERVICES)
+    known = {entity.identifier for entity in graph_store.entities()}
+    assert all(link.source in known and link.target in known for link in graph_store.links())
+    assert graph_store.entity(JEAN_DUPONT) is None
+
+
+def test_expanding_again_after_the_cap_continues_where_it_stopped(
+    expander_capped_at_two: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander_capped_at_two.expand(DUPONT_SERVICES)
+    report = expander_capped_at_two.expand(DUPONT_SERVICES)
+    assert report.changes.new_entities == (JEAN_DUPONT,)
+    assert not report.cap_reached
+    assert is_expanded(graph_store, DUPONT_SERVICES)
+
+
+@pytest.mark.parametrize("cap", [1, 4, 7])
+def test_the_cap_is_never_exceeded_at_any_depth(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    graph_store: GraphStore,
+    dupont_services_added: None,
+    cap: int,
+) -> None:
+    expander = capped_expander(investigation_connection, http_client, cap)
+    report = expander.expand(DUPONT_SERVICES, 3)
+    assert len(report.changes.new_entities) <= cap
+    assert len(graph_store.entities()) <= cap + 1
+    assert report.cap_reached
+
+
+def test_reaching_the_cap_stops_the_requests(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    fake_api: FakeApi,
+    dupont_services_added: None,
+) -> None:
+    capped_expander(investigation_connection, http_client, 4).expand(DUPONT_SERVICES, 3)
+    capped_requests = len(fake_api.requests)
+    fake_api.requests.clear()
+    expander = capped_expander(investigation_connection, http_client, 500)
+    expander.expand(DUPONT_SERVICES, 3, refresh=True)
+    assert capped_requests < len(fake_api.requests)
+
+
+def test_an_expansion_below_the_cap_reports_no_cap(
+    expander: GraphExpander, dupont_services_added: None
+) -> None:
+    report = expander.expand(DUPONT_SERVICES, 2)
+    assert not report.cap_reached
+    assert report.cap is None
+    assert report.cap_message == ""
+
+
+def test_a_single_pivot_outside_an_expansion_has_no_cap(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    graph_store: GraphStore,
+) -> None:
+    expander = capped_expander(investigation_connection, http_client, 1)
+    changes = expander.expand_company("222222222")
+    assert len(changes.new_entities) == 4
+    assert is_expanded(graph_store, DUPONT_SERVICES)
