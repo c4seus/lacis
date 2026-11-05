@@ -2,7 +2,7 @@ import logging
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from PySide6.QtCore import QObject, Signal
 
@@ -12,12 +12,13 @@ from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, Collection
 from lacis.collectors.http_client import (
     COLLECTORS_LOGGER_NAME,
     DEFAULT_TIMING,
+    CollectionCancelledError,
     CollectionControl,
     CollectionError,
     CollectorHttpClient,
     CollectorTiming,
 )
-from lacis.graph.expansion import ExpansionError, GraphExpander
+from lacis.graph.expansion import ExpansionError, ExpansionReport, GraphExpander
 from lacis.graph.progress import ProgressTracker
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.errors import InvestigationError
@@ -44,9 +45,16 @@ class CollectionSession:
     expander: GraphExpander
 
 
+def interruptible_sleep(cancellation: threading.Event) -> Callable[[float], None]:
+    def sleep(seconds: float) -> None:
+        cancellation.wait(seconds)
+
+    return sleep
+
+
 @contextmanager
 def collection_session(
-    settings: CollectionSettings, tracker: ProgressTracker
+    settings: CollectionSettings, tracker: ProgressTracker, cancellation: threading.Event
 ) -> Iterator[CollectionSession]:
     with settings.library.open(settings.investigation_name) as investigation:
         connection = investigation.connection
@@ -54,8 +62,8 @@ def collection_session(
             ResponseStore(connection),
             CollectionLog(connection),
             settings.environment.transport,
-            settings.timing,
-            CollectionControl(request_made=tracker.request_made),
+            replace(settings.timing, sleep=interruptible_sleep(cancellation)),
+            CollectionControl(request_made=tracker.request_made, cancellation=cancellation),
         )
         try:
             company_register = CompanyRegister(http_client)
@@ -72,6 +80,7 @@ type CollectionTask = Callable[[CollectionSession], object]
 class BackgroundJob(QObject):
     progressed = Signal(object)
     succeeded = Signal(object)
+    cancelled = Signal(object)
     failed = Signal(str)
 
     def __init__(
@@ -80,12 +89,16 @@ class BackgroundJob(QObject):
         super().__init__(parent)
         self.settings = settings
         self.task = task
+        self.cancellation = threading.Event()
         self.worker_thread = threading.Thread(
             target=self.run, name="lacis-collection", daemon=True
         )
 
     def start(self) -> None:
         self.worker_thread.start()
+
+    def cancel(self) -> None:
+        self.cancellation.set()
 
     def wait(self) -> None:
         if self.worker_thread.is_alive():
@@ -94,15 +107,20 @@ class BackgroundJob(QObject):
     def run(self) -> None:
         try:
             tracker = ProgressTracker(self.progressed.emit)
-            with collection_session(self.settings, tracker) as session:
+            with collection_session(self.settings, tracker, self.cancellation) as session:
                 result = self.task(session)
+        except CollectionCancelledError:
+            self.cancelled.emit(None)
         except EXPECTED_FAILURES as failure:
             self.failed.emit(str(failure))
         except Exception:
             logging.getLogger(COLLECTORS_LOGGER_NAME).exception("Background collection failed")
             self.failed.emit(UNEXPECTED_FAILURE_MESSAGE)
         else:
-            self.succeeded.emit(result)
+            if isinstance(result, ExpansionReport) and result.cancelled:
+                self.cancelled.emit(result)
+            else:
+                self.succeeded.emit(result)
 
 
 def search_job(settings: CollectionSettings, text: str, page: int = 1) -> BackgroundJob:

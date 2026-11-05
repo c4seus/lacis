@@ -1,7 +1,8 @@
 import logging
+import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -30,6 +31,7 @@ COLLECTORS_LOGGER_NAME = f"{LOGGER_NAME}.collectors"
 REQUEST_TIMEOUT = timedelta(seconds=10)
 CACHE_LIFETIME = timedelta(hours=24)
 SUCCESSFUL_HTTP_STATUSES = range(200, 300)
+CANCELLED_MESSAGE = "Collecte annulée : les données déjà collectées sont conservées."
 SOURCE_NAMES = {
     ResponseSource.COMPANY_REGISTER: "Recherche d'entreprises",
     ResponseSource.BODACC: "BODACC",
@@ -110,9 +112,15 @@ def ignore_request() -> None:
 @dataclass(frozen=True)
 class CollectionControl:
     request_made: Callable[[], None] = ignore_request
+    cancellation: threading.Event = field(default_factory=threading.Event)
+
+    def stop_if_cancelled(self) -> None:
+        if self.cancellation.is_set():
+            raise CollectionCancelledError(CANCELLED_MESSAGE)
 
 
-DEFAULT_CONTROL = CollectionControl()
+class CollectionCancelledError(Exception):
+    pass
 
 
 class CollectorHttpClient:
@@ -122,12 +130,12 @@ class CollectorHttpClient:
         collection_log: CollectionLog,
         transport: httpx.BaseTransport | None = None,
         timing: CollectorTiming = DEFAULT_TIMING,
-        control: CollectionControl = DEFAULT_CONTROL,
+        control: CollectionControl | None = None,
     ) -> None:
         self.response_store = response_store
         self.collection_log = collection_log
         self.timing = timing
-        self.control = control
+        self.control = control or CollectionControl()
         self.client = httpx.Client(
             transport=transport,
             timeout=REQUEST_TIMEOUT.total_seconds(),
@@ -146,6 +154,7 @@ class CollectorHttpClient:
         *,
         refresh: bool = False,
     ) -> StoredResponse:
+        self.control.stop_if_cancelled()
         request = CollectorRequest(source, url, parameters)
         if not refresh:
             cached_response = self.cached_response(request)
@@ -185,6 +194,7 @@ class CollectorHttpClient:
         source = request.source
         attempt = 1
         while True:
+            self.control.stop_if_cancelled()
             is_last_attempt = attempt == self.timing.retry_policy.maximum_attempts
             self.timing.rate_limiters.wait_for(source)
             attempt_start = AttemptStart(self.timing.now(), self.timing.monotonic())

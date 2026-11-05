@@ -14,6 +14,7 @@ from lacis.collectors.http_client import (
     COLLECTORS_LOGGER_NAME,
     REQUEST_TIMEOUT,
     USER_AGENT,
+    CollectionCancelledError,
     CollectionControl,
     CollectionError,
     CollectorHttpClient,
@@ -540,3 +541,62 @@ def test_every_request_sent_is_reported_but_not_a_cache_hit(
 
 def test_requests_are_reported_to_nobody_by_default() -> None:
     ignore_request()
+
+
+def test_a_cancelled_collection_sends_no_request(
+    response_store: ResponseStore, collection_log: CollectionLog, collector_timing: CollectorTiming
+) -> None:
+    sent: list[httpx.Request] = []
+    control = CollectionControl()
+    control.cancellation.set()
+    client = CollectorHttpClient(
+        response_store,
+        collection_log,
+        httpx.MockTransport(recording(sent, 200)),
+        collector_timing,
+        control,
+    )
+    try:
+        with pytest.raises(CollectionCancelledError) as cancellation:
+            client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    finally:
+        client.close()
+    assert str(cancellation.value) == (
+        "Collecte annulée : les données déjà collectées sont conservées."
+    )
+    assert sent == []
+    assert collection_log.entries() == []
+
+
+def test_a_collection_cancelled_while_waiting_to_retry_stops_before_the_next_attempt(
+    response_store: ResponseStore, collection_log: CollectionLog
+) -> None:
+    sent: list[httpx.Request] = []
+    control = CollectionControl()
+    fake_time = FakeTime()
+    client = CollectorHttpClient(
+        response_store,
+        collection_log,
+        httpx.MockTransport(recording(sent, 503)),
+        CollectorTiming(
+            rate_limiters=RateLimiters(clock=fake_time.clock, sleep=fake_time.sleep),
+            sleep=lambda seconds: control.cancellation.set(),
+            monotonic=fake_time.clock,
+        ),
+        control,
+    )
+    try:
+        with pytest.raises(CollectionCancelledError):
+            client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    finally:
+        client.close()
+    assert len(sent) == 1
+    assert len(collection_log.entries()) == 1
+
+
+def recording(sent: list[httpx.Request], status: int) -> Handler:
+    def answer(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(status)
+
+    return answer

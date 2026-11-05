@@ -13,7 +13,7 @@ from lacis.collectors.company_register import (
     NaturalPersonDirector,
     siren_of,
 )
-from lacis.collectors.http_client import CollectionError
+from lacis.collectors.http_client import CollectionCancelledError, CollectionError
 from lacis.graph.mapping import (
     GraphFragment,
     combined,
@@ -127,6 +127,7 @@ class ExpansionReport:
     changes: GraphChanges
     failures: tuple[str, ...] = ()
     cap: int | None = None
+    cancelled: bool = False
 
     @property
     def cap_reached(self) -> bool:
@@ -190,6 +191,7 @@ class GraphExpander:
         self.remaining_new_entities: int | None = None
         self.cap_reached = False
         self.entities_found: Callable[[int], None] = ignore_count
+        self.recorded_changes: list[GraphChanges] = []
 
     def expand_company(self, siren: str, *, refresh: bool = False) -> GraphChanges:
         digits = siren_of(siren)
@@ -230,8 +232,10 @@ class GraphExpander:
                     [notice.identifier for notice in company_notices.notices],
                 )
             ]
-        return GraphChanges(
-            new_notices=tuple(new_notices), withdrawn_notices=tuple(withdrawn_notices)
+        return self.recorded(
+            GraphChanges(
+                new_notices=tuple(new_notices), withdrawn_notices=tuple(withdrawn_notices)
+            )
         )
 
     def mark_expanded(self, entity: CollectedEntity, response: ResponseSummary) -> None:
@@ -318,7 +322,16 @@ class GraphExpander:
             if self.graph_store.link(link.identifier) is None:
                 new_links.append(link.identifier)
             self.graph_store.save_link(link, response)
-        return GraphChanges(tuple(new_entities), tuple(new_links))
+        return self.recorded(GraphChanges(tuple(new_entities), tuple(new_links)))
+
+    def recorded(self, changes: GraphChanges) -> GraphChanges:
+        if self.is_expanding:
+            self.recorded_changes.append(changes)
+        return changes
+
+    @property
+    def is_expanding(self) -> bool:
+        return self.remaining_new_entities is not None
 
     def may_add_entity(self) -> bool:
         if self.remaining_new_entities is None:
@@ -345,18 +358,22 @@ class GraphExpander:
             raise ExpansionError(INVALID_DEPTH_MESSAGE)
         self.remaining_new_entities = self.maximum_new_entities
         self.cap_reached = False
+        self.recorded_changes = []
+        failures: list[str] = []
+        cancelled = False
         try:
-            changes, failures = self.expand_by_level(identifier, depth, refresh)
+            self.expand_by_level(identifier, depth, refresh, failures)
+        except CollectionCancelledError:
+            cancelled = True
         finally:
             self.remaining_new_entities = None
         cap = self.maximum_new_entities if self.cap_reached else None
-        return ExpansionReport(combined_changes(changes), tuple(failures), cap)
+        changes = combined_changes(self.recorded_changes)
+        return ExpansionReport(changes, tuple(failures), cap, cancelled)
 
     def expand_by_level(
-        self, identifier: str, depth: int, refresh: bool
-    ) -> tuple[list[GraphChanges], list[str]]:
-        changes: list[GraphChanges] = []
-        failures: list[str] = []
+        self, identifier: str, depth: int, refresh: bool, failures: list[str]
+    ) -> None:
         frontier = [identifier]
         visited: set[str] = set()
         for level in range(depth):
@@ -364,9 +381,9 @@ class GraphExpander:
             next_frontier: list[str] = []
             for current in frontier:
                 if self.cap_reached:
-                    return changes, failures
+                    return
                 try:
-                    changes.append(self.expand_one(current, refresh=refresh))
+                    self.expand_one(current, refresh=refresh)
                 except (ExpansionError, CollectionError) as failure:
                     if level == 0:
                         raise
@@ -374,7 +391,6 @@ class GraphExpander:
                     continue
                 next_frontier.extend(self.unexpanded_neighbours(current, visited))
             frontier = list(dict.fromkeys(next_frontier))
-        return changes, failures
 
     def expand_one(self, identifier: str, *, refresh: bool) -> GraphChanges:
         kind = kind_of(identifier)
