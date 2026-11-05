@@ -1,12 +1,28 @@
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from typing import Self
 
 from lacis.collectors.bodacc import Bodacc, CompanyNotices
-from lacis.collectors.company_register import Company, CompanyRegister, siren_of
-from lacis.graph.mapping import GraphFragment, company_entity, company_fragment, spaced_siren
-from lacis.storage.entities import company_identifier
+from lacis.collectors.company_register import (
+    Company,
+    CompanyRegister,
+    CompanySearchPage,
+    NaturalPersonDirector,
+    siren_of,
+)
+from lacis.graph.mapping import (
+    GraphFragment,
+    combined,
+    company_entity,
+    company_fragment,
+    director_fragment,
+    shown,
+    spaced_siren,
+)
+from lacis.storage.comparison_keys import person_name_key
+from lacis.storage.entities import CollectedEntity, EntityKind, company_identifier
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.notices import NoticeStore
 from lacis.storage.responses import ResponseSummary
@@ -27,6 +43,61 @@ class GraphChanges:
 
 
 EXPANDED_AT_ATTRIBUTE = "expanded_at"
+MAXIMUM_SEARCH_PAGES = 4
+UNKNOWN_ENTITY_MESSAGE = "Cette entité n'est pas dans l'enquête ou ne peut pas être étendue."
+
+
+def combined_changes(changes: Iterable[GraphChanges]) -> GraphChanges:
+    every_change = list(changes)
+    return GraphChanges(
+        *(
+            tuple(
+                dict.fromkeys(
+                    identifier for change in every_change for identifier in getattr(change, name)
+                )
+            )
+            for name in ("new_entities", "new_links", "new_notices", "withdrawn_notices")
+        )
+    )
+
+
+@dataclass(frozen=True)
+class SearchedName:
+    last_name: str
+    first_names: str
+    birth_month: str | None
+
+    @classmethod
+    def of(cls, person: CollectedEntity) -> Self:
+        birth_month = person.attributes.get("birth_month")
+        return cls(
+            str(person.attributes.get("last_name") or ""),
+            str(person.attributes.get("first_names") or ""),
+            birth_month if isinstance(birth_month, str) else None,
+        )
+
+    def bears(self, director: NaturalPersonDirector) -> bool:
+        last_name = shown(director.last_name)
+        if last_name is None or person_name_key(last_name) != person_name_key(self.last_name):
+            return False
+        first_name_words = set(person_name_key(shown(director.first_names) or "").split())
+        if not set(person_name_key(self.first_names).split()) <= first_name_words:
+            return False
+        birth_month = shown(director.birth_month)
+        return None in (birth_month, self.birth_month) or birth_month == self.birth_month
+
+    def mandates_in(self, company: Company) -> GraphFragment:
+        company_entity_identifier = company_identifier(company.siren)
+        return combined(
+            [
+                GraphFragment((company_entity(company),)),
+                *(
+                    director_fragment(company_entity_identifier, director)
+                    for director in company.directors
+                    if isinstance(director, NaturalPersonDirector) and self.bears(director)
+                ),
+            ]
+        )
 
 
 class ExpansionError(Exception):
@@ -98,13 +169,51 @@ class GraphExpander:
         )
 
     def marked_as_expanded(self, fragment: GraphFragment) -> GraphFragment:
-        company = fragment.entities[0]
-        expanded_attributes = {
-            **company.attributes,
-            EXPANDED_AT_ATTRIBUTE: self.now().isoformat(),
-        }
-        marked_company = replace(company, attributes=expanded_attributes)
-        return replace(fragment, entities=(marked_company, *fragment.entities[1:]))
+        company, *other_entities = fragment.entities
+        return replace(fragment, entities=(self.expanded(company), *other_entities))
+
+    def expanded(self, entity: CollectedEntity) -> CollectedEntity:
+        attributes = {**entity.attributes, EXPANDED_AT_ATTRIBUTE: self.now().isoformat()}
+        return replace(entity, attributes=attributes)
+
+    def entity_to_expand(self, identifier: str, kind: EntityKind) -> CollectedEntity:
+        entity = self.graph_store.entity(identifier)
+        if entity is None or entity.kind is not kind:
+            raise ExpansionError(UNKNOWN_ENTITY_MESSAGE)
+        return CollectedEntity(entity.identifier, entity.label, entity.attributes)
+
+    def expand_person(self, identifier: str, *, refresh: bool = False) -> GraphChanges:
+        person = self.entity_to_expand(identifier, EntityKind.PERSON)
+        searched_name = SearchedName.of(person)
+        changes = []
+        search_pages = self.director_pages(searched_name, refresh)
+        for search_page in search_pages:
+            for company in search_page.companies:
+                fragment = searched_name.mandates_in(company)
+                if fragment.links:
+                    changes.append(self.save_fragment(fragment, search_page.response))
+        expanded_person = GraphFragment((self.expanded(person),))
+        changes.append(self.save_fragment(expanded_person, search_pages[-1].response))
+        return combined_changes(changes)
+
+    def director_pages(
+        self, searched_name: SearchedName, refresh: bool
+    ) -> list[CompanySearchPage]:
+        search_pages = [
+            self.company_register.search_director(
+                searched_name.last_name, searched_name.first_names, refresh=refresh
+            )
+        ]
+        while search_pages[-1].has_next_page and len(search_pages) < MAXIMUM_SEARCH_PAGES:
+            search_pages.append(
+                self.company_register.search_director(
+                    searched_name.last_name,
+                    searched_name.first_names,
+                    search_pages[-1].page + 1,
+                    refresh=refresh,
+                )
+            )
+        return search_pages
 
     def add_company(self, company: Company, response: ResponseSummary) -> GraphChanges:
         return self.save_fragment(GraphFragment((company_entity(company),)), response)
