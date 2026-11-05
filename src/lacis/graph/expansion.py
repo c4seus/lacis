@@ -13,6 +13,7 @@ from lacis.collectors.company_register import (
     NaturalPersonDirector,
     siren_of,
 )
+from lacis.collectors.http_client import CollectionError
 from lacis.graph.mapping import (
     GraphFragment,
     combined,
@@ -29,6 +30,7 @@ from lacis.storage.entities import (
     EntityKind,
     company_identifier,
     establishment_of_link,
+    kind_of,
     registered_office_link,
 )
 from lacis.storage.graph_store import GraphStore
@@ -53,6 +55,12 @@ class GraphChanges:
 EXPANDED_AT_ATTRIBUTE = "expanded_at"
 MAXIMUM_SEARCH_PAGES = 4
 ESTABLISHMENT_PREFIX = f"{EntityKind.ESTABLISHMENT}:"
+MINIMUM_DEPTH = 1
+MAXIMUM_DEPTH = 3
+INVALID_DEPTH_MESSAGE = (
+    f"La profondeur d'extension doit être comprise entre {MINIMUM_DEPTH} et {MAXIMUM_DEPTH}."
+)
+PIVOT_KINDS = frozenset({EntityKind.COMPANY, EntityKind.PERSON, EntityKind.ADDRESS})
 UNKNOWN_ENTITY_MESSAGE = "Cette entité n'est pas dans l'enquête ou ne peut pas être étendue."
 
 
@@ -111,6 +119,12 @@ class SearchedName:
 
 class ExpansionError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class ExpansionReport:
+    changes: GraphChanges
+    failures: tuple[str, ...] = ()
 
 
 def current_time() -> datetime:
@@ -287,3 +301,53 @@ class GraphExpander:
             (establishment_of_link(identifier, company_entity_identifier),),
         )
         return combined_changes([company_changes, self.save_fragment(fragment, source)])
+
+    def expand(self, identifier: str, depth: int = 1, *, refresh: bool = False) -> ExpansionReport:
+        if not MINIMUM_DEPTH <= depth <= MAXIMUM_DEPTH:
+            raise ExpansionError(INVALID_DEPTH_MESSAGE)
+        changes: list[GraphChanges] = []
+        failures: list[str] = []
+        frontier = [identifier]
+        visited: set[str] = set()
+        for level in range(depth):
+            visited.update(frontier)
+            next_frontier: list[str] = []
+            for current in frontier:
+                try:
+                    changes.append(self.expand_one(current, refresh=refresh))
+                except (ExpansionError, CollectionError) as failure:
+                    if level == 0:
+                        raise
+                    failures.append(f"{self.label_of(current)} : {failure}")
+                    continue
+                next_frontier.extend(self.unexpanded_neighbours(current, visited))
+            frontier = list(dict.fromkeys(next_frontier))
+        return ExpansionReport(combined_changes(changes), tuple(failures))
+
+    def expand_one(self, identifier: str, *, refresh: bool) -> GraphChanges:
+        kind = kind_of(identifier)
+        if kind is EntityKind.COMPANY:
+            self.entity_to_expand(identifier, EntityKind.COMPANY)
+            return self.expand_company(identifier.split(":", 1)[1], refresh=refresh)
+        if kind is EntityKind.PERSON:
+            return self.expand_person(identifier, refresh=refresh)
+        if kind is EntityKind.ADDRESS:
+            return self.expand_address(identifier, refresh=refresh)
+        if kind is EntityKind.ESTABLISHMENT:
+            return self.expand_establishment(identifier, refresh=refresh)
+        raise ExpansionError(UNKNOWN_ENTITY_MESSAGE)
+
+    def unexpanded_neighbours(self, identifier: str, visited: set[str]) -> list[str]:
+        neighbours = []
+        for link in self.graph_store.links_of(identifier):
+            neighbour = link.target if link.source == identifier else link.source
+            if neighbour in visited or kind_of(neighbour) not in PIVOT_KINDS:
+                continue
+            entity = self.graph_store.entity(neighbour)
+            if entity is not None and EXPANDED_AT_ATTRIBUTE not in entity.attributes:
+                neighbours.append(neighbour)
+        return neighbours
+
+    def label_of(self, identifier: str) -> str:
+        entity = self.graph_store.entity(identifier)
+        return entity.label if entity is not None else identifier
