@@ -10,6 +10,7 @@ from lacis.collectors.company_register import (
     LegalPersonDirector,
     NaturalPersonDirector,
 )
+from lacis.graph.foreign import country_of_legal_form
 from lacis.graph.roles import director_role
 from lacis.storage.entities import (
     MONTH_OF_BIRTH_PATTERN,
@@ -205,7 +206,16 @@ def legal_person_entity(director: LegalPersonDirector) -> CollectedEntity | None
         )
     if name is None:
         return None
-    return CollectedEntity(foreign_company_identifier(name, ""), name, {"name": name})
+    foreign_country = country_of_legal_form(name)
+    return CollectedEntity(
+        foreign_company_identifier(name, ""),
+        name,
+        {
+            "name": name,
+            "country": foreign_country.country if foreign_country else None,
+            "country_source": foreign_country.source if foreign_country else None,
+        },
+    )
 
 
 def director_entity(director: Director) -> CollectedEntity | None:

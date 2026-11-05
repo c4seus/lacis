@@ -666,3 +666,13 @@ def test_only_an_establishment_of_the_investigation_can_be_expanded_as_one(
     expander.expand_company("222222222")
     with pytest.raises(ExpansionError):
         expander.expand_establishment(SHARED_ADDRESS)
+
+
+def test_dupont_invest_ltd_of_the_scenario_is_a_foreign_company(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("111111111")
+    invest = graph_store.require_entity(foreign_company_identifier("DUPONT INVEST LTD", ""))
+    assert invest.kind is EntityKind.FOREIGN_COMPANY
+    assert invest.attributes["country"] == "Royaume-Uni"
+    assert invest.attributes["country_source"] == "Forme juridique LTD"
