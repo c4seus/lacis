@@ -1,6 +1,7 @@
 import json
+import sqlite3
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
@@ -9,6 +10,9 @@ import pytest
 from fake_time import FakeTime
 from lacis.collectors.bodacc import (
     Bodacc,
+    BodaccNotice,
+    family_of,
+    notice_from,
 )
 from lacis.collectors.company_register import InvalidQueryError
 from lacis.collectors.fake_api import FakeApi
@@ -26,7 +30,9 @@ from lacis.collectors.fictional_records import (
 from lacis.collectors.http_client import CollectionError, CollectorHttpClient, CollectorTiming
 from lacis.collectors.rate_limiting import RateLimiters
 from lacis.storage.collection_log import CollectionLog
-from lacis.storage.notices import NoticeFamily
+from lacis.storage.entities import CollectedEntity
+from lacis.storage.graph_store import GraphStore
+from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore
 from lacis.storage.responses import ResponseSource, ResponseStore, ResponseSummary
 
 Handler = Callable[[httpx.Request], httpx.Response]
@@ -225,3 +231,254 @@ def test_an_unreadable_page_reaches_the_caller_with_a_french_message(
     assert str(failure.value) == (
         "La réponse du service BODACC est illisible. Réessayez plus tard."
     )
+
+
+def notices_by_identifier(bodacc: Bodacc, siren: str) -> dict[str, BodaccNotice]:
+    return {notice.identifier: notice for notice in bodacc.notices_of(siren).notices}
+
+
+def test_every_notice_of_the_fake_api_is_placed_in_its_family(bodacc: Bodacc) -> None:
+    notices = bodacc.notices_of("777777777").notices
+    assert sorted(notice.family for notice in notices) == sorted(
+        family for _, family in EVERY_FAMILY.values()
+    )
+    for notice in notices:
+        assert EVERY_FAMILY[family_code_of(notice)] == (notice.family_label, notice.family)
+
+
+def family_code_of(notice: BodaccNotice) -> str:
+    return next(
+        fictional.family
+        for fictional in EVERY_FAMILY_NOTICES
+        if fictional.identifier == notice.identifier
+    )
+
+
+def test_every_notice_of_the_fake_plumbers_is_placed_in_its_family(bodacc: Bodacc) -> None:
+    families = {
+        siren: [notice.family for notice in bodacc.notices_of(siren).notices]
+        for siren in ("111111111", "222222222", "333333333")
+    }
+    assert families == {
+        "111111111": [NoticeFamily.AMENDMENT, NoticeFamily.ACCOUNTS, NoticeFamily.REGISTRATION],
+        "222222222": [NoticeFamily.REMOVAL, NoticeFamily.INSOLVENCY, NoticeFamily.INSOLVENCY],
+        "333333333": [NoticeFamily.AMENDMENT],
+    }
+
+
+@pytest.mark.parametrize(
+    ("code", "label", "family"),
+    [
+        ("", "Procédures collectives", NoticeFamily.INSOLVENCY),
+        (
+            "inconnue",
+            "Procédure de rétablissement professionnel",
+            NoticeFamily.PROFESSIONAL_RECOVERY,
+        ),
+        ("", "Avis de dépôt des comptes", NoticeFamily.ACCOUNTS),
+        ("", "Cession de fonds", NoticeFamily.SALE),
+        (" DPC ", "", NoticeFamily.ACCOUNTS),
+        ("", "", NoticeFamily.MISCELLANEOUS),
+        ("nouvelle", "Famille inconnue", NoticeFamily.MISCELLANEOUS),
+    ],
+)
+def test_an_unknown_code_is_classified_by_its_label(
+    code: str, label: str, family: NoticeFamily
+) -> None:
+    assert family_of(code, label) is family
+
+
+def test_a_notice_gives_its_court_publication_date_and_link(bodacc: Bodacc) -> None:
+    notice = notices_by_identifier(bodacc, "111111111")["C202400020002"]
+    assert notice.court == COURT
+    assert notice.published_on == date(2024, 7, 12)
+    assert notice.url.endswith("q.id=id:C202400020002")
+    assert notice.response.source is ResponseSource.BODACC
+
+
+def test_an_insolvency_notice_gives_its_judgment_and_its_date(bodacc: Bodacc) -> None:
+    notices = notices_by_identifier(bodacc, "222222222")
+    closing = notices["A202200030002"]
+    assert closing.judgment == "Jugement de clôture pour insuffisance d'actif"
+    assert closing.judgment_date == date(2022, 11, 28)
+    assert closing.summary == (
+        "Jugement de clôture pour insuffisance d'actif. "
+        "Jugement prononçant la clôture de la procédure."
+    )
+    opening = notices["A202200030003"]
+    assert opening.judgment == "Jugement d'ouverture de liquidation judiciaire"
+    assert opening.summary == "Jugement d'ouverture de liquidation judiciaire"
+
+
+def test_a_notice_outside_proceedings_has_no_judgment(bodacc: Bodacc) -> None:
+    removal = notices_by_identifier(bodacc, "222222222")["B202300030001"]
+    assert removal.judgment == ""
+    assert removal.judgment_date is None
+
+
+@pytest.mark.parametrize(
+    ("identifier", "summary"),
+    [
+        ("B202500010001", "Modification survenue sur l'administration. "),
+        ("C202400020002", "Comptes annuels et rapports (clôture au 2023-12-31)"),
+        ("A202200010003", "Société par actions simplifiée. Plomberie, chauffage."),
+    ],
+)
+def test_a_notice_is_summarised_from_its_family_details(
+    bodacc: Bodacc, identifier: str, summary: str
+) -> None:
+    assert notices_by_identifier(bodacc, "111111111")[identifier].summary.startswith(summary)
+
+
+def test_a_removal_is_summarised_from_its_details(bodacc: Bodacc) -> None:
+    removal = notices_by_identifier(bodacc, "222222222")["B202300030001"]
+    assert removal.summary == "Radiation du registre du commerce et des sociétés"
+
+
+def raw_notice(family: str, **details: object) -> dict[str, Any]:
+    record: dict[str, Any] = {
+        "id": "A202500990001",
+        "familleavis": family,
+        "familleavis_lib": "Famille",
+        "typeavis_lib": "Avis initial",
+        "dateparution": "2025-03-04",
+        "tribunal": COURT,
+        "registre": ["111111111", "111 111 111"],
+    }
+    record.update(
+        {
+            name: json.dumps(value) if isinstance(value, dict) else value
+            for name, value in details.items()
+        }
+    )
+    return record
+
+
+@pytest.mark.parametrize(
+    ("record", "summary"),
+    [
+        (raw_notice("dpc", depot={"typeDepot": "Comptes annuels"}), "Comptes annuels"),
+        (raw_notice("dpc", depot={"dateCloture": "2024-12-31"}), "Clôture au 2024-12-31"),
+        (raw_notice("dpc"), "Avis initial"),
+        (raw_notice("radiation"), "Avis initial"),
+        (raw_notice("radiation", radiationaurcs={"motifs": ["", " "]}), "Avis initial"),
+        (
+            raw_notice("radiation", radiationaurcs={"motif": "Radiation d'office"}),
+            "Radiation d'office",
+        ),
+        (
+            raw_notice("radiation", radiationaurcs={"motifs": ["", 3, "Radiation d'office"]}),
+            "Radiation d'office",
+        ),
+        (
+            raw_notice("collective", jugement={"complementJugement": "Plan arrêté."}),
+            "Plan arrêté.",
+        ),
+        (raw_notice("vente", acte={"categorieVente": "Vente du fonds"}), "Vente du fonds"),
+        (raw_notice("divers", divers={"texte": "Rectificatif."}), "Rectificatif."),
+        (raw_notice("divers", typeavis_lib=None), "Famille"),
+    ],
+)
+def test_a_notice_without_its_usual_details_is_still_summarised(
+    record: dict[str, Any], summary: str
+) -> None:
+    assert notice_from(record, RESPONSE).summary == summary
+
+
+def test_a_long_summary_is_shortened_on_one_line() -> None:
+    record = raw_notice("modification", modificationsgenerales={"descriptif": "mot\n " * 200})
+    summary = notice_from(record, RESPONSE).summary
+    assert len(summary) == 400
+    assert summary.endswith("…")
+    assert "\n" not in summary
+
+
+def test_a_notice_without_link_gets_the_link_of_its_bodacc_page() -> None:
+    assert notice_from(raw_notice("divers"), RESPONSE).url == (
+        "https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:A202500990001"
+    )
+
+
+def test_the_companies_of_a_notice_are_given_their_role() -> None:
+    record = raw_notice(
+        "immatriculation",
+        registre=["999999999", "999 999 999", "555555555", "555 555 555", "888888888"],
+        listepersonnes={
+            "personne": {"numeroImmatriculation": {"numeroIdentification": "999 999 999"}}
+        },
+        listeprecedentexploitant={
+            "personne": {"numeroImmatriculation": {"numeroIdentification": "555 555 555"}}
+        },
+        listeprecedentproprietaire={
+            "personne": [{"numeroImmatriculation": {"numeroIdentification": "RCS 666666666"}}]
+        },
+    )
+    assert notice_from(record, RESPONSE).company_roles == {
+        "999999999": NoticeRole.SUBJECT,
+        "555555555": NoticeRole.PREVIOUS_OPERATOR,
+        "666666666": NoticeRole.PREVIOUS_OWNER,
+        "888888888": NoticeRole.MENTIONED,
+    }
+
+
+def test_a_notice_without_persons_concerns_its_registered_companies() -> None:
+    record = raw_notice("divers", registre="111 111 111")
+    assert notice_from(record, RESPONSE).company_roles == {"111111111": NoticeRole.SUBJECT}
+
+
+def test_a_notice_is_saved_in_the_investigation_with_its_companies(
+    bodacc: Bodacc, investigation_connection: sqlite3.Connection
+) -> None:
+    notice_store = NoticeStore(investigation_connection)
+    company_notices = bodacc.notices_of("111111111")
+    GraphStore(investigation_connection).save_entity(
+        CollectedEntity("company:111111111", "ACME PLOMBERIE"), company_notices.pages[0].response
+    )
+    for notice in company_notices.notices:
+        notice_store.save_notice(notice.collected_notice(), notice.response)
+    notices = notice_store.notices_of_company("company:111111111")
+    assert {family: len(items) for family, items in notices.items()} == {
+        NoticeFamily.AMENDMENT: 1,
+        NoticeFamily.ACCOUNTS: 1,
+        NoticeFamily.REGISTRATION: 1,
+    }
+    assert {item.role for items in notices.values() for item in items} == {NoticeRole.SUBJECT}
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        {"familleavis": "divers", "dateparution": "2025-01-01"},
+        {"id": "A1", "familleavis": "divers", "dateparution": "hier"},
+        {"id": "A1", "familleavis": "divers"},
+    ],
+)
+def test_an_unreadable_notice_reaches_the_caller_with_a_french_message(
+    bodacc_factory: BodaccFactory, record: dict[str, Any]
+) -> None:
+    bodacc = bodacc_factory(lambda request: httpx.Response(200, content=notice_page([record])))
+    company_notices = bodacc.notices_of("111111111")
+    with pytest.raises(CollectionError) as failure:
+        _ = company_notices.notices
+    assert str(failure.value) == (
+        "La réponse du service BODACC est illisible. Réessayez plus tard."
+    )
+
+
+def test_a_detail_that_is_not_valid_json_is_read_as_plain_text() -> None:
+    record = raw_notice("divers", divers="{texte tronqué")
+    assert notice_from(record, RESPONSE).summary == "Avis initial"
+
+
+def test_numbers_that_are_not_sirens_give_no_company() -> None:
+    record = raw_notice(
+        "immatriculation",
+        registre=["111111111", "inconnu"],
+        listepersonnes={
+            "personne": [
+                {"numeroImmatriculation": {"numeroIdentification": "111 111 111"}},
+                {"numeroImmatriculation": {"numeroIdentification": "en cours"}},
+            ]
+        },
+    )
+    assert notice_from(record, RESPONSE).company_roles == {"111111111": NoticeRole.SUBJECT}
