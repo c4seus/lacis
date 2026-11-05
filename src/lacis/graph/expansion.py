@@ -54,6 +54,7 @@ class GraphChanges:
 
 EXPANDED_AT_ATTRIBUTE = "expanded_at"
 MAXIMUM_SEARCH_PAGES = 4
+DEFAULT_MAXIMUM_NEW_ENTITIES = 500
 ESTABLISHMENT_PREFIX = f"{EntityKind.ESTABLISHMENT}:"
 MINIMUM_DEPTH = 1
 MAXIMUM_DEPTH = 3
@@ -125,6 +126,20 @@ class ExpansionError(Exception):
 class ExpansionReport:
     changes: GraphChanges
     failures: tuple[str, ...] = ()
+    cap: int | None = None
+
+    @property
+    def cap_reached(self) -> bool:
+        return self.cap is not None
+
+    @property
+    def cap_message(self) -> str:
+        if self.cap is None:
+            return ""
+        return (
+            f"Extension arrêtée à {self.cap} nouvelles entités, la limite fixée. "
+            "Étendez les pistes restantes pour continuer."
+        )
 
 
 def current_time() -> datetime:
@@ -160,21 +175,26 @@ class GraphExpander:
         company_register: CompanyRegister,
         bodacc: Bodacc,
         now: Callable[[], datetime] = current_time,
+        maximum_new_entities: int = DEFAULT_MAXIMUM_NEW_ENTITIES,
     ) -> None:
         self.graph_store = GraphStore(connection)
         self.notice_store = NoticeStore(connection)
         self.company_register = company_register
         self.bodacc = bodacc
         self.now = now
+        self.maximum_new_entities = maximum_new_entities
+        self.remaining_new_entities: int | None = None
+        self.cap_reached = False
 
     def expand_company(self, siren: str, *, refresh: bool = False) -> GraphChanges:
         digits = siren_of(siren)
         sourced_company = self.company_register.sourced_company(digits, refresh=refresh)
         if sourced_company is None:
             raise ExpansionError(unknown_company_message(digits))
-        fragment = self.marked_as_expanded(company_fragment(sourced_company.company))
+        fragment = company_fragment(sourced_company.company)
         graph_changes = self.save_fragment(fragment, sourced_company.response)
         notice_changes = self.save_notices(self.bodacc.notices_of(digits, refresh=refresh))
+        self.mark_expanded(fragment.entities[0], sourced_company.response)
         return replace(
             graph_changes,
             new_notices=notice_changes.new_notices,
@@ -209,9 +229,9 @@ class GraphExpander:
             new_notices=tuple(new_notices), withdrawn_notices=tuple(withdrawn_notices)
         )
 
-    def marked_as_expanded(self, fragment: GraphFragment) -> GraphFragment:
-        company, *other_entities = fragment.entities
-        return replace(fragment, entities=(self.expanded(company), *other_entities))
+    def mark_expanded(self, entity: CollectedEntity, response: ResponseSummary) -> None:
+        if not self.cap_reached:
+            self.graph_store.save_entity(self.expanded(entity), response)
 
     def expanded(self, entity: CollectedEntity) -> CollectedEntity:
         attributes = {**entity.attributes, EXPANDED_AT_ATTRIBUTE: self.now().isoformat()}
@@ -233,8 +253,7 @@ class GraphExpander:
                 fragment = searched_name.mandates_in(company)
                 if fragment.links:
                     changes.append(self.save_fragment(fragment, search_page.response))
-        expanded_person = GraphFragment((self.expanded(person),))
-        changes.append(self.save_fragment(expanded_person, search_pages[-1].response))
+        self.mark_expanded(person, search_pages[-1].response)
         return combined_changes(changes)
 
     def director_pages(
@@ -266,29 +285,42 @@ class GraphExpander:
                 fragment = registered_at(company, identifier)
                 if fragment.links:
                     changes.append(self.save_fragment(fragment, search_page.response))
-        expanded_address = GraphFragment((self.expanded(address),))
-        changes.append(self.save_fragment(expanded_address, search_pages[-1].response))
+        self.mark_expanded(address, search_pages[-1].response)
         return combined_changes(changes)
 
     def add_company(self, company: Company, response: ResponseSummary) -> GraphChanges:
         return self.save_fragment(GraphFragment((company_entity(company),)), response)
 
     def save_fragment(self, fragment: GraphFragment, response: ResponseSummary) -> GraphChanges:
-        new_entities = [
-            entity.identifier
-            for entity in fragment.entities
-            if self.graph_store.entity(entity.identifier) is None
-        ]
-        new_links = [
-            link.identifier
-            for link in fragment.links
-            if self.graph_store.link(link.identifier) is None
-        ]
+        new_entities: list[str] = []
         for entity in fragment.entities:
+            is_new = self.graph_store.entity(entity.identifier) is None
+            if is_new and not self.may_add_entity():
+                continue
             self.graph_store.save_entity(entity, response)
+            if is_new:
+                new_entities.append(entity.identifier)
+        new_links: list[str] = []
         for link in fragment.links:
+            endpoints = (
+                self.graph_store.entity(link.source),
+                self.graph_store.entity(link.target),
+            )
+            if None in endpoints:
+                continue
+            if self.graph_store.link(link.identifier) is None:
+                new_links.append(link.identifier)
             self.graph_store.save_link(link, response)
         return GraphChanges(tuple(new_entities), tuple(new_links))
+
+    def may_add_entity(self) -> bool:
+        if self.remaining_new_entities is None:
+            return True
+        if self.remaining_new_entities == 0:
+            self.cap_reached = True
+            return False
+        self.remaining_new_entities -= 1
+        return True
 
     def expand_establishment(self, identifier: str, *, refresh: bool = False) -> GraphChanges:
         establishment = self.entity_to_expand(identifier, EntityKind.ESTABLISHMENT)
@@ -296,15 +328,26 @@ class GraphExpander:
         company_changes = self.expand_company(siren, refresh=refresh)
         company_entity_identifier = company_identifier(siren)
         source = self.graph_store.sources_of_entity(company_entity_identifier)[-1]
-        fragment = GraphFragment(
-            (self.expanded(establishment),),
-            (establishment_of_link(identifier, company_entity_identifier),),
-        )
-        return combined_changes([company_changes, self.save_fragment(fragment, source)])
+        link = establishment_of_link(identifier, company_entity_identifier)
+        link_changes = self.save_fragment(GraphFragment(links=(link,)), source)
+        self.mark_expanded(establishment, source)
+        return combined_changes([company_changes, link_changes])
 
     def expand(self, identifier: str, depth: int = 1, *, refresh: bool = False) -> ExpansionReport:
         if not MINIMUM_DEPTH <= depth <= MAXIMUM_DEPTH:
             raise ExpansionError(INVALID_DEPTH_MESSAGE)
+        self.remaining_new_entities = self.maximum_new_entities
+        self.cap_reached = False
+        try:
+            changes, failures = self.expand_by_level(identifier, depth, refresh)
+        finally:
+            self.remaining_new_entities = None
+        cap = self.maximum_new_entities if self.cap_reached else None
+        return ExpansionReport(combined_changes(changes), tuple(failures), cap)
+
+    def expand_by_level(
+        self, identifier: str, depth: int, refresh: bool
+    ) -> tuple[list[GraphChanges], list[str]]:
         changes: list[GraphChanges] = []
         failures: list[str] = []
         frontier = [identifier]
@@ -313,6 +356,8 @@ class GraphExpander:
             visited.update(frontier)
             next_frontier: list[str] = []
             for current in frontier:
+                if self.cap_reached:
+                    return changes, failures
                 try:
                     changes.append(self.expand_one(current, refresh=refresh))
                 except (ExpansionError, CollectionError) as failure:
@@ -322,7 +367,7 @@ class GraphExpander:
                     continue
                 next_frontier.extend(self.unexpanded_neighbours(current, visited))
             frontier = list(dict.fromkeys(next_frontier))
-        return ExpansionReport(combined_changes(changes), tuple(failures))
+        return changes, failures
 
     def expand_one(self, identifier: str, *, refresh: bool) -> GraphChanges:
         kind = kind_of(identifier)
