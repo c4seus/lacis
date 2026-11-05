@@ -121,6 +121,34 @@ DUPONT_RENOVATION = FictionalCompany(
     activity="43.39Z",
     legal_form="5499",
 )
+LONDON_ADDRESS = FictionalAddress(
+    "10",
+    "",
+    "KING STREET",
+    "",
+    "LONDRES",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    country="ROYAUME-UNI",
+    country_code="99132",
+)
+THAMES_TRADING = FictionalCompany(
+    siren="121212121",
+    name="THAMES TRADING LIMITED",
+    establishments=(
+        FictionalEstablishment("00015", LONDON_ADDRESS, "2021-06-01", activity="46.74A"),
+        FictionalEstablishment("00023", HOLDING_ADDRESS, "2021-09-01", activity="46.74A"),
+    ),
+    directors=(FictionalLegalPerson("DUPONT INVEST LTD", "Directeur"),),
+    creation_date="2021-06-01",
+    activity="46.74A",
+    activity_section="G",
+    legal_form="3120",
+)
 HIDDEN_PLUMBER = FictionalCompany(
     siren="999999999",
     name="BLANC Hugo",
@@ -234,6 +262,7 @@ FAKE_PLUMBERS_SCENARIO = FictionalScenario(
         AUTRE_SOCIETE,
         LILAS_BOULANGERIE,
         DUPONT_RENOVATION,
+        THAMES_TRADING,
         HIDDEN_PLUMBER,
     ),
     notices=FAKE_PLUMBERS_NOTICES,

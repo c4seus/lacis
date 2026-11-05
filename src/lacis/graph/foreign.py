@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from lacis.collectors.bodacc import COUNTRY_OF_NORMALISED_NAME
+from lacis.collectors.company_register import Company
 from lacis.storage.comparison_keys import normalise_text
 
 COUNTRY_OF_LEGAL_FORM = {
@@ -25,6 +27,8 @@ COUNTRY_OF_LEGAL_FORM = {
     ("CORP",): "États-Unis",
 }
 LEGAL_FORM_SOURCE = "Forme juridique {legal_form}"
+HEAD_OFFICE_SOURCE = "Adresse du siège"
+FOREIGN_LAW_PREFIX = "3"
 
 
 @dataclass(frozen=True)
@@ -53,3 +57,23 @@ def country_of_legal_form(name: str) -> ForeignCountry | None:
                 country, LEGAL_FORM_SOURCE.format(legal_form=" ".join(legal_form))
             )
     return None
+
+
+def country_name(api_label: str) -> str:
+    known_name = COUNTRY_OF_NORMALISED_NAME.get(normalise_text(api_label))
+    return known_name or api_label.strip().title()
+
+
+def is_under_foreign_law(company: Company) -> bool:
+    legal_form = company.legal_form or ""
+    head_office_country = company.head_office.address.country if company.head_office else None
+    return legal_form.startswith(FOREIGN_LAW_PREFIX) or head_office_country is not None
+
+
+def country_of_company(company: Company) -> ForeignCountry | None:
+    if company.head_office is not None and company.head_office.address.country is not None:
+        return ForeignCountry(
+            country_name(company.head_office.address.country), HEAD_OFFICE_SOURCE
+        )
+    name = company.name if isinstance(company.name, str) else ""
+    return country_of_legal_form(name) if is_under_foreign_law(company) else None
