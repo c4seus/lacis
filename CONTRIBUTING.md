@@ -41,6 +41,16 @@ python -m pip install -e ".[dev]"
 ruff check . ; ruff format --check . ; python scripts/check_no_comments.py ; mypy ; pytest --cov
 ```
 
+### Running Lacis
+
+Once installed, the `lacis` command starts the application on the real APIs. To try it without any network request, start it on the fake API:
+
+```bash
+lacis --demo
+```
+
+The demonstration serves the fictional companies of the « faux plombiers » scenario and keeps its investigations in a temporary data directory, deleted when Lacis closes. It never writes to the real data directory.
+
 ### Make targets
 
 | Target | What it does |
