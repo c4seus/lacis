@@ -142,9 +142,10 @@ class FictionalNaturalPerson:
     birth_month: str
     role: str
     nationality: str = "Française"
+    diffusible: bool = True
 
     def record(self, diffusible: bool) -> JsonObject:
-        if not diffusible:
+        if not (diffusible and self.diffusible):
             return {
                 "nom": NON_DIFFUSIBLE,
                 "prenoms": NON_DIFFUSIBLE,
