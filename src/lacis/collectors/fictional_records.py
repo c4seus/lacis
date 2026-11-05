@@ -24,6 +24,9 @@ PUBLICATION_OF_FAMILY = {
     "modification": "B",
     "radiation": "B",
     "dpc": "C",
+    "conciliation": "A",
+    "retablissement_professionnel": "A",
+    "divers": "A",
 }
 
 
