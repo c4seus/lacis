@@ -585,3 +585,17 @@ def test_numbers_that_are_not_sirens_give_no_company() -> None:
         },
     )
     assert notice_from(record, RESPONSE).company_roles == {"111111111": NoticeRole.SUBJECT}
+
+
+@pytest.mark.parametrize(
+    ("judgment_date", "expected"),
+    [
+        ("2025-10-01", date(2025, 10, 1)),
+        ("1er octobre 2025", date(2025, 10, 1)),
+        ("01/10/2025", date(2025, 10, 1)),
+        ("prochainement", None),
+    ],
+)
+def test_the_judgment_date_is_read_in_its_forms(judgment_date: str, expected: date | None) -> None:
+    record = raw_notice("collective", jugement={"nature": "Jugement", "date": judgment_date})
+    assert notice_from(record, RESPONSE).judgment_date == expected

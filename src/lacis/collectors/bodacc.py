@@ -362,7 +362,7 @@ def notice_from(record: dict[str, Any], response: ResponseSummary) -> BodaccNoti
         published_on=published_on,
         court=text_of(record, "tribunal"),
         judgment=first_value(judgment, ("nature", "famille")),
-        judgment_date=date.fromisoformat(judgment_date[:10]) if judgment_date else None,
+        judgment_date=date_in_text(judgment_date),
         summary=shortened(summary),
         company_roles=roles_in(record),
         url=text_of(record, "url_complete") or NOTICE_URL.format(identifier=identifier),
