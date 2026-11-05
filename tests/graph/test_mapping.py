@@ -358,3 +358,12 @@ def test_a_director_without_role_gets_an_unspecified_role() -> None:
         raw_company(dirigeants=[{"type_dirigeant": "personne morale", "siren": "333333333"}])
     )
     assert [link.role for link in fragment.links] == ["Fonction non précisée"]
+
+
+def test_the_roles_of_directors_use_the_fixed_french_labels() -> None:
+    directors = [
+        {"type_dirigeant": "personne morale", "siren": "333333333", "qualite": "Présidente"},
+        {"type_dirigeant": "personne physique", "nom": "MARTIN", "qualite": "Co-gérante"},
+    ]
+    fragment = company_fragment(raw_company(dirigeants=directors))
+    assert sorted(link.role for link in fragment.links) == ["Gérant", "Président"]
