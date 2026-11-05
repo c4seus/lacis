@@ -1,7 +1,7 @@
 import json
 import re
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum, StrEnum
 from typing import Any
 
 from lacis.collectors.endpoints import COMPANY_SEARCH_URL, MAXIMUM_COMPANIES_PER_PAGE
@@ -10,10 +10,21 @@ from lacis.storage.responses import ResponseSource, ResponseSummary, StoredRespo
 
 SIREN_LENGTH = 9
 SIRET_LENGTH = 14
+NON_DIFFUSIBLE_MARK = "[NON-DIFFUSIBLE]"
+PARTIALLY_DIFFUSIBLE_STATUS = "P"
 CLOSED_STATES = {"C", "F"}
 NATURAL_PERSON_TYPE = "personne physique"
 IDENTIFIER_SEPARATORS = re.compile(r"[\s.\-]+")
 SOURCE = ResponseSource.COMPANY_REGISTER
+
+
+class Withheld(Enum):
+    NON_DIFFUSIBLE = NON_DIFFUSIBLE_MARK
+
+
+NON_DIFFUSIBLE = Withheld.NON_DIFFUSIBLE
+
+type Disclosed = str | Withheld
 
 
 class InvalidQueryError(ValueError):
@@ -49,23 +60,34 @@ def siren_of(text: str) -> str:
     return identifier.digits
 
 
-def optional_text(value: object) -> str | None:
+def disclosed(value: object) -> Disclosed | None:
     if value is None or value == "":
         return None
+    if value == NON_DIFFUSIBLE_MARK:
+        return NON_DIFFUSIBLE
     return str(value)
+
+
+def optional_text(value: object) -> str | None:
+    shown = disclosed(value)
+    return shown if isinstance(shown, str) else None
 
 
 @dataclass(frozen=True)
 class Address:
-    number: str | None
-    street_type: str | None
-    street_name: str | None
-    complement: str | None
-    postcode: str | None
-    city: str | None
+    number: Disclosed | None
+    street_type: Disclosed | None
+    street_name: Disclosed | None
+    complement: Disclosed | None
+    postcode: Disclosed | None
+    city: Disclosed | None
     city_code: str | None
     country: str | None
-    full_text: str | None
+    full_text: Disclosed | None
+
+    @property
+    def street_withheld(self) -> bool:
+        return NON_DIFFUSIBLE in (self.number, self.street_type, self.street_name)
 
 
 @dataclass(frozen=True)
@@ -77,21 +99,26 @@ class Establishment:
     activity: str | None
     creation_date: str | None
     closing_date: str | None
-    trade_name: str | None
+    trade_name: Disclosed | None
+    diffusible: bool
 
 
 @dataclass(frozen=True)
 class NaturalPersonDirector:
-    last_name: str | None
-    first_names: str | None
-    birth_month: str | None
+    last_name: Disclosed | None
+    first_names: Disclosed | None
+    birth_month: Disclosed | None
     role: str | None
-    nationality: str | None
+    nationality: Disclosed | None
+
+    @property
+    def diffusible(self) -> bool:
+        return NON_DIFFUSIBLE not in (self.last_name, self.first_names)
 
 
 @dataclass(frozen=True)
 class LegalPersonDirector:
-    name: str | None
+    name: Disclosed | None
     siren: str | None
     role: str | None
 
@@ -102,9 +129,10 @@ type Director = NaturalPersonDirector | LegalPersonDirector
 @dataclass(frozen=True)
 class Company:
     siren: str
-    name: str | None
-    acronym: str | None
+    name: Disclosed | None
+    acronym: Disclosed | None
     is_active: bool
+    diffusible: bool
     legal_form: str | None
     activity: str | None
     creation_date: str | None
@@ -137,15 +165,15 @@ class CompanySearchPage:
 def address_from(record: dict[str, Any]) -> Address:
     city = record.get("libelle_commune") or record.get("libelle_commune_etranger")
     return Address(
-        number=optional_text(record.get("numero_voie")),
-        street_type=optional_text(record.get("type_voie")),
-        street_name=optional_text(record.get("libelle_voie")),
-        complement=optional_text(record.get("complement_adresse")),
-        postcode=optional_text(record.get("code_postal")),
-        city=optional_text(city),
+        number=disclosed(record.get("numero_voie")),
+        street_type=disclosed(record.get("type_voie")),
+        street_name=disclosed(record.get("libelle_voie")),
+        complement=disclosed(record.get("complement_adresse")),
+        postcode=disclosed(record.get("code_postal")),
+        city=disclosed(city),
         city_code=optional_text(record.get("commune")),
         country=optional_text(record.get("libelle_pays_etranger")),
-        full_text=optional_text(record.get("adresse")),
+        full_text=disclosed(record.get("adresse")),
     )
 
 
@@ -158,21 +186,22 @@ def establishment_from(record: dict[str, Any]) -> Establishment:
         activity=optional_text(record.get("activite_principale")),
         creation_date=optional_text(record.get("date_creation")),
         closing_date=optional_text(record.get("date_fermeture")),
-        trade_name=optional_text(record.get("nom_commercial")),
+        trade_name=disclosed(record.get("nom_commercial")),
+        diffusible=record.get("statut_diffusion_etablissement") != PARTIALLY_DIFFUSIBLE_STATUS,
     )
 
 
 def director_from(record: dict[str, Any]) -> Director:
     if record.get("type_dirigeant") == NATURAL_PERSON_TYPE:
         return NaturalPersonDirector(
-            last_name=optional_text(record.get("nom")),
-            first_names=optional_text(record.get("prenoms")),
-            birth_month=optional_text(record.get("date_de_naissance")),
+            last_name=disclosed(record.get("nom")),
+            first_names=disclosed(record.get("prenoms")),
+            birth_month=disclosed(record.get("date_de_naissance")),
             role=optional_text(record.get("qualite")),
-            nationality=optional_text(record.get("nationalite")),
+            nationality=disclosed(record.get("nationalite")),
         )
     return LegalPersonDirector(
-        name=optional_text(record.get("denomination")),
+        name=disclosed(record.get("denomination")),
         siren=optional_text(record.get("siren")),
         role=optional_text(record.get("qualite")),
     )
@@ -182,9 +211,10 @@ def company_from(record: dict[str, Any]) -> Company:
     head_office = record.get("siege")
     return Company(
         siren=str(record["siren"]),
-        name=optional_text(record.get("nom_complet") or record.get("nom_raison_sociale")),
-        acronym=optional_text(record.get("sigle")),
+        name=disclosed(record.get("nom_complet") or record.get("nom_raison_sociale")),
+        acronym=disclosed(record.get("sigle")),
         is_active=record.get("etat_administratif") not in CLOSED_STATES,
+        diffusible=record.get("statut_diffusion") != PARTIALLY_DIFFUSIBLE_STATUS,
         legal_form=optional_text(record.get("nature_juridique")),
         activity=optional_text(record.get("activite_principale")),
         creation_date=optional_text(record.get("date_creation")),
