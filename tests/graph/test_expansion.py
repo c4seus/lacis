@@ -16,8 +16,10 @@ from lacis.collectors.company_register import (
 from lacis.collectors.fake_api import FakeApi
 from lacis.collectors.fake_plumbers import DUPONT_SERVICES as DUPONT_SERVICES_COMPANY
 from lacis.collectors.fake_plumbers import FAKE_PLUMBERS_SCENARIO, HOLDING_DUPONT
+from lacis.collectors.fake_plumbers import SHARED_ADDRESS as SHARED_ADDRESS_OF_SCENARIO
 from lacis.collectors.fictional_records import (
     FictionalCompany,
+    FictionalEstablishment,
     FictionalNaturalPerson,
     FictionalNotice,
 )
@@ -500,3 +502,109 @@ def test_a_director_bears_the_searched_name_when_names_and_birth_month_agree(
     assert SearchedName("DUPONT", "Jean", None).bears(director) is (
         bears or director.birth_month == "1975-01"
     )
+
+
+def registered_offices(graph_store: GraphStore) -> set[tuple[str, str]]:
+    return {
+        (link.source, link.target)
+        for link in graph_store.links()
+        if link.kind is LinkKind.REGISTERED_OFFICE
+    }
+
+
+def test_expanding_the_address_of_the_scenario_finds_the_companies_registered_there(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("111111111")
+    changes = expander.expand_address(SHARED_ADDRESS)
+    assert set(changes.new_entities) == {DUPONT_SERVICES, DUPONT_SERVICES_HEAD_OFFICE}
+    assert registered_offices(graph_store) == {
+        (ACME, SHARED_ADDRESS),
+        (DUPONT_SERVICES, SHARED_ADDRESS),
+    }
+    assert (
+        DUPONT_SERVICES_HEAD_OFFICE,
+        LinkKind.LOCATED_AT,
+        SHARED_ADDRESS,
+    ) in {(link.source, link.kind, link.target) for link in graph_store.links()}
+
+
+def test_an_address_expansion_leaves_out_other_cities_and_hidden_companies(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("111111111")
+    expander.expand_address(SHARED_ADDRESS)
+    identifiers = {entity.identifier for entity in graph_store.entities()}
+    assert "company:555555555" not in identifiers
+    assert "company:999999999" not in identifiers
+    assert graph_store.entity(JEAN_DUPONT) is None
+
+
+def test_an_establishment_at_the_address_is_found_without_a_registered_office(
+    expander: GraphExpander, fake_api: FakeApi, graph_store: GraphStore
+) -> None:
+    branch = FictionalCompany(
+        siren="888888888",
+        name="PLOMBERIE DU SUD",
+        establishments=(
+            HOLDING_DUPONT.establishments[0],
+            FictionalEstablishment("00023", SHARED_ADDRESS_OF_SCENARIO, "2024-02-01"),
+        ),
+        directors=(),
+        creation_date="2018-01-01",
+    )
+    fake_api.scenario = replace(
+        FAKE_PLUMBERS_SCENARIO, companies=(*FAKE_PLUMBERS_SCENARIO.companies, branch)
+    )
+    expander.expand_company("111111111")
+    changes = expander.expand_address(SHARED_ADDRESS)
+    branch_establishment = establishment_identifier("88888888800023")
+    assert branch_establishment in changes.new_entities
+    assert establishment_identifier("88888888800015") not in changes.new_entities
+    assert ("company:888888888", SHARED_ADDRESS) not in registered_offices(graph_store)
+
+
+def test_an_expanded_address_records_when_it_was_expanded(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("111111111")
+    expander.expand_address(SHARED_ADDRESS)
+    address = graph_store.require_entity(SHARED_ADDRESS)
+    assert address.attributes["expanded_at"] == EXPANDED_AT.isoformat()
+    assert address.attributes["text"] == "12 RUE DES LILAS 31000 TOULOUSE"
+
+
+def test_expanding_an_address_twice_adds_nothing_new(expander: GraphExpander) -> None:
+    expander.expand_company("111111111")
+    expander.expand_address(SHARED_ADDRESS)
+    assert expander.expand_address(SHARED_ADDRESS).is_empty
+
+
+def test_only_an_address_of_the_investigation_can_be_expanded_as_an_address(
+    expander: GraphExpander,
+) -> None:
+    expander.expand_company("111111111")
+    with pytest.raises(ExpansionError):
+        expander.expand_address(ACME)
+
+
+def test_a_company_found_by_the_search_at_another_address_is_left_out(
+    expander: GraphExpander, fake_api: FakeApi, graph_store: GraphStore
+) -> None:
+    neighbour = FictionalCompany(
+        siren="888888888",
+        name="VOISIN DES LILAS",
+        establishments=(
+            FictionalEstablishment(
+                "00015", replace(SHARED_ADDRESS_OF_SCENARIO, number="112"), "2021-01-01"
+            ),
+        ),
+        directors=(),
+        creation_date="2021-01-01",
+    )
+    fake_api.scenario = replace(
+        FAKE_PLUMBERS_SCENARIO, companies=(*FAKE_PLUMBERS_SCENARIO.companies, neighbour)
+    )
+    expander.expand_company("111111111")
+    expander.expand_address(SHARED_ADDRESS)
+    assert graph_store.entity("company:888888888") is None
