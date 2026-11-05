@@ -339,6 +339,17 @@ HOLDING = "company:333333333"
 DUPONT_RENOVATION = "company:666666666"
 JEAN_PIERRE_DUPONT = person_identifier("DUPONT", "Jean Pierre", "1980-05")
 JEAN_MARC_DUPONT = person_identifier("DUPONT", "Jean Marc", "1980-05")
+BRANCH = FictionalCompany(
+    siren="888888888",
+    name="PLOMBERIE DU SUD",
+    establishments=(
+        HOLDING_DUPONT.establishments[0],
+        FictionalEstablishment("00023", SHARED_ADDRESS_OF_SCENARIO, "2024-02-01"),
+    ),
+    directors=(FictionalNaturalPerson("ROUX", "Inès", "1991-04", "Présidente"),),
+    creation_date="2018-01-01",
+)
+BRANCH_AT_SHARED_ADDRESS = establishment_identifier("88888888800023")
 
 
 def mandates(graph_store: GraphStore) -> set[tuple[str, str, str]]:
@@ -543,18 +554,8 @@ def test_an_address_expansion_leaves_out_other_cities_and_hidden_companies(
 def test_an_establishment_at_the_address_is_found_without_a_registered_office(
     expander: GraphExpander, fake_api: FakeApi, graph_store: GraphStore
 ) -> None:
-    branch = FictionalCompany(
-        siren="888888888",
-        name="PLOMBERIE DU SUD",
-        establishments=(
-            HOLDING_DUPONT.establishments[0],
-            FictionalEstablishment("00023", SHARED_ADDRESS_OF_SCENARIO, "2024-02-01"),
-        ),
-        directors=(),
-        creation_date="2018-01-01",
-    )
     fake_api.scenario = replace(
-        FAKE_PLUMBERS_SCENARIO, companies=(*FAKE_PLUMBERS_SCENARIO.companies, branch)
+        FAKE_PLUMBERS_SCENARIO, companies=(*FAKE_PLUMBERS_SCENARIO.companies, BRANCH)
     )
     expander.expand_company("111111111")
     changes = expander.expand_address(SHARED_ADDRESS)
@@ -608,3 +609,60 @@ def test_a_company_found_by_the_search_at_another_address_is_left_out(
     expander.expand_company("111111111")
     expander.expand_address(SHARED_ADDRESS)
     assert graph_store.entity("company:888888888") is None
+
+
+@pytest.fixture
+def branch_found_at_the_address(expander: GraphExpander, fake_api: FakeApi) -> GraphExpander:
+    fake_api.scenario = replace(
+        FAKE_PLUMBERS_SCENARIO, companies=(*FAKE_PLUMBERS_SCENARIO.companies, BRANCH)
+    )
+    expander.expand_company("111111111")
+    expander.expand_address(SHARED_ADDRESS)
+    return expander
+
+
+def test_expanding_an_establishment_expands_its_company(
+    branch_found_at_the_address: GraphExpander, graph_store: GraphStore
+) -> None:
+    changes = branch_found_at_the_address.expand_establishment(BRANCH_AT_SHARED_ADDRESS)
+    head_office = establishment_identifier("88888888800015")
+    marseille = address_identifier("5 AVENUE DU PORT 13002 MARSEILLE")
+    assert {head_office, marseille, person_identifier("ROUX", "Inès", "1991-04")} <= set(
+        changes.new_entities
+    )
+    assert BRANCH_AT_SHARED_ADDRESS not in changes.new_entities
+    company = graph_store.require_entity("company:888888888")
+    assert company.attributes["expanded_at"] == EXPANDED_AT.isoformat()
+    branch = graph_store.require_entity(BRANCH_AT_SHARED_ADDRESS)
+    assert branch.attributes["expanded_at"] == EXPANDED_AT.isoformat()
+    assert (BRANCH_AT_SHARED_ADDRESS, LinkKind.ESTABLISHMENT_OF, "company:888888888") in {
+        (link.source, link.kind, link.target) for link in graph_store.links()
+    }
+
+
+def test_expanding_an_establishment_twice_adds_nothing_new(
+    branch_found_at_the_address: GraphExpander,
+) -> None:
+    branch_found_at_the_address.expand_establishment(BRANCH_AT_SHARED_ADDRESS)
+    assert branch_found_at_the_address.expand_establishment(BRANCH_AT_SHARED_ADDRESS).is_empty
+
+
+def test_an_establishment_whose_company_left_the_register_cannot_be_expanded(
+    expander: GraphExpander, fake_api: FakeApi, wall_clock: FakeWallClock
+) -> None:
+    expander.expand_company("222222222")
+    fake_api.scenario = replace(FAKE_PLUMBERS_SCENARIO, companies=())
+    wall_clock.advance(timedelta(days=2))
+    with pytest.raises(ExpansionError) as failure:
+        expander.expand_establishment(DUPONT_SERVICES_HEAD_OFFICE)
+    assert str(failure.value) == (
+        "Aucune entreprise ne porte le SIREN 222 222 222 dans le registre national."
+    )
+
+
+def test_only_an_establishment_of_the_investigation_can_be_expanded_as_one(
+    expander: GraphExpander,
+) -> None:
+    expander.expand_company("222222222")
+    with pytest.raises(ExpansionError):
+        expander.expand_establishment(SHARED_ADDRESS)
