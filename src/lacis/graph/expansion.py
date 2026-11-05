@@ -18,11 +18,17 @@ from lacis.graph.mapping import (
     company_entity,
     company_fragment,
     director_fragment,
+    establishment_fragment,
     shown,
     spaced_siren,
 )
 from lacis.storage.comparison_keys import person_name_key
-from lacis.storage.entities import CollectedEntity, EntityKind, company_identifier
+from lacis.storage.entities import (
+    CollectedEntity,
+    EntityKind,
+    company_identifier,
+    registered_office_link,
+)
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.notices import NoticeStore
 from lacis.storage.responses import ResponseSummary
@@ -112,6 +118,24 @@ def unknown_company_message(siren: str) -> str:
     return f"Aucune entreprise ne porte le SIREN {spaced_siren(siren)} dans le registre national."
 
 
+def registered_at(company: Company, address: str) -> GraphFragment:
+    company_entity_identifier = company_identifier(company.siren)
+    establishments = {
+        establishment.siret: establishment
+        for establishment in (*company.matching_establishments, company.head_office)
+        if establishment is not None
+    }
+    fragments = [GraphFragment((company_entity(company),))]
+    for establishment in establishments.values():
+        fragment = establishment_fragment(company_entity_identifier, establishment)
+        if any(entity.identifier == address for entity in fragment.entities):
+            fragments.append(fragment)
+            if establishment.is_head_office:
+                office_link = registered_office_link(company_entity_identifier, address)
+                fragments.append(GraphFragment(links=(office_link,)))
+    return combined(fragments)
+
+
 class GraphExpander:
     def __init__(
         self,
@@ -199,21 +223,35 @@ class GraphExpander:
     def director_pages(
         self, searched_name: SearchedName, refresh: bool
     ) -> list[CompanySearchPage]:
-        search_pages = [
-            self.company_register.search_director(
-                searched_name.last_name, searched_name.first_names, refresh=refresh
+        return self.every_page(
+            lambda page: self.company_register.search_director(
+                searched_name.last_name, searched_name.first_names, page, refresh=refresh
             )
-        ]
+        )
+
+    def every_page(
+        self, search_page: Callable[[int], CompanySearchPage]
+    ) -> list[CompanySearchPage]:
+        search_pages = [search_page(1)]
         while search_pages[-1].has_next_page and len(search_pages) < MAXIMUM_SEARCH_PAGES:
-            search_pages.append(
-                self.company_register.search_director(
-                    searched_name.last_name,
-                    searched_name.first_names,
-                    search_pages[-1].page + 1,
-                    refresh=refresh,
-                )
-            )
+            search_pages.append(search_page(search_pages[-1].page + 1))
         return search_pages
+
+    def expand_address(self, identifier: str, *, refresh: bool = False) -> GraphChanges:
+        address = self.entity_to_expand(identifier, EntityKind.ADDRESS)
+        text = str(address.attributes.get("text") or address.label)
+        search_pages = self.every_page(
+            lambda page: self.company_register.search(text, page, refresh=refresh)
+        )
+        changes = []
+        for search_page in search_pages:
+            for company in search_page.companies:
+                fragment = registered_at(company, identifier)
+                if fragment.links:
+                    changes.append(self.save_fragment(fragment, search_page.response))
+        expanded_address = GraphFragment((self.expanded(address),))
+        changes.append(self.save_fragment(expanded_address, search_pages[-1].response))
+        return combined_changes(changes)
 
     def add_company(self, company: Company, response: ResponseSummary) -> GraphChanges:
         return self.save_fragment(GraphFragment((company_entity(company),)), response)
