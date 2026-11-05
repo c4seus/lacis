@@ -8,7 +8,8 @@ from typing import Any
 from lacis.collectors.company_register import SIREN_LENGTH, siren_of
 from lacis.collectors.endpoints import BODACC_RECORDS_URL, MAXIMUM_NOTICES_PER_PAGE
 from lacis.collectors.http_client import SOURCE_NAMES, CollectionError, CollectorHttpClient
-from lacis.storage.entities import company_identifier, normalise_text, remove_spaces
+from lacis.storage.comparison_keys import normalise_text
+from lacis.storage.entities import company_identifier, remove_spaces
 from lacis.storage.notices import CollectedNotice, NoticeFamily, NoticeRole
 from lacis.storage.responses import ResponseSource, ResponseSummary, StoredResponse
 
