@@ -13,6 +13,7 @@ from lacis.collectors.company_register import (
     InvalidQueryError,
     LegalPersonDirector,
     NaturalPersonDirector,
+    company_from,
     identifier_in,
 )
 from lacis.collectors.fake_api import FakeApi
@@ -273,3 +274,51 @@ def test_an_unreadable_response_reaches_the_caller_with_a_french_message(
         "La réponse du service Recherche d'entreprises est illisible. Réessayez plus tard."
     )
     assert failure.value.http_status is None
+
+
+def test_a_company_is_fetched_by_its_siren_with_every_establishment(
+    register: CompanyRegister, fake_api: FakeApi
+) -> None:
+    acme = register.company("111 111 111")
+    assert acme is not None
+    assert acme.name == "ACME PLOMBERIE"
+    assert sirets(acme) == ["11111111100015"]
+    assert acme.lists_every_establishment
+    assert len(acme.directors) == 4
+    assert sent_parameters(fake_api) == [{"q": "111111111", "page": "1", "per_page": "25"}]
+
+
+def test_an_unknown_siren_gives_no_company(register: CompanyRegister) -> None:
+    assert register.company("123456780") is None
+
+
+def test_a_company_with_another_siren_in_the_answer_is_not_taken_for_the_one_asked(
+    register_factory: RegisterFactory,
+) -> None:
+    body = search_payload([{"siren": "222222222"}])
+    register = register_factory(lambda request: httpx.Response(200, content=body))
+    assert register.company("111111111") is None
+
+
+@pytest.mark.parametrize("siren", ["1234", "111 111 111 00015", "ACME", ""])
+def test_a_company_is_only_fetched_by_a_siren(
+    register: CompanyRegister, fake_api: FakeApi, siren: str
+) -> None:
+    with pytest.raises(InvalidQueryError) as refusal:
+        register.company(siren)
+    assert str(refusal.value) == f"« {siren.strip()} » n'est pas un SIREN : il faut 9 chiffres."
+    assert fake_api.requests == []
+
+
+def test_a_company_with_more_establishments_than_listed_says_so() -> None:
+    company = company_from(
+        {
+            "siren": "111111111",
+            "nombre_etablissements": 3,
+            "matching_etablissements": [{"siret": "11111111100015"}],
+        }
+    )
+    assert not company.lists_every_establishment
+    assert company.head_office is None
+    assert company.name is None
+    assert company.directors == ()

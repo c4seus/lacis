@@ -42,6 +42,13 @@ def identifier_in(text: str) -> Identifier | None:
     return None
 
 
+def siren_of(text: str) -> str:
+    identifier = identifier_in(text)
+    if identifier is None or identifier.kind is not IdentifierKind.SIREN:
+        raise InvalidQueryError(f"« {text.strip()} » n'est pas un SIREN : il faut 9 chiffres.")
+    return identifier.digits
+
+
 def optional_text(value: object) -> str | None:
     if value is None or value == "":
         return None
@@ -107,6 +114,10 @@ class Company:
     establishment_count: int
     open_establishment_count: int
     directors: tuple[Director, ...]
+
+    @property
+    def lists_every_establishment(self) -> bool:
+        return len(self.matching_establishments) >= self.establishment_count
 
 
 @dataclass(frozen=True)
@@ -236,6 +247,14 @@ class CompanyRegister:
         if first_names.strip():
             parameters["prenoms_personne"] = first_names.strip()
         return self.search_page(parameters, page, refresh)
+
+    def company(self, siren: str, *, refresh: bool = False) -> Company | None:
+        digits = siren_of(siren)
+        search_page = self.search_page({"q": digits}, 1, refresh)
+        for company in search_page.companies:
+            if company.siren == digits:
+                return company
+        return None
 
     def search_page(
         self, parameters: dict[str, str], page: int, refresh: bool
