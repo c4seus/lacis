@@ -3,6 +3,7 @@ import sys
 from collections.abc import Iterator
 from pathlib import Path
 
+import httpx
 import pytest
 from PySide6.QtCore import QLocale, QSettings, Qt, qInstallMessageHandler
 from PySide6.QtGui import QFontInfo
@@ -17,11 +18,19 @@ from lacis.application import (
     create_settings,
     main,
 )
+from lacis.collectors.endpoints import COMPANY_SEARCH_URL
+from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT
+from lacis.collectors.fake_plumbers import (
+    FAKE_PLUMBERS_INVESTIGATION_NAME,
+    FAKE_PLUMBERS_QUESTION,
+)
 from lacis.design.style_sheet import build_style_sheet
 from lacis.design.theme_controller import ThemeController
 from lacis.design.tokens import LIGHT_THEME
+from lacis.storage.investigations import InvestigationLibrary
+from lacis.storage.locations import DEMO_DIRECTORY_PREFIX, data_directory, investigations_directory
 from lacis.ui.error_dialog import UnexpectedErrorHandler
-from lacis.ui.main_window import MainWindow
+from lacis.ui.main_window import DEMO_WINDOW_TITLE, MainWindow
 
 
 @pytest.fixture(autouse=True)
@@ -140,3 +149,81 @@ def test_the_command_shows_unexpected_errors_in_a_dialog(
     monkeypatch.setattr(QApplication, "exec", staticmethod(lambda: 0))
     main(["lacis"])
     assert isinstance(getattr(sys.excepthook, "__self__", None), UnexpectedErrorHandler)
+
+
+@pytest.fixture
+def shown_main_windows(monkeypatch: pytest.MonkeyPatch) -> list[MainWindow]:
+    shown_windows: list[MainWindow] = []
+    show_window = MainWindow.show
+
+    def record_shown_window(main_window: MainWindow) -> None:
+        shown_windows.append(main_window)
+        show_window(main_window)
+
+    monkeypatch.setattr(MainWindow, "show", record_shown_window)
+    return shown_windows
+
+
+def test_the_command_collects_from_the_real_apis_by_default(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch, shown_main_windows: list[MainWindow]
+) -> None:
+    monkeypatch.setattr(QApplication, "exec", staticmethod(lambda: 0))
+    main(["lacis"])
+    [main_window] = shown_main_windows
+    assert main_window.collection_environment is REAL_COLLECTION_ENVIRONMENT
+    assert main_window.windowTitle() == "Lacis"
+
+
+def test_the_demo_option_starts_lacis_on_the_fake_api(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch, shown_main_windows: list[MainWindow]
+) -> None:
+    monkeypatch.setattr(QApplication, "exec", staticmethod(lambda: 0))
+    main(["lacis", "--demo"])
+    [main_window] = shown_main_windows
+    assert main_window.windowTitle() == DEMO_WINDOW_TITLE
+    assert main_window.collection_environment.demo
+    transport = main_window.collection_environment.transport
+    with httpx.Client(transport=transport) as client:
+        response = client.get(COMPANY_SEARCH_URL, params={"q": "111111111"})
+    assert response.json()["results"][0]["nom_complet"] == "ACME PLOMBERIE"
+
+
+def test_the_demo_never_writes_to_the_real_data_directory(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch, isolated_data_directory: Path
+) -> None:
+    demo_directories: list[Path] = []
+
+    def create_an_investigation_during_the_demo() -> int:
+        demo_directories.append(data_directory())
+        InvestigationLibrary(investigations_directory()).create(
+            FAKE_PLUMBERS_INVESTIGATION_NAME, FAKE_PLUMBERS_QUESTION
+        )
+        return 0
+
+    monkeypatch.setattr(
+        QApplication, "exec", staticmethod(create_an_investigation_during_the_demo)
+    )
+    assert main(["lacis", "--demo"]) == 0
+    [demo_directory] = demo_directories
+    assert demo_directory.name.startswith(DEMO_DIRECTORY_PREFIX)
+    assert demo_directory != isolated_data_directory
+    assert not demo_directory.exists()
+    assert not isolated_data_directory.exists()
+
+
+def test_the_demo_writes_its_data_directory_to_the_log(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch, isolated_log_directory: Path
+) -> None:
+    monkeypatch.setattr(QApplication, "exec", staticmethod(lambda: 0))
+    main(["lacis", "--demo"])
+    log_text = (isolated_log_directory / "lacis.log").read_text(encoding="utf-8")
+    assert "Demonstration mode on the fake API, data directory" in log_text
+    assert DEMO_DIRECTORY_PREFIX in log_text
+
+
+def test_the_help_describes_the_demo_option(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        main(["lacis", "--help"])
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "--demo" in help_text
+    assert "entreprises fictives" in help_text

@@ -2,6 +2,7 @@ from PySide6.QtCore import QPoint, QSettings, QSize, Qt
 from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
+from lacis.collectors.environment import demo_collection_environment
 from lacis.design.theme_controller import ThemeController
 from lacis.ui.main_window import (
     DEFAULT_SIZE,
@@ -25,6 +26,14 @@ def test_the_main_window_is_titled_lacis(
     qtbot: QtBot, settings: QSettings, theme_controller: ThemeController
 ) -> None:
     assert open_main_window(qtbot, settings, theme_controller).windowTitle() == "Lacis"
+
+
+def test_the_main_window_of_the_demo_says_so_in_its_title(
+    qtbot: QtBot, settings: QSettings, theme_controller: ThemeController
+) -> None:
+    main_window = MainWindow(settings, theme_controller, demo_collection_environment())
+    qtbot.addWidget(main_window)
+    assert main_window.windowTitle() == "Lacis — démonstration"
 
 
 def test_the_main_window_opens_at_its_default_size_the_first_time(

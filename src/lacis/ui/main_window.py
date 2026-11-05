@@ -4,6 +4,7 @@ from PySide6.QtCore import QByteArray, QSettings, QSize, Qt
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
+from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.ui.about_dialog import AboutDialog
@@ -11,6 +12,7 @@ from lacis.ui.header_bar import HeaderBar
 from lacis.ui.menu_bar import MainMenuBar
 
 WINDOW_TITLE = "Lacis"
+DEMO_WINDOW_TITLE = "Lacis — démonstration"
 MINIMUM_SIZE = QSize(1024, 640)
 DEFAULT_SIZE = QSize(1440, 900)
 GEOMETRY_SETTING_KEY = "main_window/geometry"
@@ -21,13 +23,15 @@ class MainWindow(QMainWindow):
         self,
         settings: QSettings,
         theme_controller: ThemeController,
+        collection_environment: CollectionEnvironment = REAL_COLLECTION_ENVIRONMENT,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.settings = settings
         self.theme_controller = theme_controller
+        self.collection_environment = collection_environment
         self.icon_factory = IconFactory(lambda: theme_controller.current_theme.colours)
-        self.setWindowTitle(WINDOW_TITLE)
+        self.setWindowTitle(DEMO_WINDOW_TITLE if collection_environment.demo else WINDOW_TITLE)
         self.setMinimumSize(MINIMUM_SIZE)
 
         self.header_bar = HeaderBar(self.icon_factory, theme_controller)
