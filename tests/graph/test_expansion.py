@@ -1,14 +1,18 @@
 import sqlite3
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
 
-from fake_time import FakeTime
+from fake_time import FakeTime, FakeWallClock
+from lacis.collectors.bodacc import Bodacc
 from lacis.collectors.company_register import CompanyRegister, InvalidQueryError
 from lacis.collectors.fake_api import FakeApi
+from lacis.collectors.fake_plumbers import DUPONT_SERVICES as DUPONT_SERVICES_COMPANY
 from lacis.collectors.fake_plumbers import FAKE_PLUMBERS_SCENARIO
+from lacis.collectors.fictional_records import FictionalNotice
 from lacis.collectors.http_client import CollectorHttpClient, CollectorTiming
 from lacis.collectors.rate_limiting import RateLimiters
 from lacis.graph.expansion import ExpansionError, GraphExpander, current_time
@@ -22,6 +26,7 @@ from lacis.storage.entities import (
     person_identifier,
 )
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore
 from lacis.storage.responses import ResponseStore
 
 DUPONT_SERVICES = "company:222222222"
@@ -37,8 +42,16 @@ def fake_api() -> FakeApi:
 
 
 @pytest.fixture
+def wall_clock() -> FakeWallClock:
+    return FakeWallClock(EXPANDED_AT)
+
+
+@pytest.fixture
 def http_client(
-    fake_api: FakeApi, response_store: ResponseStore, collection_log: CollectionLog
+    fake_api: FakeApi,
+    response_store: ResponseStore,
+    collection_log: CollectionLog,
+    wall_clock: FakeWallClock,
 ) -> Iterator[CollectorHttpClient]:
     fake_time = FakeTime()
     client = CollectorHttpClient(
@@ -47,6 +60,7 @@ def http_client(
         httpx.MockTransport(fake_api),
         CollectorTiming(
             rate_limiters=RateLimiters(clock=fake_time.clock, sleep=fake_time.sleep),
+            now=wall_clock.now,
             monotonic=fake_time.clock,
         ),
     )
@@ -61,9 +75,18 @@ def company_register(http_client: CollectorHttpClient) -> CompanyRegister:
 
 @pytest.fixture
 def expander(
-    investigation_connection: sqlite3.Connection, company_register: CompanyRegister
+    investigation_connection: sqlite3.Connection,
+    company_register: CompanyRegister,
+    http_client: CollectorHttpClient,
 ) -> GraphExpander:
-    return GraphExpander(investigation_connection, company_register, now=lambda: EXPANDED_AT)
+    return GraphExpander(
+        investigation_connection, company_register, Bodacc(http_client), now=lambda: EXPANDED_AT
+    )
+
+
+@pytest.fixture
+def notice_store(investigation_connection: sqlite3.Connection) -> NoticeStore:
+    return NoticeStore(investigation_connection)
 
 
 @pytest.fixture
@@ -144,7 +167,7 @@ def test_an_expanded_company_records_when_it_was_expanded_and_from_which_respons
     company = graph_store.require_entity(DUPONT_SERVICES)
     assert company.attributes["expanded_at"] == EXPANDED_AT.isoformat()
     assert company.attributes["closing_date"] == "2023-01-15"
-    [detail_response] = response_store.summaries()
+    detail_response, _ = response_store.summaries()
     assert graph_store.sources_of_entity(JEAN_DUPONT) == [detail_response]
     assert detail_response.parameters["q"] == "222222222"
 
@@ -157,7 +180,7 @@ def test_expanding_the_same_company_twice_adds_nothing_new(
     assert expander.expand_company("222222222").is_empty
     assert expander.expand_company("222222222", refresh=True).is_empty
     assert len(graph_store.entities()) == len(entities_after_first_expansion)
-    assert len(fake_api.requests) == 2
+    assert len(fake_api.requests) == 4
 
 
 def test_expanding_a_company_added_from_a_search_keeps_it_and_adds_the_rest(
@@ -196,3 +219,104 @@ def test_expanding_requires_a_siren(expander: GraphExpander, fake_api: FakeApi) 
 
 def test_expansions_are_dated_in_utc() -> None:
     assert current_time().tzinfo is UTC
+
+
+def test_expanding_dupont_services_fetches_its_bodacc_notices(
+    expander: GraphExpander, notice_store: NoticeStore
+) -> None:
+    changes = expander.expand_company("222222222")
+    assert set(changes.new_notices) == {"B202300030001", "A202200030002", "A202200030003"}
+    notices = notice_store.notices_of_company(DUPONT_SERVICES)
+    assert {family: len(items) for family, items in notices.items()} == {
+        NoticeFamily.REMOVAL: 1,
+        NoticeFamily.INSOLVENCY: 2,
+    }
+    removal = notices[NoticeFamily.REMOVAL][0]
+    assert removal.role is NoticeRole.SUBJECT
+    assert removal.notice.court == "GREFFE DU TRIBUNAL DE COMMERCE DE TOULOUSE"
+
+
+def test_expanding_twice_adds_no_notice(expander: GraphExpander) -> None:
+    expander.expand_company("222222222")
+    changes = expander.expand_company("222222222", refresh=True)
+    assert changes.new_notices == ()
+    assert changes.withdrawn_notices == ()
+
+
+def test_a_notice_is_only_linked_to_companies_of_the_investigation(
+    expander: GraphExpander, fake_api: FakeApi, notice_store: NoticeStore
+) -> None:
+    sale = FictionalNotice(
+        "A202400990001",
+        DUPONT_SERVICES_COMPANY,
+        "vente",
+        "Ventes et cessions",
+        "2024-03-01",
+        "GREFFE DU TRIBUNAL DE COMMERCE DE TOULOUSE",
+        {
+            "listeprecedentexploitant": {
+                "personne": {"numeroImmatriculation": {"numeroIdentification": "444 444 444"}}
+            }
+        },
+    )
+    fake_api.scenario = replace(
+        FAKE_PLUMBERS_SCENARIO, notices=(*FAKE_PLUMBERS_SCENARIO.notices, sale)
+    )
+    expander.expand_company("222222222")
+    sale_notices = notice_store.notices_of_company(DUPONT_SERVICES)[NoticeFamily.SALE]
+    assert [item.notice.identifier for item in sale_notices] == ["A202400990001"]
+    assert notice_store.notices_of_company("company:444444444") == {}
+
+
+def test_a_notice_no_longer_returned_on_refresh_is_withdrawn(
+    expander: GraphExpander,
+    fake_api: FakeApi,
+    wall_clock: FakeWallClock,
+    notice_store: NoticeStore,
+) -> None:
+    expander.expand_company("222222222")
+    fake_api.scenario = replace(
+        FAKE_PLUMBERS_SCENARIO,
+        notices=tuple(
+            notice
+            for notice in FAKE_PLUMBERS_SCENARIO.notices
+            if notice.identifier != "A202200030003"
+        ),
+    )
+    wall_clock.advance(timedelta(days=2))
+    changes = expander.expand_company("222222222")
+    assert changes.withdrawn_notices == ("A202200030003",)
+    withdrawn = notice_store.require_notice("A202200030003")
+    assert withdrawn.is_withdrawn
+
+
+@pytest.fixture
+def one_notice_expander(
+    investigation_connection: sqlite3.Connection,
+    company_register: CompanyRegister,
+    http_client: CollectorHttpClient,
+) -> GraphExpander:
+    bodacc = Bodacc(http_client, notices_per_page=1, maximum_pages=1)
+    return GraphExpander(investigation_connection, company_register, bodacc)
+
+
+def test_an_incomplete_notice_list_withdraws_nothing(
+    expander: GraphExpander,
+    one_notice_expander: GraphExpander,
+    fake_api: FakeApi,
+    wall_clock: FakeWallClock,
+    notice_store: NoticeStore,
+) -> None:
+    expander.expand_company("222222222")
+    fake_api.scenario = replace(
+        FAKE_PLUMBERS_SCENARIO,
+        notices=tuple(
+            notice
+            for notice in FAKE_PLUMBERS_SCENARIO.notices
+            if notice.identifier != "A202200030003"
+        ),
+    )
+    wall_clock.advance(timedelta(days=2))
+    changes = one_notice_expander.expand_company("222222222")
+    assert changes.withdrawn_notices == ()
+    assert not notice_store.require_notice("A202200030003").is_withdrawn
