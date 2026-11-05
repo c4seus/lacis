@@ -402,3 +402,13 @@ def test_a_matching_establishment_gives_its_address_without_street_details(
     assert establishment.address.city == "TOULOUSE"
     assert establishment.address.street_name is None
     assert not establishment.address.street_withheld
+
+
+def test_a_company_is_fetched_with_the_response_it_was_read_from(
+    register: CompanyRegister, response_store: ResponseStore
+) -> None:
+    sourced_company = register.sourced_company("111111111")
+    assert sourced_company is not None
+    assert sourced_company.company.name == "ACME PLOMBERIE"
+    assert response_store.summaries() == [sourced_company.response]
+    assert register.sourced_company("123456780") is None

@@ -162,6 +162,12 @@ class CompanySearchPage:
         return self.page < self.total_pages
 
 
+@dataclass(frozen=True)
+class SourcedCompany:
+    company: Company
+    response: ResponseSummary
+
+
 def address_from(record: dict[str, Any]) -> Address:
     city = record.get("libelle_commune") or record.get("libelle_commune_etranger")
     return Address(
@@ -279,11 +285,15 @@ class CompanyRegister:
         return self.search_page(parameters, page, refresh)
 
     def company(self, siren: str, *, refresh: bool = False) -> Company | None:
+        sourced_company = self.sourced_company(siren, refresh=refresh)
+        return sourced_company.company if sourced_company is not None else None
+
+    def sourced_company(self, siren: str, *, refresh: bool = False) -> SourcedCompany | None:
         digits = siren_of(siren)
         search_page = self.search_page({"q": digits}, 1, refresh)
         for company in search_page.companies:
             if company.siren == digits:
-                return company
+                return SourcedCompany(company, search_page.response)
         return None
 
     def search_page(
