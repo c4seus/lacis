@@ -215,7 +215,14 @@ FAKE_PLUMBERS_NOTICES = (
         "Modifications diverses",
         "2025-09-18",
         MARSEILLE_COURT,
-        {"modificationsgenerales": {"descriptif": "Transfert du siège social."}},
+        {
+            "modificationsgenerales": {
+                "descriptif": (
+                    "Transfert du siège social au 1 rue de la Loi, 1000 Bruxelles (Belgique) "
+                    "à compter du 1er septembre 2025."
+                )
+            }
+        },
     ),
 )
 

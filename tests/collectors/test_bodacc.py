@@ -11,6 +11,7 @@ from fake_time import FakeTime
 from lacis.collectors.bodacc import (
     Bodacc,
     BodaccNotice,
+    OfficeTransfer,
     family_of,
     notice_from,
 )
@@ -465,9 +466,111 @@ def test_an_unreadable_notice_reaches_the_caller_with_a_french_message(
     )
 
 
+def test_a_transfer_of_the_registered_office_abroad_gives_its_country_and_date(
+    bodacc: Bodacc,
+) -> None:
+    [notice] = bodacc.notices_of("333333333").notices
+    assert notice.office_transfer == OfficeTransfer(
+        "Belgique", date(2025, 9, 1), effective_date_stated=True
+    )
+
+
+def test_notices_without_transfer_abroad_have_none(bodacc: Bodacc) -> None:
+    for siren in ("111111111", "222222222", "777777777"):
+        assert all(notice.office_transfer is None for notice in bodacc.notices_of(siren).notices)
+
+
+def transfer_of(field_name: str = "modificationsgenerales", **detail: object) -> object:
+    return notice_from(
+        raw_notice("modification", **{field_name: detail}), RESPONSE
+    ).office_transfer
+
+
+@pytest.mark.parametrize(
+    ("detail", "transfer"),
+    [
+        (
+            {"descriptif": "Transfert du siège social à Genève (Suisse) le 15/03/2025."},
+            OfficeTransfer("Suisse", date(2025, 3, 15), effective_date_stated=True),
+        ),
+        (
+            {"descriptif": "Transfert du siège social au Royaume-Uni.", "dateEffet": "2025-02-01"},
+            OfficeTransfer("Royaume-Uni", date(2025, 2, 1), effective_date_stated=True),
+        ),
+        (
+            {"descriptif": "Transfert du siège social à Lisbonne (PORTUGAL) au 2025-01-20."},
+            OfficeTransfer("Portugal", date(2025, 1, 20), effective_date_stated=True),
+        ),
+        (
+            {"descriptif": "Transfert du siège social hors de France."},
+            OfficeTransfer(None, date(2025, 3, 4), effective_date_stated=False),
+        ),
+        (
+            {"descriptif": "Transfert de siège à l'étranger le 31 février 2025."},
+            OfficeTransfer(None, date(2025, 3, 4), effective_date_stated=False),
+        ),
+        (
+            {"descriptif": "Transfert du siège social à Tunis le 3 mai 2025.", "pays": "Tunisie"},
+            OfficeTransfer("Tunisie", date(2025, 5, 3), effective_date_stated=True),
+        ),
+        (
+            {"descriptif": "Transfert du siège social.", "adresse": {"pays": "SÉNÉGAL"}},
+            OfficeTransfer("SÉNÉGAL", date(2025, 3, 4), effective_date_stated=False),
+        ),
+        (
+            {"descriptif": "Transfert du siège le 2 brumaire 2025 hors de France."},
+            OfficeTransfer(None, date(2025, 3, 4), effective_date_stated=False),
+        ),
+    ],
+)
+def test_a_transfer_abroad_is_recognised_in_its_forms(
+    detail: dict[str, str], transfer: OfficeTransfer
+) -> None:
+    assert transfer_of(**detail) == transfer
+
+
+def test_a_removal_after_a_transfer_abroad_is_recognised() -> None:
+    transfer = transfer_of(
+        "radiationaurcs",
+        radiationPM="Radiation suite au transfert du siège en Allemagne.",
+        dateCessationActivitePM="2025-06-30",
+    )
+    assert transfer == OfficeTransfer("Allemagne", date(2025, 6, 30), effective_date_stated=True)
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        {"descriptif": "Transfert du siège social au 5 avenue du Port 13002 Marseille."},
+        {"descriptif": "Transfert du siège social.", "pays": "France"},
+        {"descriptif": "Nouveau gérant domicilié en Belgique."},
+        {"descriptif": "Transfert d'un établissement en Belgique."},
+    ],
+)
+def test_a_domestic_transfer_or_another_change_is_not_a_transfer_abroad(
+    detail: dict[str, str],
+) -> None:
+    assert transfer_of(**detail) is None
+
+
+def test_the_country_of_the_persons_counts_for_a_transfer() -> None:
+    record = raw_notice(
+        "modification",
+        modificationsgenerales={"descriptif": "Transfert du siège social."},
+        listepersonnes={"personne": {"adresseSiegeSocial": {"pays": "Belgique"}}},
+    )
+    transfer = notice_from(record, RESPONSE).office_transfer
+    assert transfer == OfficeTransfer("Belgique", date(2025, 3, 4), effective_date_stated=False)
+
+
 def test_a_detail_that_is_not_valid_json_is_read_as_plain_text() -> None:
     record = raw_notice("divers", divers="{texte tronqué")
     assert notice_from(record, RESPONSE).summary == "Avis initial"
+
+
+def test_a_transfer_described_in_a_list_of_texts_is_recognised() -> None:
+    transfer = transfer_of(descriptif=["", "Transfert du siège social en Italie."])
+    assert transfer == OfficeTransfer("Italie", date(2025, 3, 4), effective_date_stated=False)
 
 
 def test_numbers_that_are_not_sirens_give_no_company() -> None:
