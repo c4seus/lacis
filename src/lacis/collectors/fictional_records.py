@@ -13,6 +13,42 @@ DIFFUSIBLE_STATUS = "O"
 PARTIALLY_DIFFUSIBLE_STATUS = "P"
 NATURAL_PERSON_TYPE = "personne physique"
 LEGAL_PERSON_TYPE = "personne morale"
+FICTIONAL_EPCI = "200000000"
+FALSE_COMPLEMENTS = (
+    "convention_collective_renseignee",
+    "egapro_renseignee",
+    "est_achats_responsables",
+    "est_alim_confiance",
+    "est_association",
+    "est_avocat",
+    "est_bio",
+    "est_entrepreneur_spectacle",
+    "est_ess",
+    "est_finess",
+    "est_organisme_formation",
+    "est_qualiopi",
+    "est_rge",
+    "est_siae",
+    "est_societe_mission",
+    "est_uai",
+    "est_patrimoine_vivant",
+    "bilan_ges_renseigne",
+    "a_aide_minimis",
+    "a_aide_ademe",
+    "est_administration",
+)
+EMPTY_COMPLEMENTS = (
+    "collectivite_territoriale",
+    "liste_idcc",
+    "liste_finess_juridique",
+    "numero_rnf",
+    "liste_id_organisme_formation",
+    "identifiant_association",
+    "statut_entrepreneur_spectacle",
+    "type_siae",
+    "est_service_public",
+    "est_l100_3",
+)
 BODACC_NOTICE_URL = (
     "https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:{identifier}"
 )
@@ -85,9 +121,9 @@ class FictionalEstablishment:
             "type_voie": address.street_type,
             "libelle_voie": address.street_name,
             "adresse": address.full_text,
-            "geo_adresse": address.full_text,
             "latitude": address.latitude,
             "longitude": address.longitude,
+            "coordonnees": f"{address.latitude},{address.longitude}",
         }
         if not diffusible:
             street_details = {
@@ -95,46 +131,57 @@ class FictionalEstablishment:
                 "type_voie": NON_DIFFUSIBLE,
                 "libelle_voie": NON_DIFFUSIBLE,
                 "adresse": f"{address.postcode} {address.city}",
-                "geo_adresse": NON_DIFFUSIBLE,
                 "latitude": NON_DIFFUSIBLE,
                 "longitude": NON_DIFFUSIBLE,
+                "coordonnees": NON_DIFFUSIBLE,
             }
         return {
-            "siret": self.siret(siren),
+            "a_opco": False,
+            "activite_principale": self.activity,
+            "activite_principale_naf25": self.activity,
+            "activite_principale_registre_metier": None,
+            "annee_tranche_effectif_salarie": "2023",
+            "caractere_employeur": "O",
+            "cedex": None,
+            "code_pays_etranger": None,
+            "code_postal": address.postcode,
+            "commune": address.city_code,
+            "complement_adresse": None,
+            "date_creation": self.creation_date,
+            "date_debut_activite": self.creation_date,
+            "date_fermeture": self.closing_date,
+            "date_mise_a_jour": None,
+            "date_mise_a_jour_insee": "2025-10-01T08:00:00",
+            "departement": address.department,
+            "dernier_numero_voie": None,
+            "distribution_speciale": None,
+            "epci": FICTIONAL_EPCI,
             "est_siege": is_head_office,
             "etat_administratif": (
                 ACTIVE_STATE if self.closing_date is None else CLOSED_ESTABLISHMENT_STATE
             ),
-            "activite_principale": self.activity,
-            "date_creation": self.creation_date,
-            "date_debut_activite": self.creation_date,
-            "date_fermeture": self.closing_date,
-            **street_details,
-            "complement_adresse": None,
+            "geo_adresse": None,
+            "geo_id": None,
             "indice_repetition": None,
-            "distribution_speciale": None,
-            "cedex": None,
             "libelle_cedex": None,
-            "code_postal": address.postcode,
-            "commune": address.city_code,
             "libelle_commune": address.city,
-            "departement": address.department,
-            "region": address.region_code,
-            "code_pays_etranger": None,
-            "libelle_pays_etranger": None,
             "libelle_commune_etranger": None,
-            "nom_commercial": self.trade_name if diffusible else None,
+            "libelle_pays_etranger": None,
             "liste_enseignes": None,
-            "liste_idcc": None,
-            "liste_rge": None,
             "liste_finess": None,
+            "liste_id_bio": None,
+            "liste_idcc": None,
+            "liste_id_organisme_formation": None,
+            "liste_rge": None,
             "liste_uai": None,
-            "tranche_effectif_salarie": "01",
-            "annee_tranche_effectif_salarie": "2023",
-            "caractere_employeur": "O",
+            "nom_commercial": self.trade_name if diffusible else None,
+            "region": address.region_code,
+            "siret": self.siret(siren),
             "statut_diffusion_etablissement": (
                 DIFFUSIBLE_STATUS if diffusible else PARTIALLY_DIFFUSIBLE_STATUS
             ),
+            "tranche_effectif_salarie": "01",
+            **street_details,
         }
 
 
@@ -209,10 +256,16 @@ class FictionalCompany:
         is_head_office = establishment is self.head_office
         return establishment.record(self.siren, is_head_office, self.diffusible)
 
+    @property
+    def vat_number(self) -> str:
+        vat_key = (12 + 3 * (int(self.siren) % 97)) % 97
+        return f"FR{vat_key:02d}{self.siren}"
+
     def record(self, matching_establishments: list[FictionalEstablishment]) -> JsonObject:
         shown_name = self.name if self.diffusible else NON_DIFFUSIBLE
         return {
             "siren": self.siren,
+            "siren_conserve": None,
             "nom_complet": shown_name,
             "nom_raison_sociale": shown_name,
             "sigle": self.acronym if self.diffusible else None,
@@ -222,6 +275,7 @@ class FictionalCompany:
             ),
             "siege": self.establishment_record(self.head_office),
             "activite_principale": self.activity,
+            "activite_principale_naf25": self.activity,
             "section_activite_principale": self.activity_section,
             "categorie_entreprise": "PME",
             "annee_categorie_entreprise": "2023",
@@ -240,6 +294,7 @@ class FictionalCompany:
             "statut_diffusion": (
                 DIFFUSIBLE_STATUS if self.diffusible else PARTIALLY_DIFFUSIBLE_STATUS
             ),
+            "opposition_diffusion_commerciale": False,
             "dirigeants": [director.record(self.diffusible) for director in self.directors],
             "matching_etablissements": [
                 self.establishment_record(establishment)
@@ -247,22 +302,11 @@ class FictionalCompany:
             ],
             "finances": None,
             "complements": {
-                "collectivite_territoriale": None,
-                "convention_collective_renseignee": False,
+                **dict.fromkeys(FALSE_COMPLEMENTS, False),
+                **dict.fromkeys(EMPTY_COMPLEMENTS),
                 "est_entrepreneur_individuel": self.legal_form == "1000",
-                "est_ess": False,
-                "est_rge": False,
-                "est_bio": False,
-                "est_finess": False,
-                "est_organisme_formation": False,
-                "est_qualiopi": False,
-                "est_service_public": False,
-                "est_association": False,
-                "identifiant_association": None,
-                "est_siae": False,
-                "est_societe_mission": False,
-                "est_uai": False,
             },
+            "tva": [self.vat_number],
         }
 
     def searchable_text(self, establishment: FictionalEstablishment) -> str:
@@ -306,7 +350,6 @@ class FictionalNotice:
         return {
             "id": self.identifier,
             "publicationavis": publication,
-            "publicationavis_facette": f"Bodacc {publication}",
             "parution": self.identifier[1:9],
             "dateparution": self.publication_date,
             "numeroannonce": int(self.identifier[-4:]),
@@ -322,6 +365,8 @@ class FictionalNotice:
             "commercant": self.company.name,
             "ville": address.city,
             "cp": address.postcode,
+            "pdf_parution_subfolder": int(self.identifier[1:5]),
+            "ispdf_unitaire": "false",
             "registre": [self.company.siren, spaced_siren(self.company.siren)],
             "listepersonnes": json.dumps(
                 {
