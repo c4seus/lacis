@@ -10,7 +10,12 @@ from lacis.collectors.bodacc import Bodacc
 from lacis.collectors.company_register import CompanyRegister
 from lacis.collectors.fake_api import FakeApi
 from lacis.collectors.fake_plumbers import FAKE_PLUMBERS_SCENARIO
-from lacis.collectors.http_client import CollectionError, CollectorHttpClient, CollectorTiming
+from lacis.collectors.http_client import (
+    CollectionControl,
+    CollectionError,
+    CollectorHttpClient,
+    CollectorTiming,
+)
 from lacis.collectors.rate_limiting import RateLimiters
 from lacis.graph.expansion import ExpansionError, GraphChanges, GraphExpander, ignore_count
 from lacis.storage.collection_log import CollectionLog
@@ -37,8 +42,16 @@ def fake_api() -> FakeApi:
 
 
 @pytest.fixture
+def control() -> CollectionControl:
+    return CollectionControl()
+
+
+@pytest.fixture
 def http_client(
-    fake_api: FakeApi, response_store: ResponseStore, collection_log: CollectionLog
+    fake_api: FakeApi,
+    response_store: ResponseStore,
+    collection_log: CollectionLog,
+    control: CollectionControl,
 ) -> Iterator[CollectorHttpClient]:
     fake_time = FakeTime()
     client = CollectorHttpClient(
@@ -49,6 +62,7 @@ def http_client(
             rate_limiters=RateLimiters(clock=fake_time.clock, sleep=fake_time.sleep),
             monotonic=fake_time.clock,
         ),
+        control,
     )
     yield client
     client.close()
@@ -295,3 +309,35 @@ def test_the_expander_reports_every_new_entity_it_saves(
 
 def test_new_entities_are_reported_to_nobody_by_default() -> None:
     ignore_count(3)
+
+
+def test_a_cancelled_expansion_keeps_what_was_collected_and_stays_consistent(
+    expander: GraphExpander,
+    control: CollectionControl,
+    graph_store: GraphStore,
+    dupont_services_added: None,
+) -> None:
+    expander.entities_found = lambda count: control.cancellation.set()
+    report = expander.expand(DUPONT_SERVICES, 3)
+    assert report.cancelled
+    assert JEAN_DUPONT in report.changes.new_entities
+    assert graph_store.entity(JEAN_DUPONT) is not None
+    known = {entity.identifier for entity in graph_store.entities()}
+    assert all(link.source in known and link.target in known for link in graph_store.links())
+    assert not is_expanded(graph_store, DUPONT_SERVICES)
+
+
+def test_an_expansion_resumed_after_a_cancellation_completes(
+    expander: GraphExpander,
+    control: CollectionControl,
+    graph_store: GraphStore,
+    dupont_services_added: None,
+) -> None:
+    control.cancellation.set()
+    cancelled_report = expander.expand(DUPONT_SERVICES, 2)
+    assert cancelled_report.cancelled
+    assert cancelled_report.changes == GraphChanges()
+    control.cancellation.clear()
+    report = expander.expand(DUPONT_SERVICES, 2)
+    assert not report.cancelled
+    assert is_expanded(graph_store, JEAN_DUPONT)

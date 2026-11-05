@@ -1,4 +1,5 @@
 import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from lacis.graph.background import (
     CollectionSettings,
     add_company_job,
     expansion_job,
+    interruptible_sleep,
     search_job,
 )
 from lacis.graph.expansion import ExpansionReport
@@ -213,3 +215,49 @@ def network_requests(library: InvestigationLibrary) -> int:
     with library.open(INVESTIGATION_NAME) as investigation:
         entries = CollectionLog(investigation.connection).entries()
         return sum(not entry.request.served_from_cache for entry in entries)
+
+
+def cancellation_of(qtbot: QtBot, job: BackgroundJob, started_jobs: list[BackgroundJob]) -> object:
+    started_jobs.append(job)
+    job.cancel()
+    with qtbot.waitSignal(job.cancelled, timeout=SIGNAL_TIMEOUT_MILLISECONDS) as blocker:
+        job.start()
+    job.wait()
+    [result] = blocker.args
+    return result
+
+
+def test_a_cancelled_search_reports_its_cancellation(
+    qtbot: QtBot, settings: CollectionSettings, started_jobs: list[BackgroundJob]
+) -> None:
+    assert cancellation_of(qtbot, search_job(settings, "acme"), started_jobs) is None
+
+
+def test_a_cancelled_expansion_reports_what_it_kept(
+    qtbot: QtBot,
+    settings: CollectionSettings,
+    library: InvestigationLibrary,
+    started_jobs: list[BackgroundJob],
+) -> None:
+    search_page = run(qtbot, search_job(settings, "222222222"), started_jobs)
+    assert isinstance(search_page, CompanySearchPage)
+    run(
+        qtbot,
+        add_company_job(settings, search_page.companies[0], search_page.response),
+        started_jobs,
+    )
+    report = cancellation_of(
+        qtbot, expansion_job(settings, "company:222222222", 3, refresh=True), started_jobs
+    )
+    assert isinstance(report, ExpansionReport)
+    assert report.cancelled
+    assert entity_identifiers(library) == {"company:222222222"}
+
+
+def test_a_waiting_job_wakes_up_when_cancelled() -> None:
+    cancellation = threading.Event()
+    sleep = interruptible_sleep(cancellation)
+    cancellation.set()
+    started = time.monotonic()
+    sleep(30)
+    assert time.monotonic() - started < 5
