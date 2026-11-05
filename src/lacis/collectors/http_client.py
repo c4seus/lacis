@@ -103,6 +103,18 @@ class AttemptStart:
     monotonic_time: float
 
 
+def ignore_request() -> None:
+    return None
+
+
+@dataclass(frozen=True)
+class CollectionControl:
+    request_made: Callable[[], None] = ignore_request
+
+
+DEFAULT_CONTROL = CollectionControl()
+
+
 class CollectorHttpClient:
     def __init__(
         self,
@@ -110,10 +122,12 @@ class CollectorHttpClient:
         collection_log: CollectionLog,
         transport: httpx.BaseTransport | None = None,
         timing: CollectorTiming = DEFAULT_TIMING,
+        control: CollectionControl = DEFAULT_CONTROL,
     ) -> None:
         self.response_store = response_store
         self.collection_log = collection_log
         self.timing = timing
+        self.control = control
         self.client = httpx.Client(
             transport=transport,
             timeout=REQUEST_TIMEOUT.total_seconds(),
@@ -238,6 +252,7 @@ class CollectorHttpClient:
                 response_identifier=response_identifier,
             )
         )
+        self.control.request_made()
         if error:
             logging.getLogger(COLLECTORS_LOGGER_NAME).warning(
                 "GET %s failed with status %s", request.url, http_status

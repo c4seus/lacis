@@ -12,11 +12,13 @@ from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, Collection
 from lacis.collectors.http_client import (
     COLLECTORS_LOGGER_NAME,
     DEFAULT_TIMING,
+    CollectionControl,
     CollectionError,
     CollectorHttpClient,
     CollectorTiming,
 )
 from lacis.graph.expansion import ExpansionError, GraphExpander
+from lacis.graph.progress import ProgressTracker
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import InvestigationLibrary
@@ -43,7 +45,9 @@ class CollectionSession:
 
 
 @contextmanager
-def collection_session(settings: CollectionSettings) -> Iterator[CollectionSession]:
+def collection_session(
+    settings: CollectionSettings, tracker: ProgressTracker
+) -> Iterator[CollectionSession]:
     with settings.library.open(settings.investigation_name) as investigation:
         connection = investigation.connection
         http_client = CollectorHttpClient(
@@ -51,10 +55,12 @@ def collection_session(settings: CollectionSettings) -> Iterator[CollectionSessi
             CollectionLog(connection),
             settings.environment.transport,
             settings.timing,
+            CollectionControl(request_made=tracker.request_made),
         )
         try:
             company_register = CompanyRegister(http_client)
             expander = GraphExpander(connection, company_register, Bodacc(http_client))
+            expander.entities_found = tracker.entities_found
             yield CollectionSession(company_register, expander)
         finally:
             http_client.close()
@@ -64,6 +70,7 @@ type CollectionTask = Callable[[CollectionSession], object]
 
 
 class BackgroundJob(QObject):
+    progressed = Signal(object)
     succeeded = Signal(object)
     failed = Signal(str)
 
@@ -86,7 +93,8 @@ class BackgroundJob(QObject):
 
     def run(self) -> None:
         try:
-            with collection_session(self.settings) as session:
+            tracker = ProgressTracker(self.progressed.emit)
+            with collection_session(self.settings, tracker) as session:
                 result = self.task(session)
         except EXPECTED_FAILURES as failure:
             self.failed.emit(str(failure))
