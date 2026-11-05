@@ -10,7 +10,7 @@ from lacis.collectors.company_register import (
     LegalPersonDirector,
     NaturalPersonDirector,
 )
-from lacis.graph.foreign import country_of_legal_form
+from lacis.graph.foreign import country_of_company, country_of_legal_form, is_under_foreign_law
 from lacis.graph.roles import director_role
 from lacis.storage.entities import (
     MONTH_OF_BIRTH_PATTERN,
@@ -83,6 +83,7 @@ def company_label(company: Company) -> str:
 
 
 def company_entity(company: Company) -> CollectedEntity:
+    foreign_country = country_of_company(company)
     return CollectedEntity(
         company_identifier(company.siren),
         company_label(company),
@@ -99,6 +100,9 @@ def company_entity(company: Company) -> CollectedEntity:
             "closing_date": company.closing_date,
             "establishment_count": company.establishment_count,
             "open_establishment_count": company.open_establishment_count,
+            "is_under_foreign_law": is_under_foreign_law(company),
+            "country": foreign_country.country if foreign_country else None,
+            "country_source": foreign_country.source if foreign_country else None,
             "hidden_director_count": sum(
                 isinstance(director, NaturalPersonDirector) and not director.diffusible
                 for director in company.directors

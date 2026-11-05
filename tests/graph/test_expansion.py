@@ -676,3 +676,27 @@ def test_dupont_invest_ltd_of_the_scenario_is_a_foreign_company(
     assert invest.kind is EntityKind.FOREIGN_COMPANY
     assert invest.attributes["country"] == "Royaume-Uni"
     assert invest.attributes["country_source"] == "Forme juridique LTD"
+
+
+def test_a_company_under_foreign_law_registered_in_france_is_marked_with_its_country(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("121212121")
+    thames = graph_store.require_entity("company:121212121")
+    assert thames.attributes["is_under_foreign_law"] is True
+    assert thames.attributes["country"] == "Royaume-Uni"
+    assert thames.attributes["country_source"] == "Adresse du siège"
+    london = graph_store.require_entity(address_identifier("10 KING STREET LONDRES ROYAUME-UNI"))
+    assert london.attributes["country"] == "ROYAUME-UNI"
+    assert london.attributes["city"] == "LONDRES"
+    french_branch = graph_store.require_entity(establishment_identifier("12121212100023"))
+    assert french_branch.attributes["city"] == "MARSEILLE"
+
+
+def test_a_french_company_of_the_scenario_is_not_under_foreign_law(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("111111111")
+    acme = graph_store.require_entity("company:111111111")
+    assert acme.attributes["is_under_foreign_law"] is False
+    assert acme.attributes["country"] is None

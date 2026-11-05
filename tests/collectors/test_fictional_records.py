@@ -123,3 +123,30 @@ def test_a_matching_establishment_gives_its_address_as_text_only() -> None:
     assert "libelle_voie" not in record
     assert "departement" not in record
     assert record["ancien_siege"] is False
+
+
+def test_a_foreign_address_gives_its_city_and_country_like_the_real_api() -> None:
+    london = FictionalAddress(
+        "10",
+        "",
+        "KING STREET",
+        "",
+        "LONDRES",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        country="ROYAUME-UNI",
+        country_code="99132",
+    )
+    assert london.full_text == "10 KING STREET LONDRES ROYAUME-UNI"
+    record = FictionalEstablishment("00015", london, "2021-06-01").record("121212121", True, True)
+    assert record["adresse"] == "10 KING STREET LONDRES ROYAUME-UNI"
+    assert record["libelle_commune"] is None
+    assert record["libelle_commune_etranger"] == "LONDRES"
+    assert record["libelle_pays_etranger"] == "ROYAUME-UNI"
+    assert record["code_pays_etranger"] == "99132"
+    assert record["code_postal"] is None
+    assert record["departement"] is None

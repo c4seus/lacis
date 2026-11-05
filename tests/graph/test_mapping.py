@@ -95,6 +95,9 @@ def test_the_company_entity_keeps_every_field_used_by_lacis() -> None:
         "closing_date": "2023-01-15",
         "establishment_count": 1,
         "open_establishment_count": 0,
+        "is_under_foreign_law": False,
+        "country": None,
+        "country_source": None,
         "hidden_director_count": 0,
     }
 

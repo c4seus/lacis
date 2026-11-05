@@ -175,6 +175,8 @@ class FictionalAddress:
     region_name: str
     latitude: str
     longitude: str
+    country: str | None = None
+    country_code: str | None = None
 
     @property
     def department(self) -> str:
@@ -182,7 +184,30 @@ class FictionalAddress:
 
     @property
     def full_text(self) -> str:
-        return f"{self.number} {self.street_type} {self.street_name} {self.postcode} {self.city}"
+        if self.country is not None:
+            parts = (self.number, self.street_type, self.street_name, self.city, self.country)
+        else:
+            parts = (self.number, self.street_type, self.street_name, self.postcode, self.city)
+        return " ".join(part for part in parts if part)
+
+    @property
+    def foreign_details(self) -> JsonObject:
+        if self.country is None:
+            return {}
+        return {
+            "code_postal": None,
+            "commune": None,
+            "libelle_commune": None,
+            "libelle_commune_etranger": self.city,
+            "code_pays_etranger": self.country_code,
+            "libelle_pays_etranger": self.country,
+            "departement": None,
+            "region": None,
+            "epci": None,
+            "latitude": None,
+            "longitude": None,
+            "coordonnees": None,
+        }
 
 
 @dataclass(frozen=True)
@@ -266,6 +291,7 @@ class FictionalEstablishment:
             ),
             "tranche_effectif_salarie": "01",
             **street_details,
+            **address.foreign_details,
         }
 
     def head_office_record(self, siren: str, diffusible: bool) -> JsonObject:
