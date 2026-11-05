@@ -158,7 +158,11 @@ def test_a_company_director_without_siren_becomes_a_foreign_company() -> None:
     invest = entity_of(company_fragment(company_of(ACME_PLOMBERIE)), INVEST)
     assert invest.kind is EntityKind.FOREIGN_COMPANY
     assert invest.label == "DUPONT INVEST LTD"
-    assert invest.attributes == {"name": "DUPONT INVEST LTD"}
+    assert invest.attributes == {
+        "name": "DUPONT INVEST LTD",
+        "country": "Royaume-Uni",
+        "country_source": "Forme juridique LTD",
+    }
 
 
 def test_two_spellings_of_the_same_address_give_the_same_address_entity() -> None:
@@ -367,3 +371,11 @@ def test_the_roles_of_directors_use_the_fixed_french_labels() -> None:
     ]
     fragment = company_fragment(raw_company(dirigeants=directors))
     assert sorted(link.role for link in fragment.links) == ["Gérant", "Président"]
+
+
+def test_a_foreign_company_without_known_legal_form_has_no_country() -> None:
+    fragment = company_fragment(
+        raw_company(dirigeants=[{"type_dirigeant": "personne morale", "denomination": "ATLAS"}])
+    )
+    atlas = entity_of(fragment, foreign_company_identifier("ATLAS", ""))
+    assert atlas.attributes == {"name": "ATLAS", "country": None, "country_source": None}
