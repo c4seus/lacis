@@ -389,3 +389,16 @@ def test_a_non_diffusible_director_of_a_diffusible_company_is_marked_as_such(
     assert acme.head_office is not None
     assert not acme.head_office.address.street_withheld
     assert "LEROUX" not in repr(acme)
+
+
+def test_a_matching_establishment_gives_its_address_without_street_details(
+    register: CompanyRegister,
+) -> None:
+    acme = register.company("111111111")
+    assert acme is not None
+    [establishment] = acme.matching_establishments
+    assert establishment.address.full_text == "12 RUE DES LILAS 31000 TOULOUSE"
+    assert establishment.address.postcode == "31000"
+    assert establishment.address.city == "TOULOUSE"
+    assert establishment.address.street_name is None
+    assert not establishment.address.street_withheld
