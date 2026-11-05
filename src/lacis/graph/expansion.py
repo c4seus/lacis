@@ -6,6 +6,7 @@ from typing import Self
 
 from lacis.collectors.bodacc import Bodacc, CompanyNotices
 from lacis.collectors.company_register import (
+    SIREN_LENGTH,
     Company,
     CompanyRegister,
     CompanySearchPage,
@@ -27,6 +28,7 @@ from lacis.storage.entities import (
     CollectedEntity,
     EntityKind,
     company_identifier,
+    establishment_of_link,
     registered_office_link,
 )
 from lacis.storage.graph_store import GraphStore
@@ -50,6 +52,7 @@ class GraphChanges:
 
 EXPANDED_AT_ATTRIBUTE = "expanded_at"
 MAXIMUM_SEARCH_PAGES = 4
+ESTABLISHMENT_PREFIX = f"{EntityKind.ESTABLISHMENT}:"
 UNKNOWN_ENTITY_MESSAGE = "Cette entité n'est pas dans l'enquête ou ne peut pas être étendue."
 
 
@@ -272,3 +275,15 @@ class GraphExpander:
         for link in fragment.links:
             self.graph_store.save_link(link, response)
         return GraphChanges(tuple(new_entities), tuple(new_links))
+
+    def expand_establishment(self, identifier: str, *, refresh: bool = False) -> GraphChanges:
+        establishment = self.entity_to_expand(identifier, EntityKind.ESTABLISHMENT)
+        siren = identifier.removeprefix(ESTABLISHMENT_PREFIX)[:SIREN_LENGTH]
+        company_changes = self.expand_company(siren, refresh=refresh)
+        company_entity_identifier = company_identifier(siren)
+        source = self.graph_store.sources_of_entity(company_entity_identifier)[-1]
+        fragment = GraphFragment(
+            (self.expanded(establishment),),
+            (establishment_of_link(identifier, company_entity_identifier),),
+        )
+        return combined_changes([company_changes, self.save_fragment(fragment, source)])
