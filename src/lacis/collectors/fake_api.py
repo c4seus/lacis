@@ -54,6 +54,7 @@ def directed_by(company: FictionalCompany, last_name: str, first_names: str) -> 
         return False
     return any(
         isinstance(director, FictionalNaturalPerson)
+        and director.diffusible
         and searchable(last_name) in searchable(director.last_name)
         and searchable(first_names) in searchable(director.first_names)
         for director in company.directors
