@@ -1,9 +1,15 @@
 import hashlib
 import re
-import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+
+from lacis.storage.comparison_keys import (
+    address_key,
+    company_name_key,
+    normalise_text,
+    person_name_key,
+)
 
 AttributeValue = str | int | float | bool | None
 Attributes = dict[str, AttributeValue]
@@ -11,7 +17,6 @@ Attributes = dict[str, AttributeValue]
 SIREN_PATTERN = re.compile(r"\d{9}")
 SIRET_PATTERN = re.compile(r"\d{14}")
 MONTH_OF_BIRTH_PATTERN = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
-NON_ALPHANUMERIC_PATTERN = re.compile(r"[^A-Za-z0-9]+")
 DIGEST_LENGTH = 16
 KEY_SEPARATOR = "|"
 IDENTIFIER_SEPARATOR = ":"
@@ -27,14 +32,6 @@ class EntityKind(StrEnum):
 
 class InvalidIdentifierError(ValueError):
     pass
-
-
-def normalise_text(text: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", text)
-    without_accents = "".join(
-        character for character in decomposed if not unicodedata.combining(character)
-    )
-    return " ".join(NON_ALPHANUMERIC_PATTERN.sub(" ", without_accents).upper().split())
 
 
 def remove_spaces(text: str) -> str:
@@ -66,23 +63,23 @@ def establishment_identifier(siret: str) -> str:
 def person_identifier(last_name: str, first_names: str, month_of_birth: str | None) -> str:
     if month_of_birth is not None and not MONTH_OF_BIRTH_PATTERN.fullmatch(month_of_birth):
         raise InvalidIdentifierError(f"A month of birth reads YYYY-MM, not {month_of_birth!r}")
-    if not normalise_text(last_name):
+    if not person_name_key(last_name):
         raise InvalidIdentifierError("A person needs a last name")
     key = KEY_SEPARATOR.join(
-        [normalise_text(last_name), normalise_text(first_names), month_of_birth or ""]
+        [person_name_key(last_name), person_name_key(first_names), month_of_birth or ""]
     )
     return identifier(EntityKind.PERSON, digest(key))
 
 
 def address_identifier(address: str) -> str:
-    normalised_address = normalise_text(address)
+    normalised_address = address_key(address)
     if not normalised_address:
         raise InvalidIdentifierError("An address cannot be empty")
     return identifier(EntityKind.ADDRESS, digest(normalised_address))
 
 
 def foreign_company_identifier(name: str, country: str) -> str:
-    normalised_name = normalise_text(name)
+    normalised_name = company_name_key(name)
     if not normalised_name:
         raise InvalidIdentifierError("A foreign company needs a name")
     key = KEY_SEPARATOR.join([normalised_name, normalise_text(country)])

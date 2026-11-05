@@ -17,20 +17,10 @@ from lacis.storage.entities import (
     kind_of,
     located_at_link,
     mandate_link,
-    normalise_text,
     person_identifier,
     registered_office_link,
     same_person_link,
 )
-
-
-def test_texts_are_normalised_without_accents_case_or_punctuation() -> None:
-    assert (
-        normalise_text("  12, rue des Lilas — 31000 Toulouse ")
-        == "12 RUE DES LILAS 31000 TOULOUSE"
-    )
-    assert normalise_text("Jean-Pierre Dupont") == "JEAN PIERRE DUPONT"
-    assert normalise_text("Société Générale") == "SOCIETE GENERALE"
 
 
 def test_a_company_is_identified_by_its_siren() -> None:
@@ -73,10 +63,11 @@ def test_a_person_needs_a_last_name() -> None:
         person_identifier(" ", "Jean", None)
 
 
-def test_an_address_is_identified_by_its_normalised_text() -> None:
+def test_an_address_is_identified_by_its_comparison_key() -> None:
     address = address_identifier("12 rue des Lilas 31000 Toulouse")
     assert address.startswith("address:")
     assert address == address_identifier("12, RUE DES LILAS, 31000 TOULOUSE")
+    assert address == address_identifier("12 R DES LILAS 31000 TOULOUSE CEDEX 9")
     assert address != address_identifier("14 rue des Lilas 31000 Toulouse")
     with pytest.raises(InvalidIdentifierError):
         address_identifier(" , ")
@@ -86,6 +77,7 @@ def test_a_foreign_company_is_identified_by_its_name_and_country() -> None:
     invest = foreign_company_identifier("DUPONT INVEST LTD", "Royaume-Uni")
     assert invest.startswith("foreign_company:")
     assert invest == foreign_company_identifier("Dupont Invest Ltd.", "ROYAUME UNI")
+    assert invest == foreign_company_identifier("DUPONT INVEST LIMITED", "Royaume-Uni")
     assert invest != foreign_company_identifier("DUPONT INVEST LTD", "Irlande")
     with pytest.raises(InvalidIdentifierError):
         foreign_company_identifier("", "Irlande")
