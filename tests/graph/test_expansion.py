@@ -8,21 +8,31 @@ import pytest
 
 from fake_time import FakeTime, FakeWallClock
 from lacis.collectors.bodacc import Bodacc
-from lacis.collectors.company_register import CompanyRegister, InvalidQueryError
+from lacis.collectors.company_register import (
+    CompanyRegister,
+    InvalidQueryError,
+    NaturalPersonDirector,
+)
 from lacis.collectors.fake_api import FakeApi
 from lacis.collectors.fake_plumbers import DUPONT_SERVICES as DUPONT_SERVICES_COMPANY
-from lacis.collectors.fake_plumbers import FAKE_PLUMBERS_SCENARIO
-from lacis.collectors.fictional_records import FictionalNotice
+from lacis.collectors.fake_plumbers import FAKE_PLUMBERS_SCENARIO, HOLDING_DUPONT
+from lacis.collectors.fictional_records import (
+    FictionalCompany,
+    FictionalNaturalPerson,
+    FictionalNotice,
+)
 from lacis.collectors.http_client import CollectorHttpClient, CollectorTiming
 from lacis.collectors.rate_limiting import RateLimiters
-from lacis.graph.expansion import ExpansionError, GraphExpander, current_time
+from lacis.graph.expansion import ExpansionError, GraphExpander, SearchedName, current_time
 from lacis.graph.mapping import company_fragment
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.entities import (
     EntityKind,
     LinkKind,
     address_identifier,
+    company_identifier,
     establishment_identifier,
+    foreign_company_identifier,
     person_identifier,
 )
 from lacis.storage.graph_store import GraphStore
@@ -320,3 +330,173 @@ def test_an_incomplete_notice_list_withdraws_nothing(
     changes = one_notice_expander.expand_company("222222222")
     assert changes.withdrawn_notices == ()
     assert not notice_store.require_notice("A202200030003").is_withdrawn
+
+
+ACME = "company:111111111"
+HOLDING = "company:333333333"
+DUPONT_RENOVATION = "company:666666666"
+JEAN_PIERRE_DUPONT = person_identifier("DUPONT", "Jean Pierre", "1980-05")
+JEAN_MARC_DUPONT = person_identifier("DUPONT", "Jean Marc", "1980-05")
+
+
+def mandates(graph_store: GraphStore) -> set[tuple[str, str, str]]:
+    return {
+        (link.source, link.target, link.role)
+        for link in graph_store.links()
+        if link.kind is LinkKind.MANDATE
+    }
+
+
+def test_expanding_jean_dupont_finds_the_companies_run_under_his_name(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("222222222")
+    changes = expander.expand_person(JEAN_DUPONT)
+    assert set(changes.new_entities) == {
+        ACME,
+        HOLDING,
+        DUPONT_RENOVATION,
+        JEAN_PIERRE_DUPONT,
+        JEAN_MARC_DUPONT,
+    }
+    assert mandates(graph_store) == {
+        (JEAN_DUPONT, DUPONT_SERVICES, "Président"),
+        (JEAN_DUPONT, HOLDING, "Président"),
+        (JEAN_PIERRE_DUPONT, ACME, "Président"),
+        (JEAN_MARC_DUPONT, DUPONT_RENOVATION, "Gérant"),
+    }
+    assert "company:444444444" not in {entity.identifier for entity in graph_store.entities()}
+
+
+def test_a_person_expansion_adds_companies_without_expanding_them(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("222222222")
+    expander.expand_person(JEAN_DUPONT)
+    acme = graph_store.require_entity(ACME)
+    assert acme.label == "ACME PLOMBERIE"
+    assert "expanded_at" not in acme.attributes
+    assert graph_store.entity(establishment_identifier("11111111100015")) is None
+    assert graph_store.entity(company_identifier("333333333")) is not None
+
+
+def test_an_expanded_person_records_when_it_was_expanded(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("222222222")
+    expander.expand_person(JEAN_DUPONT)
+    jean = graph_store.require_entity(JEAN_DUPONT)
+    assert jean.attributes["expanded_at"] == EXPANDED_AT.isoformat()
+    assert jean.attributes["birth_month"] == "1980-05"
+
+
+def test_expanding_a_person_twice_adds_nothing_new(expander: GraphExpander) -> None:
+    expander.expand_company("222222222")
+    expander.expand_person(JEAN_DUPONT)
+    assert expander.expand_person(JEAN_DUPONT).is_empty
+
+
+def test_a_person_born_another_month_is_not_taken_for_the_one_expanded(
+    expander: GraphExpander, fake_api: FakeApi, graph_store: GraphStore
+) -> None:
+    namesake = FictionalCompany(
+        siren="888888888",
+        name="DUPONT ELEC",
+        establishments=HOLDING_DUPONT.establishments,
+        directors=(FictionalNaturalPerson("DUPONT", "Jean", "1975-01", "Gérant"),),
+        creation_date="2020-01-01",
+    )
+    fake_api.scenario = replace(
+        FAKE_PLUMBERS_SCENARIO, companies=(*FAKE_PLUMBERS_SCENARIO.companies, namesake)
+    )
+    expander.expand_company("222222222")
+    changes = expander.expand_person(JEAN_DUPONT)
+    assert "company:888888888" not in changes.new_entities
+    assert graph_store.entity("company:888888888") is None
+
+
+def test_a_person_with_several_first_names_finds_only_their_companies(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("111111111")
+    changes = expander.expand_person(JEAN_PIERRE_DUPONT)
+    assert ACME not in changes.new_entities
+    assert mandates(graph_store) == {
+        (JEAN_PIERRE_DUPONT, ACME, "Président"),
+        (HOLDING, ACME, "Directeur général"),
+        (foreign_company_identifier("DUPONT INVEST LTD", ""), ACME, "Associé"),
+    }
+
+
+def test_a_person_expansion_reads_the_search_results_page_by_page(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    fake_api: FakeApi,
+    graph_store: GraphStore,
+) -> None:
+    expander = GraphExpander(
+        investigation_connection,
+        CompanyRegister(http_client, results_per_page=1),
+        Bodacc(http_client),
+    )
+    expander.expand_company("222222222")
+    expander.expand_person(JEAN_DUPONT)
+    director_searches = [
+        request for request in fake_api.requests if "nom_personne" in request.url.params
+    ]
+    assert [request.url.params["page"] for request in director_searches] == ["1", "2", "3", "4"]
+    assert graph_store.entity(DUPONT_RENOVATION) is not None
+
+
+def test_a_person_expansion_stops_after_four_pages(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    fake_api: FakeApi,
+) -> None:
+    fake_api.scenario = replace(
+        FAKE_PLUMBERS_SCENARIO,
+        companies=(*FAKE_PLUMBERS_SCENARIO.companies, DUPONT_SERVICES_COMPANY),
+    )
+    expander = GraphExpander(
+        investigation_connection,
+        CompanyRegister(http_client, results_per_page=1),
+        Bodacc(http_client),
+    )
+    expander.expand_company("222222222")
+    expander.expand_person(JEAN_DUPONT)
+    director_searches = [
+        request for request in fake_api.requests if "nom_personne" in request.url.params
+    ]
+    assert len(director_searches) == 4
+
+
+@pytest.mark.parametrize("identifier", ["person:0000000000000000", DUPONT_SERVICES])
+def test_only_a_person_of_the_investigation_can_be_expanded_as_a_person(
+    expander: GraphExpander, identifier: str
+) -> None:
+    expander.expand_company("222222222")
+    with pytest.raises(ExpansionError) as failure:
+        expander.expand_person(identifier)
+    assert str(failure.value) == (
+        "Cette entité n'est pas dans l'enquête ou ne peut pas être étendue."
+    )
+
+
+@pytest.mark.parametrize(
+    ("director", "bears"),
+    [
+        (NaturalPersonDirector("Dupont", "jean", "1980-05", None, None), True),
+        (NaturalPersonDirector("DUPONT", "Jean Pierre", None, None, None), True),
+        (NaturalPersonDirector("DUPONT", "Jean", "1975-01", None, None), False),
+        (NaturalPersonDirector("DUPONT", "Marie", "1980-05", None, None), False),
+        (NaturalPersonDirector("DUPONTEL", "Jean", "1980-05", None, None), False),
+        (NaturalPersonDirector(None, "Jean", "1980-05", None, None), False),
+    ],
+)
+def test_a_director_bears_the_searched_name_when_names_and_birth_month_agree(
+    director: NaturalPersonDirector, bears: bool
+) -> None:
+    assert SearchedName("DUPONT", "Jean", "1980-05").bears(director) is bears
+    assert SearchedName("DUPONT", "Jean", None).bears(director) is (
+        bears or director.birth_month == "1975-01"
+    )
