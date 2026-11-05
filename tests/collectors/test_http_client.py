@@ -14,10 +14,12 @@ from lacis.collectors.http_client import (
     COLLECTORS_LOGGER_NAME,
     REQUEST_TIMEOUT,
     USER_AGENT,
+    CollectionControl,
     CollectionError,
     CollectorHttpClient,
     CollectorTiming,
     current_time,
+    ignore_request,
     too_many_requests_message,
     unavailable_service_message,
 )
@@ -515,3 +517,26 @@ def test_a_failed_refresh_reaches_the_caller_instead_of_the_cached_response(
     client.get(ResponseSource.BODACC, SEARCH_URL, {})
     with pytest.raises(CollectionError):
         client.get(ResponseSource.BODACC, SEARCH_URL, {}, refresh=True)
+
+
+def test_every_request_sent_is_reported_but_not_a_cache_hit(
+    response_store: ResponseStore, collection_log: CollectionLog, collector_timing: CollectorTiming
+) -> None:
+    reported: list[str] = []
+    client = CollectorHttpClient(
+        response_store,
+        collection_log,
+        httpx.MockTransport(answers(httpx.Response(503), httpx.Response(200))),
+        collector_timing,
+        CollectionControl(request_made=lambda: reported.append("request")),
+    )
+    try:
+        client.get(ResponseSource.BODACC, SEARCH_URL, {})
+        client.get(ResponseSource.BODACC, SEARCH_URL, {})
+    finally:
+        client.close()
+    assert reported == ["request", "request"]
+
+
+def test_requests_are_reported_to_nobody_by_default() -> None:
+    ignore_request()

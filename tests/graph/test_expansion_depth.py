@@ -12,7 +12,7 @@ from lacis.collectors.fake_api import FakeApi
 from lacis.collectors.fake_plumbers import FAKE_PLUMBERS_SCENARIO
 from lacis.collectors.http_client import CollectionError, CollectorHttpClient, CollectorTiming
 from lacis.collectors.rate_limiting import RateLimiters
-from lacis.graph.expansion import ExpansionError, GraphChanges, GraphExpander
+from lacis.graph.expansion import ExpansionError, GraphChanges, GraphExpander, ignore_count
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.entities import (
     address_identifier,
@@ -281,3 +281,17 @@ def test_a_single_pivot_outside_an_expansion_has_no_cap(
     changes = expander.expand_company("222222222")
     assert len(changes.new_entities) == 4
     assert is_expanded(graph_store, DUPONT_SERVICES)
+
+
+def test_the_expander_reports_every_new_entity_it_saves(
+    expander: GraphExpander, dupont_services_added: None
+) -> None:
+    found: list[int] = []
+    expander.entities_found = found.append
+    report = expander.expand(DUPONT_SERVICES, 2)
+    assert sum(found) == len(report.changes.new_entities)
+    assert all(count > 0 for count in found)
+
+
+def test_new_entities_are_reported_to_nobody_by_default() -> None:
+    ignore_count(3)

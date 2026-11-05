@@ -142,6 +142,10 @@ class ExpansionReport:
         )
 
 
+def ignore_count(count: int) -> None:
+    return None
+
+
 def current_time() -> datetime:
     return datetime.now(UTC)
 
@@ -185,6 +189,7 @@ class GraphExpander:
         self.maximum_new_entities = maximum_new_entities
         self.remaining_new_entities: int | None = None
         self.cap_reached = False
+        self.entities_found: Callable[[int], None] = ignore_count
 
     def expand_company(self, siren: str, *, refresh: bool = False) -> GraphChanges:
         digits = siren_of(siren)
@@ -300,6 +305,8 @@ class GraphExpander:
             self.graph_store.save_entity(entity, response)
             if is_new:
                 new_entities.append(entity.identifier)
+        if new_entities:
+            self.entities_found(len(new_entities))
         new_links: list[str] = []
         for link in fragment.links:
             endpoints = (

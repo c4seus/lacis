@@ -19,6 +19,8 @@ from lacis.graph.background import (
     search_job,
 )
 from lacis.graph.expansion import ExpansionReport
+from lacis.graph.progress import ExpansionProgress
+from lacis.storage.collection_log import CollectionLog
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.investigations import InvestigationLibrary
 
@@ -180,3 +182,34 @@ def test_waiting_for_a_job_returns_once_its_task_is_done(settings: CollectionSet
     job.wait()
     assert done == [True]
     assert not job.worker_thread.is_alive()
+
+
+def test_an_expansion_reports_its_progress(
+    qtbot: QtBot,
+    settings: CollectionSettings,
+    library: InvestigationLibrary,
+    started_jobs: list[BackgroundJob],
+) -> None:
+    search_page = run(qtbot, search_job(settings, "222222222"), started_jobs)
+    assert isinstance(search_page, CompanySearchPage)
+    run(
+        qtbot,
+        add_company_job(settings, search_page.companies[0], search_page.response),
+        started_jobs,
+    )
+    job = expansion_job(settings, "company:222222222", 2)
+    reports: list[ExpansionProgress] = []
+    job.progressed.connect(reports.append)
+    report = run(qtbot, job, started_jobs)
+    assert isinstance(report, ExpansionReport)
+    assert reports[-1].new_entities == len(report.changes.new_entities)
+    assert reports[-1].requests_made == network_requests(library) - 1
+    assert [progress.requests_made for progress in reports] == sorted(
+        progress.requests_made for progress in reports
+    )
+
+
+def network_requests(library: InvestigationLibrary) -> int:
+    with library.open(INVESTIGATION_NAME) as investigation:
+        entries = CollectionLog(investigation.connection).entries()
+        return sum(not entry.request.served_from_cache for entry in entries)
