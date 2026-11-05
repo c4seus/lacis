@@ -1,0 +1,251 @@
+import json
+import re
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any
+
+from lacis.collectors.endpoints import COMPANY_SEARCH_URL, MAXIMUM_COMPANIES_PER_PAGE
+from lacis.collectors.http_client import SOURCE_NAMES, CollectionError, CollectorHttpClient
+from lacis.storage.responses import ResponseSource, ResponseSummary, StoredResponse
+
+SIREN_LENGTH = 9
+SIRET_LENGTH = 14
+CLOSED_STATES = {"C", "F"}
+NATURAL_PERSON_TYPE = "personne physique"
+IDENTIFIER_SEPARATORS = re.compile(r"[\s.\-]+")
+SOURCE = ResponseSource.COMPANY_REGISTER
+
+
+class InvalidQueryError(ValueError):
+    pass
+
+
+class IdentifierKind(StrEnum):
+    SIREN = "siren"
+    SIRET = "siret"
+
+
+@dataclass(frozen=True)
+class Identifier:
+    kind: IdentifierKind
+    digits: str
+
+
+def identifier_in(text: str) -> Identifier | None:
+    digits = IDENTIFIER_SEPARATORS.sub("", text)
+    if not digits.isdigit():
+        return None
+    if len(digits) == SIREN_LENGTH:
+        return Identifier(IdentifierKind.SIREN, digits)
+    if len(digits) == SIRET_LENGTH:
+        return Identifier(IdentifierKind.SIRET, digits)
+    return None
+
+
+def optional_text(value: object) -> str | None:
+    if value is None or value == "":
+        return None
+    return str(value)
+
+
+@dataclass(frozen=True)
+class Address:
+    number: str | None
+    street_type: str | None
+    street_name: str | None
+    complement: str | None
+    postcode: str | None
+    city: str | None
+    city_code: str | None
+    country: str | None
+    full_text: str | None
+
+
+@dataclass(frozen=True)
+class Establishment:
+    siret: str
+    is_head_office: bool
+    is_open: bool
+    address: Address
+    activity: str | None
+    creation_date: str | None
+    closing_date: str | None
+    trade_name: str | None
+
+
+@dataclass(frozen=True)
+class NaturalPersonDirector:
+    last_name: str | None
+    first_names: str | None
+    birth_month: str | None
+    role: str | None
+    nationality: str | None
+
+
+@dataclass(frozen=True)
+class LegalPersonDirector:
+    name: str | None
+    siren: str | None
+    role: str | None
+
+
+type Director = NaturalPersonDirector | LegalPersonDirector
+
+
+@dataclass(frozen=True)
+class Company:
+    siren: str
+    name: str | None
+    acronym: str | None
+    is_active: bool
+    legal_form: str | None
+    activity: str | None
+    creation_date: str | None
+    closing_date: str | None
+    head_office: Establishment | None
+    matching_establishments: tuple[Establishment, ...]
+    establishment_count: int
+    open_establishment_count: int
+    directors: tuple[Director, ...]
+
+
+@dataclass(frozen=True)
+class CompanySearchPage:
+    companies: tuple[Company, ...]
+    page: int
+    per_page: int
+    total_results: int
+    total_pages: int
+    response: ResponseSummary
+
+    @property
+    def has_next_page(self) -> bool:
+        return self.page < self.total_pages
+
+
+def address_from(record: dict[str, Any]) -> Address:
+    city = record.get("libelle_commune") or record.get("libelle_commune_etranger")
+    return Address(
+        number=optional_text(record.get("numero_voie")),
+        street_type=optional_text(record.get("type_voie")),
+        street_name=optional_text(record.get("libelle_voie")),
+        complement=optional_text(record.get("complement_adresse")),
+        postcode=optional_text(record.get("code_postal")),
+        city=optional_text(city),
+        city_code=optional_text(record.get("commune")),
+        country=optional_text(record.get("libelle_pays_etranger")),
+        full_text=optional_text(record.get("adresse")),
+    )
+
+
+def establishment_from(record: dict[str, Any]) -> Establishment:
+    return Establishment(
+        siret=str(record["siret"]),
+        is_head_office=bool(record.get("est_siege")),
+        is_open=record.get("etat_administratif") not in CLOSED_STATES,
+        address=address_from(record),
+        activity=optional_text(record.get("activite_principale")),
+        creation_date=optional_text(record.get("date_creation")),
+        closing_date=optional_text(record.get("date_fermeture")),
+        trade_name=optional_text(record.get("nom_commercial")),
+    )
+
+
+def director_from(record: dict[str, Any]) -> Director:
+    if record.get("type_dirigeant") == NATURAL_PERSON_TYPE:
+        return NaturalPersonDirector(
+            last_name=optional_text(record.get("nom")),
+            first_names=optional_text(record.get("prenoms")),
+            birth_month=optional_text(record.get("date_de_naissance")),
+            role=optional_text(record.get("qualite")),
+            nationality=optional_text(record.get("nationalite")),
+        )
+    return LegalPersonDirector(
+        name=optional_text(record.get("denomination")),
+        siren=optional_text(record.get("siren")),
+        role=optional_text(record.get("qualite")),
+    )
+
+
+def company_from(record: dict[str, Any]) -> Company:
+    head_office = record.get("siege")
+    return Company(
+        siren=str(record["siren"]),
+        name=optional_text(record.get("nom_complet") or record.get("nom_raison_sociale")),
+        acronym=optional_text(record.get("sigle")),
+        is_active=record.get("etat_administratif") not in CLOSED_STATES,
+        legal_form=optional_text(record.get("nature_juridique")),
+        activity=optional_text(record.get("activite_principale")),
+        creation_date=optional_text(record.get("date_creation")),
+        closing_date=optional_text(record.get("date_fermeture")),
+        head_office=establishment_from(head_office) if isinstance(head_office, dict) else None,
+        matching_establishments=tuple(
+            establishment_from(item) for item in record.get("matching_etablissements") or []
+        ),
+        establishment_count=int(record.get("nombre_etablissements") or 0),
+        open_establishment_count=int(record.get("nombre_etablissements_ouverts") or 0),
+        directors=tuple(director_from(item) for item in record.get("dirigeants") or []),
+    )
+
+
+def unreadable_response_message() -> str:
+    return f"La réponse du service {SOURCE_NAMES[SOURCE]} est illisible. Réessayez plus tard."
+
+
+def search_page_from(stored_response: StoredResponse) -> CompanySearchPage:
+    try:
+        payload = json.loads(stored_response.body)
+        return CompanySearchPage(
+            companies=tuple(company_from(record) for record in payload["results"]),
+            page=int(payload["page"]),
+            per_page=int(payload["per_page"]),
+            total_results=int(payload["total_results"]),
+            total_pages=int(payload["total_pages"]),
+            response=stored_response.summary,
+        )
+    except (KeyError, TypeError, ValueError) as unreadable:
+        raise CollectionError(unreadable_response_message(), SOURCE, None) from unreadable
+
+
+class CompanyRegister:
+    def __init__(
+        self,
+        http_client: CollectorHttpClient,
+        results_per_page: int = MAXIMUM_COMPANIES_PER_PAGE,
+    ) -> None:
+        self.http_client = http_client
+        self.results_per_page = results_per_page
+
+    def search(self, text: str, page: int = 1, *, refresh: bool = False) -> CompanySearchPage:
+        query = text.strip()
+        if not query:
+            raise InvalidQueryError(
+                "Saisissez un nom, un SIREN, un SIRET, un dirigeant ou une adresse."
+            )
+        identifier = identifier_in(query)
+        if identifier is not None:
+            query = identifier.digits
+        return self.search_page({"q": query}, page, refresh)
+
+    def search_director(
+        self, last_name: str, first_names: str = "", page: int = 1, *, refresh: bool = False
+    ) -> CompanySearchPage:
+        parameters = {"nom_personne": last_name.strip()}
+        if not parameters["nom_personne"]:
+            raise InvalidQueryError("Saisissez le nom du dirigeant.")
+        if first_names.strip():
+            parameters["prenoms_personne"] = first_names.strip()
+        return self.search_page(parameters, page, refresh)
+
+    def search_page(
+        self, parameters: dict[str, str], page: int, refresh: bool
+    ) -> CompanySearchPage:
+        if page < 1:
+            raise InvalidQueryError(f"La page {page} n'existe pas : les pages commencent à 1.")
+        stored_response = self.http_client.get(
+            SOURCE,
+            COMPANY_SEARCH_URL,
+            {**parameters, "page": str(page), "per_page": str(self.results_per_page)},
+            refresh=refresh,
+        )
+        return search_page_from(stored_response)
