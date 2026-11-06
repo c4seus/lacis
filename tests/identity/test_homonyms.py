@@ -1,17 +1,39 @@
 import sqlite3
+from collections.abc import Iterator
 from datetime import UTC, datetime
 
+import httpx
 import pytest
 
+from fake_time import FakeTime
+from lacis.collectors.bodacc import Bodacc
+from lacis.collectors.company_register import CompanyRegister
+from lacis.collectors.fake_api import FakeApi
+from lacis.collectors.fake_plumbers import FAKE_PLUMBERS_SCENARIO
+from lacis.collectors.http_client import CollectorHttpClient, CollectorTiming
+from lacis.collectors.rate_limiting import RateLimiters
+from lacis.graph.expansion import GraphExpander
 from lacis.identity.homonyms import (
+    Confidence,
+    Corroboration,
     FirstNameRelation,
     HomonymPair,
     PersonIdentity,
     first_name_relation,
     homonym_pair,
     homonym_pairs,
+    homonym_proposals,
 )
-from lacis.storage.entities import Attributes, CollectedEntity, person_identifier
+from lacis.storage.collection_log import CollectionLog
+from lacis.storage.entities import (
+    Attributes,
+    CollectedEntity,
+    address_identifier,
+    company_identifier,
+    mandate_link,
+    person_identifier,
+    registered_office_link,
+)
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.responses import (
     CollectedResponse,
@@ -144,3 +166,166 @@ def test_people_without_last_name_are_never_paired() -> None:
     pair = HomonymPair(nameless, other, FirstNameRelation.SAME)
     assert not pair.same_birth_month
     assert homonym_pair(nameless, other) is None
+
+
+def add_company(
+    graph_store: GraphStore, response: ResponseSummary, siren: str, name: str, address: str
+) -> str:
+    company = company_identifier(siren)
+    graph_store.save_entity(CollectedEntity(company, name), response)
+    address_entity = address_identifier(address)
+    graph_store.save_entity(CollectedEntity(address_entity, address), response)
+    graph_store.save_link(registered_office_link(company, address_entity), response)
+    return company
+
+
+def add_mandate(
+    graph_store: GraphStore, response: ResponseSummary, director: str, company: str
+) -> None:
+    graph_store.save_link(mandate_link(director, company, "Président"), response)
+
+
+def proposals_of(graph_store: GraphStore) -> list[tuple[str, str, Confidence]]:
+    return [
+        (proposal.pair.first.label, proposal.pair.second.label, proposal.confidence)
+        for proposal in homonym_proposals(graph_store)
+    ]
+
+
+@pytest.fixture
+def fake_api() -> FakeApi:
+    return FakeApi(FAKE_PLUMBERS_SCENARIO)
+
+
+@pytest.fixture
+def expander(
+    investigation_connection: sqlite3.Connection,
+    response_store: ResponseStore,
+    collection_log: CollectionLog,
+    fake_api: FakeApi,
+) -> Iterator[GraphExpander]:
+    fake_time = FakeTime()
+    http_client = CollectorHttpClient(
+        response_store,
+        collection_log,
+        httpx.MockTransport(fake_api),
+        CollectorTiming(
+            rate_limiters=RateLimiters(clock=fake_time.clock, sleep=fake_time.sleep),
+            monotonic=fake_time.clock,
+        ),
+    )
+    yield GraphExpander(
+        investigation_connection, CompanyRegister(http_client), Bodacc(http_client)
+    )
+    http_client.close()
+
+
+def test_jean_and_jean_pierre_dupont_of_the_scenario_are_proposed_with_their_reasons(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("222222222")
+    expander.expand_company("111111111")
+    [proposal] = homonym_proposals(graph_store)
+    assert (proposal.pair.first.label, proposal.pair.second.label) == (
+        "Jean DUPONT",
+        "Jean Pierre DUPONT",
+    )
+    assert proposal.confidence is Confidence.PROBABLE
+    assert proposal.reasons == (
+        "Même nom de famille",
+        "Prénom composé : Jean / Jean Pierre",
+        "Même mois de naissance (05/1980)",
+        "Entreprises domiciliées à la même adresse : 12 RUE DES LILAS 31000 TOULOUSE",
+    )
+
+
+def test_a_company_linking_the_two_people_makes_the_match_certain(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("222222222")
+    expander.expand_company("111111111")
+    expander.expand_person(person_identifier("DUPONT", "Jean", "1980-05"))
+    proposals = {
+        (proposal.pair.first.label, proposal.pair.second.label): proposal
+        for proposal in homonym_proposals(graph_store)
+    }
+    jean_pierre = proposals["Jean DUPONT", "Jean Pierre DUPONT"]
+    assert jean_pierre.confidence is Confidence.CERTAIN
+    assert "HOLDING DUPONT dirige ACME PLOMBERIE" in jean_pierre.reasons
+    jean_marc = proposals["Jean DUPONT", "Jean Marc DUPONT"]
+    assert jean_marc.confidence is Confidence.PROBABLE
+    assert jean_marc.reasons == (
+        "Même nom de famille",
+        "Prénom composé : Jean / Jean Marc",
+        "Même mois de naissance (05/1980)",
+    )
+    assert next(iter(proposals.values())) is jean_pierre
+
+
+def test_an_unknown_birth_month_makes_a_match_weak(
+    graph_store: GraphStore, response: ResponseSummary
+) -> None:
+    add_person(graph_store, response, "DUPONT", "Jean", "1980-05")
+    add_person(graph_store, response, "DUPONT", "Jean", None)
+    [proposal] = homonym_proposals(graph_store)
+    assert proposal.confidence is Confidence.WEAK
+    assert proposal.reasons == (
+        "Même nom de famille",
+        "Mêmes prénoms",
+        "Mois de naissance inconnu d'un côté",
+    )
+
+
+def test_unknown_first_names_make_a_match_weak(
+    graph_store: GraphStore, response: ResponseSummary
+) -> None:
+    add_person(graph_store, response, "MARTIN", "", "1990-01")
+    add_person(graph_store, response, "MARTIN", "Paul", "1990-01")
+    [proposal] = homonym_proposals(graph_store)
+    assert proposal.confidence is Confidence.WEAK
+    assert "Prénoms inconnus d'un côté" in proposal.reasons
+
+
+def test_a_well_corroborated_match_with_an_unknown_birth_month_is_probable(
+    graph_store: GraphStore, response: ResponseSummary
+) -> None:
+    jean = add_person(graph_store, response, "DUPONT", "Jean", "1980-05")
+    other_jean = add_person(graph_store, response, "DUPONT", "Jean", None)
+    lilas = "12 RUE DES LILAS 31000 TOULOUSE"
+    acme = add_company(graph_store, response, "111111111", "ACME PLOMBERIE", lilas)
+    services = add_company(graph_store, response, "222222222", "DUPONT SERVICES", lilas)
+    add_mandate(graph_store, response, jean, acme)
+    add_mandate(graph_store, response, other_jean, acme)
+    add_mandate(graph_store, response, other_jean, services)
+    [proposal] = homonym_proposals(graph_store)
+    assert proposal.confidence is Confidence.PROBABLE
+    assert proposal.reasons[3:] == (
+        "Dirigeants tous deux de ACME PLOMBERIE",
+        f"Entreprises domiciliées à la même adresse : {lilas}",
+    )
+
+
+def test_proposals_go_from_certain_to_weak(
+    graph_store: GraphStore, response: ResponseSummary
+) -> None:
+    add_person(graph_store, response, "MARTIN", "", "1990-01")
+    add_person(graph_store, response, "MARTIN", "Paul", "1990-01")
+    jean = add_person(graph_store, response, "DUPONT", "Jean", "1980-05")
+    jean_pierre = add_person(graph_store, response, "DUPONT", "Jean Pierre", "1980-05")
+    add_person(graph_store, response, "BLANC", "Hugo", "1992-07")
+    add_person(graph_store, response, "BLANC", "Hugo Louis", "1992-07")
+    lilas = "12 RUE DES LILAS 31000 TOULOUSE"
+    acme = add_company(graph_store, response, "111111111", "ACME PLOMBERIE", lilas)
+    add_mandate(graph_store, response, jean, acme)
+    add_mandate(graph_store, response, jean_pierre, acme)
+    assert proposals_of(graph_store) == [
+        ("Jean DUPONT", "Jean Pierre DUPONT", Confidence.CERTAIN),
+        ("Hugo BLANC", "Hugo Louis BLANC", Confidence.PROBABLE),
+        ("MARTIN", "Paul MARTIN", Confidence.WEAK),
+    ]
+
+
+def test_a_corroboration_names_an_entity_even_without_its_label(
+    graph_store: GraphStore,
+) -> None:
+    assert Corroboration(graph_store).label("company:111111111") == "company:111111111"
