@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from lacis.storage.entities import EntityKind, kind_of
+from lacis.storage.entities import EntityKind, kind_of, same_person_link
 
 
 class HomonymDecision(StrEnum):
@@ -75,7 +75,28 @@ class HomonymDecisionStore:
                 """,
                 (first, second, decision.value, recorded.decided_at.isoformat()),
             )
+            if decision is HomonymDecision.SAME_PERSON:
+                self.add_same_person_link(recorded)
+            else:
+                self.remove_same_person_link(first, second)
         return recorded
+
+    def add_same_person_link(self, recorded: RecordedDecision) -> None:
+        link = same_person_link(recorded.first_person, recorded.second_person)
+        decided_at = recorded.decided_at.isoformat()
+        self.connection.execute(
+            """
+            INSERT INTO link (identifier, kind, source, target, role,
+                              first_collected_at, last_collected_at)
+            VALUES (?, ?, ?, ?, '', ?, ?)
+            ON CONFLICT (identifier) DO UPDATE SET last_collected_at = excluded.last_collected_at
+            """,
+            (link.identifier, link.kind.value, link.source, link.target, decided_at, decided_at),
+        )
+
+    def remove_same_person_link(self, first_person: str, second_person: str) -> None:
+        link = same_person_link(first_person, second_person)
+        self.connection.execute("DELETE FROM link WHERE identifier = ?", (link.identifier,))
 
     def decision_between(self, first_person: str, second_person: str) -> RecordedDecision | None:
         first, second = ordered_people(first_person, second_person)
@@ -112,4 +133,5 @@ class HomonymDecisionStore:
                 "DELETE FROM homonym_decision WHERE first_person = ? AND second_person = ?",
                 (recorded.first_person, recorded.second_person),
             )
+            self.remove_same_person_link(recorded.first_person, recorded.second_person)
         return recorded

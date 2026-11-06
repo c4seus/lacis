@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from fake_time import FakeWallClock
-from lacis.storage.entities import CollectedEntity, person_identifier
+from lacis.storage.entities import CollectedEntity, Link, LinkKind, person_identifier
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.homonym_decisions import (
     HomonymDecision,
@@ -158,3 +158,57 @@ def test_undoing_a_missing_decision_is_reported_in_french(
     with pytest.raises(HomonymDecisionNotFoundError) as failure:
         decision_store.undo(JEAN, JEAN_MARC)
     assert str(failure.value) == "Aucune décision n'a été prise sur ces deux personnes."
+
+
+def same_person_links(investigation_connection: sqlite3.Connection) -> list[Link]:
+    return [
+        link
+        for link in GraphStore(investigation_connection).links()
+        if link.kind is LinkKind.SAME_PERSON
+    ]
+
+
+def test_a_confirmed_match_adds_a_same_person_link(
+    decision_store: HomonymDecisionStore, investigation_connection: sqlite3.Connection
+) -> None:
+    decision_store.record(JEAN_PIERRE, JEAN, HomonymDecision.SAME_PERSON)
+    [link] = same_person_links(investigation_connection)
+    assert {link.source, link.target} == {JEAN, JEAN_PIERRE}
+    assert link.first_collected_at == DECIDED_AT
+    assert GraphStore(investigation_connection).sources_of_link(link.identifier) == []
+
+
+def test_confirming_twice_keeps_one_link_dated_by_the_last_decision(
+    decision_store: HomonymDecisionStore,
+    investigation_connection: sqlite3.Connection,
+    wall_clock: FakeWallClock,
+) -> None:
+    decision_store.record(JEAN, JEAN_PIERRE, HomonymDecision.SAME_PERSON)
+    wall_clock.advance(timedelta(days=1))
+    decision_store.record(JEAN, JEAN_PIERRE, HomonymDecision.SAME_PERSON)
+    [link] = same_person_links(investigation_connection)
+    assert link.first_collected_at == DECIDED_AT
+    assert link.last_collected_at == DECIDED_AT + timedelta(days=1)
+
+
+def test_a_rejected_match_has_no_same_person_link(
+    decision_store: HomonymDecisionStore, investigation_connection: sqlite3.Connection
+) -> None:
+    decision_store.record(JEAN, JEAN_MARC, HomonymDecision.DIFFERENT_PERSON)
+    assert same_person_links(investigation_connection) == []
+
+
+def test_rejecting_a_confirmed_match_removes_its_link(
+    decision_store: HomonymDecisionStore, investigation_connection: sqlite3.Connection
+) -> None:
+    decision_store.record(JEAN, JEAN_PIERRE, HomonymDecision.SAME_PERSON)
+    decision_store.record(JEAN, JEAN_PIERRE, HomonymDecision.DIFFERENT_PERSON)
+    assert same_person_links(investigation_connection) == []
+
+
+def test_undoing_a_confirmed_match_removes_its_link(
+    decision_store: HomonymDecisionStore, investigation_connection: sqlite3.Connection
+) -> None:
+    decision_store.record(JEAN, JEAN_PIERRE, HomonymDecision.SAME_PERSON)
+    decision_store.undo(JEAN, JEAN_PIERRE)
+    assert same_person_links(investigation_connection) == []
