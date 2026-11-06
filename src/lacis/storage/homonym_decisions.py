@@ -64,7 +64,10 @@ class HomonymDecisionStore:
         self, first_person: str, second_person: str, decision: HomonymDecision
     ) -> RecordedDecision:
         first, second = ordered_people(first_person, second_person)
-        recorded = RecordedDecision(first, second, decision, self.now())
+        return self.restore(RecordedDecision(first, second, decision, self.now()))
+
+    def restore(self, recorded: RecordedDecision) -> RecordedDecision:
+        first, second = ordered_people(recorded.first_person, recorded.second_person)
         with self.connection:
             self.connection.execute(
                 """
@@ -73,9 +76,9 @@ class HomonymDecisionStore:
                 ON CONFLICT (first_person, second_person)
                 DO UPDATE SET decision = excluded.decision, decided_at = excluded.decided_at
                 """,
-                (first, second, decision.value, recorded.decided_at.isoformat()),
+                (first, second, recorded.decision.value, recorded.decided_at.isoformat()),
             )
-            if decision is HomonymDecision.SAME_PERSON:
+            if recorded.decision is HomonymDecision.SAME_PERSON:
                 self.add_same_person_link(recorded)
             else:
                 self.remove_same_person_link(first, second)
@@ -124,7 +127,7 @@ class HomonymDecisionStore:
         ).fetchall()
         return {(first, second) for first, second in rows}
 
-    def undo(self, first_person: str, second_person: str) -> RecordedDecision:
+    def withdraw(self, first_person: str, second_person: str) -> RecordedDecision:
         recorded = self.decision_between(first_person, second_person)
         if recorded is None:
             raise HomonymDecisionNotFoundError

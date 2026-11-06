@@ -139,7 +139,7 @@ def test_a_decision_can_be_undone(
     decision_store: HomonymDecisionStore, decision: HomonymDecision
 ) -> None:
     recorded = decision_store.record(JEAN, JEAN_PIERRE, decision)
-    assert decision_store.undo(JEAN_PIERRE, JEAN) == recorded
+    assert decision_store.withdraw(JEAN_PIERRE, JEAN) == recorded
     assert decision_store.decision_between(JEAN, JEAN_PIERRE) is None
     assert decision_store.decisions() == []
 
@@ -147,7 +147,7 @@ def test_a_decision_can_be_undone(
 def test_undoing_a_decision_leaves_the_others(decision_store: HomonymDecisionStore) -> None:
     decision_store.record(JEAN, JEAN_PIERRE, HomonymDecision.SAME_PERSON)
     decision_store.record(JEAN, JEAN_MARC, HomonymDecision.DIFFERENT_PERSON)
-    decision_store.undo(JEAN, JEAN_MARC)
+    decision_store.withdraw(JEAN, JEAN_MARC)
     [remaining] = decision_store.decisions()
     assert remaining.decision is HomonymDecision.SAME_PERSON
 
@@ -156,7 +156,7 @@ def test_undoing_a_missing_decision_is_reported_in_french(
     decision_store: HomonymDecisionStore,
 ) -> None:
     with pytest.raises(HomonymDecisionNotFoundError) as failure:
-        decision_store.undo(JEAN, JEAN_MARC)
+        decision_store.withdraw(JEAN, JEAN_MARC)
     assert str(failure.value) == "Aucune décision n'a été prise sur ces deux personnes."
 
 
@@ -210,5 +210,5 @@ def test_undoing_a_confirmed_match_removes_its_link(
     decision_store: HomonymDecisionStore, investigation_connection: sqlite3.Connection
 ) -> None:
     decision_store.record(JEAN, JEAN_PIERRE, HomonymDecision.SAME_PERSON)
-    decision_store.undo(JEAN, JEAN_PIERRE)
+    decision_store.withdraw(JEAN, JEAN_PIERRE)
     assert same_person_links(investigation_connection) == []
