@@ -370,3 +370,21 @@ def test_a_confirmed_pair_is_no_longer_proposed(
     jean_pierre = add_person(graph_store, response, "DUPONT", "Jean Pierre", "1980-05")
     decision_store.record(jean, jean_pierre, HomonymDecision.SAME_PERSON)
     assert proposals_of(graph_store, decision_store) == []
+
+
+@pytest.mark.parametrize(
+    "decision", [HomonymDecision.SAME_PERSON, HomonymDecision.DIFFERENT_PERSON]
+)
+def test_an_undone_decision_brings_the_pair_back_to_the_proposals(
+    graph_store: GraphStore,
+    response: ResponseSummary,
+    decision_store: HomonymDecisionStore,
+    decision: HomonymDecision,
+) -> None:
+    jean = add_person(graph_store, response, "DUPONT", "Jean", "1980-05")
+    jean_pierre = add_person(graph_store, response, "DUPONT", "Jean Pierre", "1980-05")
+    decision_store.record(jean, jean_pierre, decision)
+    decision_store.undo(jean, jean_pierre)
+    assert proposals_of(graph_store, decision_store) == [
+        ("Jean DUPONT", "Jean Pierre DUPONT", Confidence.PROBABLE)
+    ]

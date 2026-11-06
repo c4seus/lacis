@@ -16,6 +16,11 @@ class InvalidHomonymDecisionError(ValueError):
     pass
 
 
+class HomonymDecisionNotFoundError(LookupError):
+    def __init__(self) -> None:
+        super().__init__("Aucune décision n'a été prise sur ces deux personnes.")
+
+
 @dataclass(frozen=True)
 class RecordedDecision:
     first_person: str
@@ -97,3 +102,14 @@ class HomonymDecisionStore:
             "SELECT first_person, second_person FROM homonym_decision"
         ).fetchall()
         return {(first, second) for first, second in rows}
+
+    def undo(self, first_person: str, second_person: str) -> RecordedDecision:
+        recorded = self.decision_between(first_person, second_person)
+        if recorded is None:
+            raise HomonymDecisionNotFoundError
+        with self.connection:
+            self.connection.execute(
+                "DELETE FROM homonym_decision WHERE first_person = ? AND second_person = ?",
+                (recorded.first_person, recorded.second_person),
+            )
+        return recorded

@@ -8,6 +8,7 @@ from lacis.storage.entities import CollectedEntity, person_identifier
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.homonym_decisions import (
     HomonymDecision,
+    HomonymDecisionNotFoundError,
     HomonymDecisionStore,
     InvalidHomonymDecisionError,
     RecordedDecision,
@@ -129,3 +130,31 @@ def test_a_decision_needs_people_of_the_investigation(
 
 def test_decisions_are_dated_in_utc() -> None:
     assert current_time().tzinfo is UTC
+
+
+@pytest.mark.parametrize(
+    "decision", [HomonymDecision.SAME_PERSON, HomonymDecision.DIFFERENT_PERSON]
+)
+def test_a_decision_can_be_undone(
+    decision_store: HomonymDecisionStore, decision: HomonymDecision
+) -> None:
+    recorded = decision_store.record(JEAN, JEAN_PIERRE, decision)
+    assert decision_store.undo(JEAN_PIERRE, JEAN) == recorded
+    assert decision_store.decision_between(JEAN, JEAN_PIERRE) is None
+    assert decision_store.decisions() == []
+
+
+def test_undoing_a_decision_leaves_the_others(decision_store: HomonymDecisionStore) -> None:
+    decision_store.record(JEAN, JEAN_PIERRE, HomonymDecision.SAME_PERSON)
+    decision_store.record(JEAN, JEAN_MARC, HomonymDecision.DIFFERENT_PERSON)
+    decision_store.undo(JEAN, JEAN_MARC)
+    [remaining] = decision_store.decisions()
+    assert remaining.decision is HomonymDecision.SAME_PERSON
+
+
+def test_undoing_a_missing_decision_is_reported_in_french(
+    decision_store: HomonymDecisionStore,
+) -> None:
+    with pytest.raises(HomonymDecisionNotFoundError) as failure:
+        decision_store.undo(JEAN, JEAN_MARC)
+    assert str(failure.value) == "Aucune décision n'a été prise sur ces deux personnes."
