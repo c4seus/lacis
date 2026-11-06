@@ -153,6 +153,21 @@ def create_collection_log_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def create_homonym_decision_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE homonym_decision (
+            first_person TEXT NOT NULL REFERENCES entity (identifier) ON DELETE CASCADE,
+            second_person TEXT NOT NULL REFERENCES entity (identifier) ON DELETE CASCADE,
+            decision TEXT NOT NULL,
+            decided_at TEXT NOT NULL,
+            PRIMARY KEY (first_person, second_person),
+            CHECK (first_person < second_person)
+        )
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     create_investigation_table,
     create_entity_table,
@@ -163,6 +178,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     create_notice_company_table,
     add_notice_withdrawal,
     create_collection_log_table,
+    create_homonym_decision_table,
 )
 
 
