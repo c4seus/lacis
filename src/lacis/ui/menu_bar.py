@@ -1,6 +1,7 @@
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QKeySequence, QUndoGroup
 from PySide6.QtWidgets import QMenu, QMenuBar, QWidget
 
+from lacis.history import InvestigationHistory
 from lacis.ui.help_menu import HelpMenu
 from lacis.ui.theme_menu import ThemeMenu
 
@@ -10,6 +11,10 @@ VIEW_MENU_TITLE = "&Affichage"
 INVESTIGATION_MENU_TITLE = "&Enquête"
 QUIT_ACTION_TEXT = "&Quitter"
 QUIT_SHORTCUT = QKeySequence("Ctrl+Q")
+UNDO_PREFIX = "&Annuler"
+REDO_PREFIX = "&Rétablir"
+UNDO_SHORTCUT = QKeySequence("Ctrl+Z")
+REDO_SHORTCUT = QKeySequence("Ctrl+Shift+Z")
 
 
 class MainMenuBar(QMenuBar):
@@ -27,6 +32,14 @@ class MainMenuBar(QMenuBar):
         self.quit_action = QAction(QUIT_ACTION_TEXT, self)
         self.quit_action.setShortcut(QUIT_SHORTCUT)
         self.file_menu.addAction(self.quit_action)
+        self.histories = QUndoGroup(self)
+        self.no_history = InvestigationHistory(self)
+        self.histories.addStack(self.no_history)
+        self.undo_action = self.histories.createUndoAction(self, UNDO_PREFIX)
+        self.undo_action.setShortcut(UNDO_SHORTCUT)
+        self.redo_action = self.histories.createRedoAction(self, REDO_PREFIX)
+        self.redo_action.setShortcut(REDO_SHORTCUT)
+        self.edit_menu.addActions([self.undo_action, self.redo_action])
         self.view_menu.addMenu(theme_menu)
         self.update_menu_availability()
 
@@ -38,6 +51,12 @@ class MainMenuBar(QMenuBar):
             self.investigation_menu,
             self.help_menu,
         ]
+
+    def show_history(self, history: InvestigationHistory | None) -> None:
+        shown_history = history if history is not None else self.no_history
+        if shown_history not in self.histories.stacks():
+            self.histories.addStack(shown_history)
+        self.histories.setActiveStack(shown_history)
 
     def update_menu_availability(self) -> None:
         for menu in self.menus():

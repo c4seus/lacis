@@ -1,12 +1,13 @@
 import pytest
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtGui import QColor, QKeySequence
+from PySide6.QtGui import QAction, QColor, QKeySequence, QUndoCommand
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMenu
 from pytestqt.qtbot import QtBot
 
 from lacis.design.theme_controller import ThemeController, ThemePreference
 from lacis.design.tokens import DARK_THEME, LIGHT_THEME, Theme
+from lacis.history import InvestigationHistory
 from lacis.ui.help_menu import HelpMenu
 from lacis.ui.main_window import GEOMETRY_SETTING_KEY, MainWindow
 from lacis.ui.menu_bar import MainMenuBar
@@ -174,3 +175,75 @@ def test_the_help_menu_and_the_help_button_share_the_same_entries(
     assert main_window.header_bar.help_button.menu() is shared_menu
     assert main_window.main_menu_bar.help_menu is shared_menu
     assert main_window.main_menu_bar.actions()[-1] is shared_menu.menuAction()
+
+
+class NoteCommand(QUndoCommand):
+    def __init__(self, notes: list[str]) -> None:
+        super().__init__("la décision d'homonyme")
+        self.notes = notes
+
+    def redo(self) -> None:
+        self.notes.append("même personne")
+
+    def undo(self) -> None:
+        self.notes.pop()
+
+
+def visible_text(action: QAction) -> str:
+    return action.text().replace("&", "")
+
+
+def test_the_edit_menu_offers_undo_and_redo_with_their_shortcuts(
+    qtbot: QtBot, theme_controller: ThemeController
+) -> None:
+    menu_bar = create_menu_bar(qtbot, theme_controller)
+    assert menu_bar.edit_menu.actions() == [menu_bar.undo_action, menu_bar.redo_action]
+    assert menu_bar.edit_menu.menuAction().isEnabled()
+    assert menu_bar.undo_action.shortcut() == QKeySequence("Ctrl+Z")
+    assert menu_bar.redo_action.shortcut() == QKeySequence("Ctrl+Shift+Z")
+    assert mnemonic(menu_bar.undo_action.text()) != mnemonic(menu_bar.redo_action.text())
+
+
+def test_undo_and_redo_are_disabled_when_there_is_nothing_to_undo(
+    qtbot: QtBot, theme_controller: ThemeController
+) -> None:
+    menu_bar = create_menu_bar(qtbot, theme_controller)
+    assert visible_text(menu_bar.undo_action) == "Annuler"
+    assert not menu_bar.undo_action.isEnabled()
+    assert not menu_bar.redo_action.isEnabled()
+    menu_bar.show_history(InvestigationHistory(menu_bar))
+    assert not menu_bar.undo_action.isEnabled()
+
+
+def test_the_undo_entries_name_the_action_they_apply_to(
+    qtbot: QtBot, theme_controller: ThemeController
+) -> None:
+    menu_bar = create_menu_bar(qtbot, theme_controller)
+    history = InvestigationHistory(menu_bar)
+    menu_bar.show_history(history)
+    notes: list[str] = []
+    history.record(NoteCommand(notes))
+    assert visible_text(menu_bar.undo_action) == "Annuler la décision d'homonyme"
+    assert menu_bar.undo_action.isEnabled()
+    menu_bar.undo_action.trigger()
+    assert notes == []
+    assert visible_text(menu_bar.redo_action) == "Rétablir la décision d'homonyme"
+    assert not menu_bar.undo_action.isEnabled()
+    menu_bar.redo_action.trigger()
+    assert notes == ["même personne"]
+
+
+def test_the_entries_follow_the_history_of_the_investigation_shown(
+    qtbot: QtBot, theme_controller: ThemeController
+) -> None:
+    menu_bar = create_menu_bar(qtbot, theme_controller)
+    first_history = InvestigationHistory(menu_bar)
+    first_history.record(NoteCommand([]))
+    menu_bar.show_history(first_history)
+    menu_bar.show_history(InvestigationHistory(menu_bar))
+    assert not menu_bar.undo_action.isEnabled()
+    menu_bar.show_history(first_history)
+    assert menu_bar.undo_action.isEnabled()
+    assert len(menu_bar.histories.stacks()) == 3
+    menu_bar.show_history(None)
+    assert not menu_bar.undo_action.isEnabled()
