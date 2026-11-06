@@ -35,6 +35,7 @@ from lacis.storage.entities import (
     registered_office_link,
 )
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
 from lacis.storage.responses import (
     CollectedResponse,
     ResponseSource,
@@ -42,10 +43,17 @@ from lacis.storage.responses import (
     ResponseSummary,
 )
 
+DECIDED_AT = datetime(2026, 11, 6, 15, 0, tzinfo=UTC)
+
 
 @pytest.fixture
 def graph_store(investigation_connection: sqlite3.Connection) -> GraphStore:
     return GraphStore(investigation_connection)
+
+
+@pytest.fixture
+def decision_store(investigation_connection: sqlite3.Connection) -> HomonymDecisionStore:
+    return HomonymDecisionStore(investigation_connection, now=lambda: DECIDED_AT)
 
 
 @pytest.fixture
@@ -185,10 +193,12 @@ def add_mandate(
     graph_store.save_link(mandate_link(director, company, "Président"), response)
 
 
-def proposals_of(graph_store: GraphStore) -> list[tuple[str, str, Confidence]]:
+def proposals_of(
+    graph_store: GraphStore, decision_store: HomonymDecisionStore
+) -> list[tuple[str, str, Confidence]]:
     return [
         (proposal.pair.first.label, proposal.pair.second.label, proposal.confidence)
-        for proposal in homonym_proposals(graph_store)
+        for proposal in homonym_proposals(graph_store, decision_store)
     ]
 
 
@@ -221,11 +231,13 @@ def expander(
 
 
 def test_jean_and_jean_pierre_dupont_of_the_scenario_are_proposed_with_their_reasons(
-    expander: GraphExpander, graph_store: GraphStore
+    expander: GraphExpander,
+    graph_store: GraphStore,
+    decision_store: HomonymDecisionStore,
 ) -> None:
     expander.expand_company("222222222")
     expander.expand_company("111111111")
-    [proposal] = homonym_proposals(graph_store)
+    [proposal] = homonym_proposals(graph_store, decision_store)
     assert (proposal.pair.first.label, proposal.pair.second.label) == (
         "Jean DUPONT",
         "Jean Pierre DUPONT",
@@ -240,14 +252,16 @@ def test_jean_and_jean_pierre_dupont_of_the_scenario_are_proposed_with_their_rea
 
 
 def test_a_company_linking_the_two_people_makes_the_match_certain(
-    expander: GraphExpander, graph_store: GraphStore
+    expander: GraphExpander,
+    graph_store: GraphStore,
+    decision_store: HomonymDecisionStore,
 ) -> None:
     expander.expand_company("222222222")
     expander.expand_company("111111111")
     expander.expand_person(person_identifier("DUPONT", "Jean", "1980-05"))
     proposals = {
         (proposal.pair.first.label, proposal.pair.second.label): proposal
-        for proposal in homonym_proposals(graph_store)
+        for proposal in homonym_proposals(graph_store, decision_store)
     }
     jean_pierre = proposals["Jean DUPONT", "Jean Pierre DUPONT"]
     assert jean_pierre.confidence is Confidence.CERTAIN
@@ -263,11 +277,13 @@ def test_a_company_linking_the_two_people_makes_the_match_certain(
 
 
 def test_an_unknown_birth_month_makes_a_match_weak(
-    graph_store: GraphStore, response: ResponseSummary
+    graph_store: GraphStore,
+    response: ResponseSummary,
+    decision_store: HomonymDecisionStore,
 ) -> None:
     add_person(graph_store, response, "DUPONT", "Jean", "1980-05")
     add_person(graph_store, response, "DUPONT", "Jean", None)
-    [proposal] = homonym_proposals(graph_store)
+    [proposal] = homonym_proposals(graph_store, decision_store)
     assert proposal.confidence is Confidence.WEAK
     assert proposal.reasons == (
         "Même nom de famille",
@@ -277,17 +293,21 @@ def test_an_unknown_birth_month_makes_a_match_weak(
 
 
 def test_unknown_first_names_make_a_match_weak(
-    graph_store: GraphStore, response: ResponseSummary
+    graph_store: GraphStore,
+    response: ResponseSummary,
+    decision_store: HomonymDecisionStore,
 ) -> None:
     add_person(graph_store, response, "MARTIN", "", "1990-01")
     add_person(graph_store, response, "MARTIN", "Paul", "1990-01")
-    [proposal] = homonym_proposals(graph_store)
+    [proposal] = homonym_proposals(graph_store, decision_store)
     assert proposal.confidence is Confidence.WEAK
     assert "Prénoms inconnus d'un côté" in proposal.reasons
 
 
 def test_a_well_corroborated_match_with_an_unknown_birth_month_is_probable(
-    graph_store: GraphStore, response: ResponseSummary
+    graph_store: GraphStore,
+    response: ResponseSummary,
+    decision_store: HomonymDecisionStore,
 ) -> None:
     jean = add_person(graph_store, response, "DUPONT", "Jean", "1980-05")
     other_jean = add_person(graph_store, response, "DUPONT", "Jean", None)
@@ -297,7 +317,7 @@ def test_a_well_corroborated_match_with_an_unknown_birth_month_is_probable(
     add_mandate(graph_store, response, jean, acme)
     add_mandate(graph_store, response, other_jean, acme)
     add_mandate(graph_store, response, other_jean, services)
-    [proposal] = homonym_proposals(graph_store)
+    [proposal] = homonym_proposals(graph_store, decision_store)
     assert proposal.confidence is Confidence.PROBABLE
     assert proposal.reasons[3:] == (
         "Dirigeants tous deux de ACME PLOMBERIE",
@@ -306,7 +326,7 @@ def test_a_well_corroborated_match_with_an_unknown_birth_month_is_probable(
 
 
 def test_proposals_go_from_certain_to_weak(
-    graph_store: GraphStore, response: ResponseSummary
+    graph_store: GraphStore, response: ResponseSummary, decision_store: HomonymDecisionStore
 ) -> None:
     add_person(graph_store, response, "MARTIN", "", "1990-01")
     add_person(graph_store, response, "MARTIN", "Paul", "1990-01")
@@ -318,7 +338,7 @@ def test_proposals_go_from_certain_to_weak(
     acme = add_company(graph_store, response, "111111111", "ACME PLOMBERIE", lilas)
     add_mandate(graph_store, response, jean, acme)
     add_mandate(graph_store, response, jean_pierre, acme)
-    assert proposals_of(graph_store) == [
+    assert proposals_of(graph_store, decision_store) == [
         ("Jean DUPONT", "Jean Pierre DUPONT", Confidence.CERTAIN),
         ("Hugo BLANC", "Hugo Louis BLANC", Confidence.PROBABLE),
         ("MARTIN", "Paul MARTIN", Confidence.WEAK),
@@ -329,3 +349,24 @@ def test_a_corroboration_names_an_entity_even_without_its_label(
     graph_store: GraphStore,
 ) -> None:
     assert Corroboration(graph_store).label("company:111111111") == "company:111111111"
+
+
+def test_a_rejected_pair_is_not_proposed_again(
+    graph_store: GraphStore, response: ResponseSummary, decision_store: HomonymDecisionStore
+) -> None:
+    jean = add_person(graph_store, response, "DUPONT", "Jean", "1980-05")
+    jean_marc = add_person(graph_store, response, "DUPONT", "Jean Marc", "1980-05")
+    add_person(graph_store, response, "DUPONT", "Jean Pierre", "1980-05")
+    decision_store.record(jean_marc, jean, HomonymDecision.DIFFERENT_PERSON)
+    assert proposals_of(graph_store, decision_store) == [
+        ("Jean DUPONT", "Jean Pierre DUPONT", Confidence.PROBABLE)
+    ]
+
+
+def test_a_confirmed_pair_is_no_longer_proposed(
+    graph_store: GraphStore, response: ResponseSummary, decision_store: HomonymDecisionStore
+) -> None:
+    jean = add_person(graph_store, response, "DUPONT", "Jean", "1980-05")
+    jean_pierre = add_person(graph_store, response, "DUPONT", "Jean Pierre", "1980-05")
+    decision_store.record(jean, jean_pierre, HomonymDecision.SAME_PERSON)
+    assert proposals_of(graph_store, decision_store) == []

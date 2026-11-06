@@ -7,6 +7,7 @@ from typing import Self
 from lacis.storage.comparison_keys import person_name_key
 from lacis.storage.entities import Entity, EntityKind, LinkKind
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.homonym_decisions import HomonymDecisionStore
 
 
 class FirstNameRelation(StrEnum):
@@ -42,6 +43,11 @@ class HomonymPair:
     first: PersonIdentity
     second: PersonIdentity
     first_name_relation: FirstNameRelation
+
+    @property
+    def people(self) -> tuple[str, str]:
+        first, second = sorted((self.first.identifier, self.second.identifier))
+        return first, second
 
     @property
     def same_birth_month(self) -> bool:
@@ -191,10 +197,15 @@ def confidence_of(pair: HomonymPair, corroborations: list[str]) -> Confidence:
     return Confidence.PROBABLE if well_corroborated else Confidence.WEAK
 
 
-def homonym_proposals(graph_store: GraphStore) -> list[HomonymProposal]:
+def homonym_proposals(
+    graph_store: GraphStore, decision_store: HomonymDecisionStore
+) -> list[HomonymProposal]:
     corroboration = Corroboration(graph_store)
+    decided_pairs = decision_store.decided_pairs()
     proposals = []
     for pair in homonym_pairs(graph_store):
+        if pair.people in decided_pairs:
+            continue
         corroborations = corroboration.reasons(pair)
         proposals.append(
             HomonymProposal(
