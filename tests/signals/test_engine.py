@@ -1,11 +1,13 @@
 import sqlite3
 from datetime import date
+from pathlib import Path
 
 import pytest
 
+from lacis.signals.configuration import SignalConfigurationError, load_configuration
 from lacis.signals.context import InvestigationContext
-from lacis.signals.engine import SignalEngine
-from lacis.signals.rule_settings import RuleSettings
+from lacis.signals.engine import SignalEngine, user_configuration_path
+from lacis.signals.rules import RULES
 from lacis.signals.signal import Finding, Severity
 from signal_rules import (
     ACME,
@@ -14,20 +16,12 @@ from signal_rules import (
     LILAS_ADDRESS,
     FixedRule,
     WellConnectedRule,
+    defaults_for,
     fill_small_investigation,
     strong_finding,
 )
 
 TODAY = date(2026, 11, 10)
-SETTINGS = {
-    "well_connected": RuleSettings(
-        enabled=True,
-        severity=Severity.MEDIUM,
-        weight=1.0,
-        thresholds={"minimum_links": 2},
-    ),
-    "fixed": RuleSettings(enabled=True, severity=Severity.LOW, weight=0.5),
-}
 
 
 @pytest.fixture
@@ -36,8 +30,11 @@ def context(investigation_connection: sqlite3.Connection) -> InvestigationContex
     return InvestigationContext(investigation_connection, TODAY)
 
 
-def engine_of(*rules: WellConnectedRule | FixedRule, **changes: RuleSettings) -> SignalEngine:
-    return SignalEngine(rules, {**SETTINGS, **changes})
+def engine_of(
+    *rules: WellConnectedRule | FixedRule, user_path: Path | None = None
+) -> SignalEngine:
+    defaults = defaults_for([rule.name for rule in rules])
+    return SignalEngine(rules, load_configuration(rules, user_path, defaults))
 
 
 def test_a_rule_receives_the_investigation_and_returns_signals(
@@ -94,16 +91,36 @@ def test_signals_come_strongest_first_then_most_severe(context: InvestigationCon
     ]
 
 
-def test_a_disabled_rule_gives_no_signal(context: InvestigationContext) -> None:
-    disabled = RuleSettings(enabled=False, severity=Severity.MEDIUM, weight=1.0)
+def test_a_disabled_rule_gives_no_signal(context: InvestigationContext, tmp_path: Path) -> None:
+    user_file = tmp_path / "signals.toml"
+    user_file.write_text("[rules.well_connected]\nenabled = false\n", encoding="utf-8")
     engine = engine_of(
-        WellConnectedRule(), FixedRule((strong_finding(ACME),)), well_connected=disabled
+        WellConnectedRule(), FixedRule((strong_finding(ACME),)), user_path=user_file
     )
     assert [signal.rule for signal in engine.signals(context)] == ["fixed"]
 
 
-def test_thresholds_change_the_signals(context: InvestigationContext) -> None:
-    stricter = RuleSettings(
-        enabled=True, severity=Severity.MEDIUM, weight=1.0, thresholds={"minimum_links": 3}
-    )
-    assert engine_of(WellConnectedRule(), well_connected=stricter).signals(context) == []
+def test_a_tuned_threshold_changes_the_signals(
+    context: InvestigationContext, tmp_path: Path
+) -> None:
+    user_file = tmp_path / "signals.toml"
+    user_file.write_text("[rules.well_connected]\nminimum_links = 3\n", encoding="utf-8")
+    assert engine_of(WellConnectedRule(), user_path=user_file).signals(context) == []
+
+
+def test_the_configured_engine_reads_the_user_file_of_the_configuration_directory(
+    isolated_configuration_directory: Path, context: InvestigationContext
+) -> None:
+    assert user_configuration_path() == isolated_configuration_directory / "signals.toml"
+    engine = SignalEngine.configured()
+    assert engine.rules == RULES
+    assert engine.signals(context) == []
+    isolated_configuration_directory.mkdir(parents=True)
+    user_configuration_path().write_text("[rules.inconnue]\n", encoding="utf-8")
+    with pytest.raises(SignalConfigurationError):
+        SignalEngine.configured()
+
+
+def test_an_engine_can_be_configured_with_other_rules_and_file(tmp_path: Path) -> None:
+    with pytest.raises(SignalConfigurationError):
+        SignalEngine.configured((WellConnectedRule(),), tmp_path / "absent.toml")
