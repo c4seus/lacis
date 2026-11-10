@@ -12,7 +12,14 @@ from accessibility_checks import interactive_widgets_without_accessible_name, ta
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
-from lacis.ui.home_screen import HomeScreen, InvestigationCard, actions_name, counted
+from lacis.ui.home_screen import (
+    DELETION_DETAILS,
+    HomeScreen,
+    InvestigationCard,
+    actions_name,
+    counted,
+    deletion_question,
+)
 from lacis.ui.main_window import MainWindow
 
 INVESTIGATIONS = (
@@ -355,6 +362,7 @@ def test_each_card_has_an_actions_button_named_after_its_investigation(
     assert card.more_button.menu() is card.actions_menu
     assert card.edit_action.text() == "&Modifier le nom ou la question…"
     assert card.edit_action.isEnabled()
+    assert card.delete_action.text() == "&Supprimer…"
 
 
 def test_clicking_the_actions_button_does_not_open_the_investigation(
@@ -405,3 +413,155 @@ def test_an_unreadable_investigation_cannot_be_edited(
     broken.write_bytes(b"pas une base SQLite")
     home_screen = open_home_screen(qtbot, library, icon_factory)
     assert not home_screen.card_named("fournisseur-acme").edit_action.isEnabled()
+
+
+Question = tuple[str, str, str, str]
+
+
+def answer_deletion(monkeypatch: pytest.MonkeyPatch, confirmed: bool) -> list[Question]:
+    questions: list[Question] = []
+
+    def answered(box: QMessageBox) -> int:
+        default_button = box.defaultButton()
+        questions.append(
+            (
+                box.windowTitle(),
+                box.text(),
+                box.informativeText(),
+                default_button.text() if default_button is not None else "",
+            )
+        )
+        role = (
+            QMessageBox.ButtonRole.DestructiveRole
+            if confirmed
+            else QMessageBox.ButtonRole.RejectRole
+        )
+        next(button for button in box.buttons() if box.buttonRole(button) == role).click()
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", answered)
+    return questions
+
+
+@pytest.fixture
+def trash(tmp_path: Path) -> Path:
+    return tmp_path / "corbeille"
+
+
+@pytest.fixture
+def trashing_library(library: InvestigationLibrary, trash: Path) -> InvestigationLibrary:
+    def move_to_trash(path: Path) -> bool:
+        trash.mkdir(exist_ok=True)
+        path.rename(trash / path.name)
+        return True
+
+    return InvestigationLibrary(library.root, move_to_trash=move_to_trash)
+
+
+def test_deleting_asks_for_a_confirmation_that_names_the_investigation(
+    qtbot: QtBot,
+    trashing_library: InvestigationLibrary,
+    icon_factory: IconFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    questions = answer_deletion(monkeypatch, confirmed=False)
+    home_screen = open_home_screen(qtbot, trashing_library, icon_factory)
+    home_screen.card_named("serie-montpellier").delete_action.trigger()
+    assert questions == [
+        (
+            "Supprimer l'enquête",
+            "Supprimer l'enquête « serie-montpellier » ?",
+            DELETION_DETAILS,
+            "Annuler",
+        )
+    ]
+    assert deletion_question("x") == "Supprimer l'enquête « x » ?"
+    assert DELETION_DETAILS.startswith("Elle sera placée dans la corbeille du système")
+
+
+def test_a_refused_confirmation_keeps_the_investigation(
+    qtbot: QtBot,
+    trashing_library: InvestigationLibrary,
+    icon_factory: IconFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    trash: Path,
+) -> None:
+    answer_deletion(monkeypatch, confirmed=False)
+    home_screen = open_home_screen(qtbot, trashing_library, icon_factory)
+    home_screen.delete_investigation("serie-montpellier")
+    assert "serie-montpellier" in trashing_library.names()
+    assert len(home_screen.cards) == 3
+    assert not trash.exists()
+
+
+def test_a_confirmed_deletion_moves_the_investigation_to_the_trash(
+    qtbot: QtBot,
+    trashing_library: InvestigationLibrary,
+    icon_factory: IconFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    trash: Path,
+) -> None:
+    answer_deletion(monkeypatch, confirmed=True)
+    home_screen = open_home_screen(qtbot, trashing_library, icon_factory)
+    home_screen.delete_investigation("serie-montpellier")
+    assert trashing_library.names() == ["faux-plombiers-31", "fournisseur-acme"]
+    assert (trash / "serie-montpellier" / DATABASE_FILE_NAME).is_file()
+    assert [card.summary.name for card in home_screen.cards] == [
+        "faux-plombiers-31",
+        "fournisseur-acme",
+    ]
+    assert home_screen.new_investigation_button.hasFocus()
+
+
+def test_deleting_the_last_investigation_brings_the_invitation_back(
+    qtbot: QtBot,
+    trashing_library: InvestigationLibrary,
+    icon_factory: IconFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    answer_deletion(monkeypatch, confirmed=True)
+    home_screen = open_home_screen(qtbot, trashing_library, icon_factory)
+    for name in trashing_library.names():
+        home_screen.delete_investigation(name)
+    assert home_screen.cards == []
+    assert home_screen.empty_state.isVisible()
+    assert home_screen.create_first_button.hasFocus()
+
+
+def test_a_trash_failure_is_reported_and_keeps_the_investigation(
+    qtbot: QtBot,
+    library: InvestigationLibrary,
+    icon_factory: IconFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    answer_deletion(monkeypatch, confirmed=True)
+    warnings: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        QMessageBox, "warning", lambda parent, title, text: warnings.append((title, text))
+    )
+    failing_library = InvestigationLibrary(library.root, move_to_trash=lambda path: False)
+    home_screen = open_home_screen(qtbot, failing_library, icon_factory)
+    home_screen.delete_investigation("fournisseur-acme")
+    assert warnings == [
+        (
+            "Impossible de supprimer l'enquête",
+            "Impossible de placer l'enquête « fournisseur-acme » dans la corbeille.",
+        )
+    ]
+    assert len(home_screen.cards) == 3
+
+
+def test_an_unreadable_investigation_can_still_be_deleted(
+    qtbot: QtBot,
+    trashing_library: InvestigationLibrary,
+    icon_factory: IconFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    answer_deletion(monkeypatch, confirmed=True)
+    broken = trashing_library.directory_of("fournisseur-acme") / DATABASE_FILE_NAME
+    broken.write_bytes(b"pas une base SQLite")
+    home_screen = open_home_screen(qtbot, trashing_library, icon_factory)
+    card = home_screen.card_named("fournisseur-acme")
+    assert card.delete_action.isEnabled()
+    card.delete_action.trigger()
+    assert "fournisseur-acme" not in trashing_library.names()
