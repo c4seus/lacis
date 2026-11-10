@@ -2,7 +2,7 @@ import sqlite3
 
 import pytest
 from PySide6.QtCore import QPoint, QPointF
-from PySide6.QtGui import QColor, QImage
+from PySide6.QtGui import QColor, QFont, QImage
 from pytestqt.qtbot import QtBot
 
 from graph_scenario import PlumbersScenario, plumbers_scenario
@@ -10,18 +10,31 @@ from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController, ThemePreference
 from lacis.design.tokens import DARK_THEME, LIGHT_THEME, Colours
-from lacis.graph.drawing import GraphDrawing, GraphNode, NodeShape, graph_drawing
+from lacis.graph.drawing import (
+    EdgeKind,
+    GraphDrawing,
+    GraphNode,
+    NodeShape,
+    graph_drawing,
+)
 from lacis.storage.entities import EntityKind
 from lacis.ui.graph_view import (
+    ARROW_LENGTH,
     CLOSED_FILL_OPACITY,
     GRAPH_ACCESSIBLE_NAME,
     GraphLegend,
     GraphView,
     NodeItem,
+    arrow_head,
+    boundary_point,
+    edge_label_colour,
+    edge_label_font,
+    edge_pen,
     kind_colour,
     node_border,
     node_fill,
     shape_path,
+    upright_angle,
 )
 from lacis.ui.investigation_columns import GraphArea
 
@@ -219,3 +232,83 @@ def test_the_graph_area_shows_the_legend_once_there_is_a_graph(
     area.show_drawing(GraphDrawing())
     assert not area.legend.isVisible()
     assert area.empty_label.isVisible()
+
+
+def test_mandates_are_drawn_in_the_person_colour_and_identities_dashed() -> None:
+    directs = edge_pen(COLOURS, EdgeKind.DIRECTS)
+    assert (directs.color(), directs.widthF(), directs.dashPattern()) == (
+        QColor(COLOURS.person),
+        1.6,
+        [],
+    )
+    structure = edge_pen(COLOURS, EdgeKind.STRUCTURE)
+    assert (structure.color(), structure.widthF(), structure.dashPattern()) == (
+        QColor(COLOURS.graph_edge),
+        1.0,
+        [],
+    )
+    identity = edge_pen(COLOURS, EdgeKind.IDENTITY)
+    assert identity.color() == QColor(COLOURS.identity)
+    assert identity.widthF() == 2.0
+    assert [length * identity.widthF() for length in identity.dashPattern()] == [6.0, 4.0]
+
+
+def test_the_same_person_label_is_bold_in_the_identity_colour() -> None:
+    assert edge_label_colour(COLOURS, EdgeKind.IDENTITY) == QColor(COLOURS.identity)
+    assert edge_label_colour(COLOURS, EdgeKind.DIRECTS) == QColor(COLOURS.muted_text)
+    assert edge_label_font(EdgeKind.IDENTITY).weight() == QFont.Weight.DemiBold
+    assert edge_label_font(EdgeKind.DIRECTS).weight() == QFont.Weight.Normal
+
+
+def test_edges_stop_at_the_border_of_each_shape() -> None:
+    circle = shape_path(NodeShape.CIRCLE, 30.0)
+    point = boundary_point(circle, QPointF(100, 100), QPointF(100, 300))
+    assert point.x() == pytest.approx(100)
+    assert point.y() == pytest.approx(115, abs=0.01)
+    diamond = shape_path(NodeShape.DIAMOND, 30.0)
+    corner = boundary_point(diamond, QPointF(0, 0), QPointF(200, 0))
+    assert corner.x() == pytest.approx(15, abs=0.01)
+
+
+def test_edge_labels_are_never_upside_down() -> None:
+    assert upright_angle(QPointF(0, 0), QPointF(10, 0)) == pytest.approx(0)
+    assert upright_angle(QPointF(10, 0), QPointF(0, 0)) == pytest.approx(0)
+    assert upright_angle(QPointF(0, 0), QPointF(0, 10)) == pytest.approx(90)
+    assert upright_angle(QPointF(0, 10), QPointF(0, 0)) == pytest.approx(90)
+    assert upright_angle(QPointF(0, 0), QPointF(-10, -10)) == pytest.approx(45)
+
+
+def test_an_arrow_points_at_its_tip() -> None:
+    arrow = arrow_head(QPointF(0, 100), QPointF(0, 0))
+    assert arrow.at(0) == QPointF(0, 100)
+    assert arrow.at(1).y() == pytest.approx(100 - ARROW_LENGTH)
+    assert arrow.at(1).x() == -arrow.at(2).x()
+    assert arrow_head(QPointF(5, 5), QPointF(5, 5)).isEmpty()
+
+
+def test_the_view_draws_the_links_under_the_entities(
+    qtbot: QtBot,
+    icon_factory: IconFactory,
+    scenario: PlumbersScenario,
+    scenario_drawing: GraphDrawing,
+) -> None:
+    view = shown_view(qtbot, icon_factory, scenario_drawing)
+    edges = view.graph_scene.edge_items
+    assert len(edges) == len(scenario_drawing.edges) == 9
+    assert all(edge.zValue() < 0 for edge in edges)
+    identity = next(edge for edge in edges if edge.edge.kind is EdgeKind.IDENTITY)
+    assert identity.arrow.isEmpty()
+    mandate = next(
+        edge
+        for edge in edges
+        if {edge.edge.source, edge.edge.target}
+        == {
+            scenario.jean,
+            scenario.dupont_services,
+        }
+    )
+    company = view.graph_scene.node_items[scenario.dupont_services]
+    assert not mandate.arrow.isEmpty()
+    assert mandate.end.y() == pytest.approx(company.y() - 17, abs=0.01)
+    assert mandate.boundingRect().contains(mandate.middle)
+    view.grab()

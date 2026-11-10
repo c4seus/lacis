@@ -8,7 +8,9 @@ from investigation_builder import InvestigationBuilder
 from lacis.graph.drawing import (
     MINIMUM_GAP,
     ROW_HEIGHTS,
+    EdgeKind,
     GraphDrawing,
+    GraphEdge,
     GraphNode,
     NodeShape,
     graph_drawing,
@@ -164,3 +166,65 @@ def test_crowded_positions_spread_around_their_centre() -> None:
     assert spread({"a": 0.0, "b": 0.0, "c": 200.0}) == pytest.approx(
         {"a": start, "b": start + MINIMUM_GAP, "c": start + 2 * MINIMUM_GAP}
     )
+
+
+def edges_between(drawing: GraphDrawing, first: str, second: str) -> list[GraphEdge]:
+    return [edge for edge in drawing.edges if {edge.source, edge.target} == {first, second}]
+
+
+def test_mandates_are_drawn_from_the_director_with_the_role(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    drawing = graph_drawing(builder.connection)
+    [mandate] = edges_between(drawing, scenario.holding, scenario.acme)
+    assert (mandate.kind, mandate.source, mandate.target, mandate.label) == (
+        EdgeKind.DIRECTS,
+        scenario.holding,
+        scenario.acme,
+        "Directeur général",
+    )
+    assert mandate.has_arrow
+
+
+def test_establishments_are_tied_to_their_company_and_address_without_label(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    drawing = graph_drawing(builder.connection)
+    for first, second in (
+        (scenario.acme_office, scenario.acme),
+        (scenario.acme_office, scenario.address),
+    ):
+        [edge] = edges_between(drawing, first, second)
+        assert (edge.kind, edge.label, edge.has_arrow) == (EdgeKind.STRUCTURE, "", False)
+
+
+def test_a_confirmed_homonym_is_drawn_as_the_same_person(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    drawing = graph_drawing(builder.connection)
+    [identity] = edges_between(drawing, scenario.jean, scenario.jean_pierre)
+    assert (identity.kind, identity.label, identity.has_arrow) == (
+        EdgeKind.IDENTITY,
+        "même personne",
+        False,
+    )
+
+
+def test_a_registered_office_reached_through_an_establishment_is_not_drawn_twice(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    other_address = builder.address("3 RUE DU PORT 31000 TOULOUSE", postcode="31000")
+    builder.registered_office(scenario.holding, other_address)
+    drawing = graph_drawing(builder.connection)
+    assert edges_between(drawing, scenario.acme, scenario.address) == []
+    [office] = edges_between(drawing, scenario.holding, other_address)
+    assert office.kind is EdgeKind.STRUCTURE
+    assert len(drawing.edges) == 10
+
+
+def test_an_edge_knows_its_ends() -> None:
+    edge = GraphEdge("link:1", EdgeKind.DIRECTS, "person:1", "company:1", "Gérant")
+    assert edge.touches("person:1")
+    assert not edge.touches("address:1")
+    assert edge.other_end("person:1") == "company:1"
+    assert edge.other_end("company:1") == "person:1"
