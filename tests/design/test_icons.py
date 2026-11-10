@@ -125,6 +125,17 @@ def test_a_disabled_icon_uses_the_faint_colour(qapp: QApplication) -> None:
     assert most_opaque_colour(pixmap.toImage()) == QColor(LIGHT_THEME.colours.faint_text)
 
 
+def test_an_icon_on_an_accent_background_takes_the_text_on_accent_colour(
+    qapp: QApplication,
+) -> None:
+    icon = IconFactory(lambda: DARK_THEME.colours).icon_on_accent("plus")
+    assert most_opaque_colour(icon.pixmap(PREVIEW_SIZE).toImage()) == QColor(
+        DARK_THEME.colours.text_on_accent
+    )
+    disabled = icon.pixmap(PREVIEW_SIZE, QIcon.Mode.Disabled)
+    assert most_opaque_colour(disabled.toImage()) == QColor(DARK_THEME.colours.faint_text)
+
+
 def test_icons_stay_sharp_on_high_density_screens(qapp: QApplication) -> None:
     icon = IconFactory(lambda: LIGHT_THEME.colours).icon("search")
     pixmap = icon.pixmap(PREVIEW_SIZE, 2.0)

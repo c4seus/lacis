@@ -7,8 +7,11 @@ from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
+from lacis.storage.investigations import InvestigationLibrary
+from lacis.storage.locations import investigations_directory
 from lacis.ui.about_dialog import AboutDialog
 from lacis.ui.header_bar import HeaderBar
+from lacis.ui.home_screen import HomeScreen
 from lacis.ui.menu_bar import MainMenuBar
 
 WINDOW_TITLE = "Lacis"
@@ -24,6 +27,7 @@ class MainWindow(QMainWindow):
         settings: QSettings,
         theme_controller: ThemeController,
         collection_environment: CollectionEnvironment = REAL_COLLECTION_ENVIRONMENT,
+        library: InvestigationLibrary | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -42,8 +46,13 @@ class MainWindow(QMainWindow):
         self.header_bar.help_menu.about_action.triggered.connect(self.show_about_dialog)
         self.about_dialog: AboutDialog | None = None
         self.setMenuBar(self.main_menu_bar)
+        self.library = library or InvestigationLibrary(investigations_directory())
         self.content_area = QWidget()
         self.content_area.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        content_layout = QVBoxLayout(self.content_area)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        self.home_screen = HomeScreen(self.library, self.icon_factory, self.content_area)
+        content_layout.addWidget(self.home_screen)
         central_widget = QWidget(self)
         central_layout = QVBoxLayout(central_widget)
         central_layout.setContentsMargins(0, 0, 0, 0)
