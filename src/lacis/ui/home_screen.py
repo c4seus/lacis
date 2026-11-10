@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMenu,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -16,9 +17,14 @@ from PySide6.QtWidgets import (
 )
 
 from lacis.design.icons import IconFactory
+from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import InvestigationLibrary, InvestigationSummary
 from lacis.ui.header_bar import IconMark, create_icon_button
-from lacis.ui.investigation_form import EditInvestigationDialog, NewInvestigationPanel
+from lacis.ui.investigation_form import (
+    CANCEL_TEXT,
+    EditInvestigationDialog,
+    NewInvestigationPanel,
+)
 
 HOME_TITLE = "Enquêtes"
 HOME_SUBTITLE = (
@@ -45,6 +51,14 @@ OPEN_KEYS = frozenset({Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space})
 FIRST_PLURAL = 2
 ACTIONS_TOOLTIP = "Actions"
 EDIT_ACTION_TEXT = "&Modifier le nom ou la question…"
+DELETE_ACTION_TEXT = "&Supprimer…"
+DELETION_TITLE = "Supprimer l'enquête"
+DELETION_DETAILS = (
+    "Elle sera placée dans la corbeille du système avec ses preuves et son journal de "
+    "collecte : vous pourrez l'en sortir tant que la corbeille n'est pas vidée."
+)
+DELETE_BUTTON_TEXT = "Placer dans la corbeille"
+DELETION_FAILED_TITLE = "Impossible de supprimer l'enquête"
 
 
 def counted(count: int, singular: str, plural: str) -> str:
@@ -55,6 +69,10 @@ def modification_text(summary: InvestigationSummary) -> str:
     return f"Modifiée le {summary.modified_at.astimezone().strftime('%d/%m/%Y')}"
 
 
+def deletion_question(name: str) -> str:
+    return f"Supprimer l'enquête « {name} » ?"
+
+
 def actions_name(name: str) -> str:
     return f"Actions de l'enquête {name}"
 
@@ -62,6 +80,7 @@ def actions_name(name: str) -> str:
 class InvestigationCard(QFrame):
     open_requested = Signal(str)
     edit_requested = Signal(str)
+    deletion_requested = Signal(str)
     focused = Signal(QWidget)
 
     def __init__(
@@ -93,6 +112,9 @@ class InvestigationCard(QFrame):
         self.edit_action = self.actions_menu.addAction(EDIT_ACTION_TEXT)
         self.edit_action.setEnabled(not summary.problem)
         self.edit_action.triggered.connect(lambda: self.edit_requested.emit(summary.name))
+        self.actions_menu.addSeparator()
+        self.delete_action = self.actions_menu.addAction(DELETE_ACTION_TEXT)
+        self.delete_action.triggered.connect(lambda: self.deletion_requested.emit(summary.name))
         self.more_button.setMenu(self.actions_menu)
         top_row.addWidget(self.more_button)
         layout.addLayout(top_row)
@@ -260,6 +282,7 @@ class HomeScreen(QScrollArea):
             card = InvestigationCard(summary, self.icon_factory)
             card.open_requested.connect(self.investigation_opened)
             card.edit_requested.connect(self.edit_investigation)
+            card.deletion_requested.connect(self.delete_investigation)
             card.focused.connect(self.ensureWidgetVisible)
             row, column = divmod(position, CARD_COLUMNS)
             self.card_grid.addWidget(card, row, column)
@@ -282,6 +305,9 @@ class HomeScreen(QScrollArea):
 
     def finish_creation(self) -> None:
         self.update_empty_state()
+        self.focus_creation_button()
+
+    def focus_creation_button(self) -> None:
         if self.empty_state.isVisibleTo(self):
             self.create_first_button.setFocus()
             return
@@ -301,6 +327,32 @@ class HomeScreen(QScrollArea):
     def show_saved_investigation(self, name: str) -> None:
         self.refresh()
         self.card_named(name).setFocus()
+
+    def confirm_deletion(self, name: str) -> bool:
+        box = QMessageBox(
+            QMessageBox.Icon.Warning,
+            DELETION_TITLE,
+            deletion_question(name),
+            QMessageBox.StandardButton.NoButton,
+            self,
+        )
+        box.setInformativeText(DELETION_DETAILS)
+        delete_button = box.addButton(DELETE_BUTTON_TEXT, QMessageBox.ButtonRole.DestructiveRole)
+        cancel_button = box.addButton(CANCEL_TEXT, QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(cancel_button)
+        box.setEscapeButton(cancel_button)
+        box.exec()
+        return box.clickedButton() is delete_button
+
+    def delete_investigation(self, name: str) -> None:
+        if not self.confirm_deletion(name):
+            return
+        try:
+            self.library.delete(name)
+        except InvestigationError as problem:
+            QMessageBox.warning(self, DELETION_FAILED_TITLE, str(problem))
+        self.refresh()
+        self.focus_creation_button()
 
     def show_created_investigation(self, name: str) -> None:
         self.refresh()
