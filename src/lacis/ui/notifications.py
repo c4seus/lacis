@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from lacis.design.icons import IconFactory
+from lacis.ui import announcements
 from lacis.ui.header_bar import create_icon_button
 
 NOTIFICATION_DURATION_MILLISECONDS = 6000
@@ -99,6 +100,10 @@ class NotificationArea(QWidget):
         self.notifications.append(notification)
         while len(self.notifications) > MAXIMUM_NOTIFICATIONS:
             self.remove(self.notifications[0])
+        politeness = (
+            announcements.ASSERTIVE if kind is NotificationKind.ERROR else announcements.POLITE
+        )
+        announcements.announce(notification, message, politeness)
         notification.show()
         self.place()
         return notification
