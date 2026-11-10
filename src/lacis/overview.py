@@ -37,6 +37,7 @@ def overview_of(
     graph_store = GraphStore(connection)
     decision_store = HomonymDecisionStore(connection)
     links = [link for link in graph_store.links() if link.kind is not LinkKind.SAME_PERSON]
+    report = InvestigationSignals(connection, engine).current() if engine else None
     confirmed = [
         recorded
         for recorded in decision_store.decisions()
@@ -48,9 +49,9 @@ def overview_of(
         confirmed_homonyms=len(confirmed),
         pending_homonyms=len(homonym_proposals(graph_store, decision_store)),
         leads=len(unexpanded_leads(graph_store)),
-        report=InvestigationSignals(connection, engine).current() if engine else None,
+        report=report,
         signal_problem=signal_problem,
-        drawing=graph_drawing(connection),
+        drawing=graph_drawing(connection, report),
     )
 
 

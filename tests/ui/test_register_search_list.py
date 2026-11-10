@@ -325,7 +325,7 @@ def test_a_result_already_in_the_investigation_is_shown_instead_of_added(
     assert not main_window.search_popup.isVisible()
     page = main_window.investigation_page
     assert page.selected_entity == "company:111111111"
-    assert page.selection_label.text() == "Sélection : ACME PLOMBERIE"
+    assert page.graph_view.graph_scene.selected_identifier() == "company:111111111"
 
 
 def test_enter_while_typing_searches_the_new_text_instead_of_choosing(

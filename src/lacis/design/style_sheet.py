@@ -453,6 +453,16 @@ QLabel[tone="legend"] {{
     font-size: {font_sizes.caption}px;
 }}
 
+QLabel[tone="legend-signal"] {{
+    color: {colours.text};
+    font-size: {font_sizes.caption}px;
+    font-weight: {font_weights.medium};
+}}
+
+QFrame#legendDivider {{
+    background-color: {colours.border};
+}}
+
 QLabel[tone="column-title"] {{
     color: {colours.muted_text};
     font-size: {font_sizes.small}px;

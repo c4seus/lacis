@@ -56,6 +56,10 @@ def test_the_overview_counts_entities_links_homonyms_leads_and_signals(
     assert overview.leads == 9
     assert overview.signals == 1
     assert overview.signal_problem == ""
+    assert overview.report is not None
+    flagged = {node.identifier for node in overview.drawing.nodes if node.severity}
+    assert overview.report.signals[0].subject in flagged
+    assert len(overview.drawing.nodes) == 9
 
 
 def test_an_overview_without_engine_has_no_signal_count(

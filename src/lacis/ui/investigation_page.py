@@ -2,6 +2,7 @@ from PySide6.QtCore import QByteArray, QSettings, Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget
 
 from lacis.design.icons import IconFactory
+from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
 from lacis.storage.investigations import Investigation
 from lacis.ui.investigation_columns import DetailsPanel, GraphArea, QueueColumn, QueueRail
@@ -9,7 +10,6 @@ from lacis.ui.investigation_columns import DetailsPanel, GraphArea, QueueColumn,
 COLUMNS_SETTING = "investigation/columns"
 QUEUE_COLLAPSED_SETTING = "investigation/queue_collapsed"
 DEFAULT_COLUMN_WIDTHS = (320, 700, 420)
-SELECTION_PREFIX = "Sélection : "
 COUNTERS_ACCESSIBLE_NAME = "Compteurs de l'enquête"
 UNAVAILABLE_TEXT = "?"
 FIRST_PLURAL = 2
@@ -117,12 +117,8 @@ class InvestigationPage(QWidget):
         self.queue_rail.expand_button.clicked.connect(self.expand_queue)
         self.graph_area = GraphArea(icon_factory.colours_provider, self)
         self.details_panel = DetailsPanel(self)
-        self.selection_label = QLabel(self.graph_area)
-        self.selection_label.setProperty("tone", "muted")
-        self.selection_label.hide()
-        self.graph_area.graph_layout.insertWidget(
-            0, self.selection_label, 0, Qt.AlignmentFlag.AlignCenter
-        )
+        self.graph_view = self.graph_area.graph_view
+        self.graph_view.selection_changed.connect(self.follow_selection)
         self.columns = QSplitter(Qt.Orientation.Horizontal, self)
         self.columns.setObjectName("investigationColumns")
         self.columns.setChildrenCollapsible(False)
@@ -184,8 +180,7 @@ class InvestigationPage(QWidget):
     def show_investigation(self, investigation: Investigation) -> None:
         self.header.show_investigation(investigation)
         self.selected_entity = None
-        self.selection_label.clear()
-        self.selection_label.hide()
+        self.graph_area.show_drawing(GraphDrawing())
 
     def show_overview(self, overview: InvestigationOverview) -> None:
         self.header.show_overview(overview)
@@ -194,6 +189,7 @@ class InvestigationPage(QWidget):
         self.graph_area.show_drawing(overview.drawing)
 
     def show_entity(self, identifier: str, label: str) -> None:
-        self.selected_entity = identifier
-        self.selection_label.setText(f"{SELECTION_PREFIX}{label}")
-        self.selection_label.show()
+        self.graph_view.select(identifier)
+
+    def follow_selection(self, identifier: str) -> None:
+        self.selected_entity = identifier or None

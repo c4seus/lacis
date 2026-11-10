@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import UTC, date, datetime
 from itertools import pairwise
 
 import pytest
@@ -13,9 +14,12 @@ from lacis.graph.drawing import (
     GraphEdge,
     GraphNode,
     NodeShape,
+    flagged_entities,
     graph_drawing,
     spread,
 )
+from lacis.signals.signal import Severity, Signal
+from lacis.signals.store import SignalReport
 from lacis.storage.entities import EntityKind
 
 
@@ -228,3 +232,46 @@ def test_an_edge_knows_its_ends() -> None:
     assert not edge.touches("address:1")
     assert edge.other_end("person:1") == "company:1"
     assert edge.other_end("company:1") == "person:1"
+
+
+def signal(subject: str, severity: Severity, *justifying_entities: str) -> Signal:
+    return Signal(
+        "phoenix_scheme", "Schéma phénix", subject, severity, 0.85, "", justifying_entities
+    )
+
+
+def report(*signals: Signal) -> SignalReport:
+    return SignalReport(signals, 1, date(2026, 11, 10), "", datetime(2026, 11, 10, tzinfo=UTC))
+
+
+def test_flagged_entities_keep_their_highest_severity() -> None:
+    severities = flagged_entities(
+        report(
+            signal("company:1", Severity.LOW, "person:1"),
+            signal("company:2", Severity.HIGH, "person:1", "company:1"),
+            signal("company:1", Severity.MEDIUM),
+        )
+    )
+    assert severities == {
+        "company:1": Severity.HIGH,
+        "company:2": Severity.HIGH,
+        "person:1": Severity.HIGH,
+    }
+    assert flagged_entities(None) == {}
+    assert flagged_entities(report()) == {}
+
+
+def test_signal_subjects_and_their_evidence_are_flagged_in_the_drawing(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    drawing = graph_drawing(
+        builder.connection,
+        report(signal(scenario.dupont_services, Severity.HIGH, scenario.acme, scenario.jean)),
+    )
+    flagged = {node.identifier: node.severity for node in drawing.nodes if node.severity}
+    assert flagged == {
+        scenario.dupont_services: Severity.HIGH,
+        scenario.acme: Severity.HIGH,
+        scenario.jean: Severity.HIGH,
+    }
+    assert all(node.severity is None for node in graph_drawing(builder.connection).nodes)
