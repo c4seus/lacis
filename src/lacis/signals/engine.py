@@ -7,7 +7,7 @@ from lacis.signals.context import InvestigationContext
 from lacis.signals.rule import Rule
 from lacis.signals.rule_settings import RuleSettings
 from lacis.signals.rules import RULES
-from lacis.signals.signal import Finding, Signal
+from lacis.signals.signal import Finding, Severity, Signal
 from lacis.storage.locations import configuration_directory
 
 SCORE_DECIMALS = 2
@@ -17,13 +17,19 @@ def user_configuration_path() -> Path:
     return configuration_directory() / USER_CONFIGURATION_FILE_NAME
 
 
+def raised_severity(configured: Severity, found: Severity | None) -> Severity:
+    if found is None or found.rank < configured.rank:
+        return configured
+    return found
+
+
 def signal_of(rule: Rule, settings: RuleSettings, finding: Finding) -> Signal:
     strength = min(max(finding.strength, 0.0), 1.0)
     return Signal(
         rule=rule.name,
         title=rule.title,
         subject=finding.subject,
-        severity=finding.severity or settings.severity,
+        severity=raised_severity(settings.severity, finding.severity),
         score=round(strength * settings.weight, SCORE_DECIMALS),
         explanation=finding.explanation,
         justifying_entities=tuple(dict.fromkeys(finding.justifying_entities)),
