@@ -18,6 +18,7 @@ from lacis.ui.header_bar import HOME_TRAIL, HeaderBar
 from lacis.ui.home_screen import HomeScreen
 from lacis.ui.investigation_page import InvestigationPage
 from lacis.ui.menu_bar import MainMenuBar
+from lacis.ui.notifications import NotificationArea, NotificationKind
 from lacis.ui.register_search_list import RegisterSearch, RegisterSearchPopup
 
 WINDOW_TITLE = "Lacis"
@@ -81,7 +82,9 @@ class MainWindow(QMainWindow):
             self.header_bar.search_field, self.search_popup, self
         )
         self.header_bar.search_button.clicked.connect(self.register_search.search_now)
-        self.register_search.company_added.connect(self.show_investigation_counts)
+        self.register_search.company_added.connect(self.show_added_company)
+        self.register_search.adding_failed.connect(self.show_failure)
+        self.notification_area = NotificationArea(self, self.icon_factory)
         self.register_search.company_shown.connect(self.investigation_page.show_entity)
 
         self.content_area.setFocus()
@@ -112,6 +115,13 @@ class MainWindow(QMainWindow):
         self.pages.setCurrentWidget(self.investigation_page)
         self.investigation_page.back_button.setFocus()
 
+    def show_added_company(self, identifier: str, message: str) -> None:
+        self.show_investigation_counts()
+        self.notification_area.notify(message, NotificationKind.SUCCESS)
+
+    def show_failure(self, message: str) -> None:
+        self.notification_area.notify(message, NotificationKind.ERROR)
+
     def show_investigation_counts(self) -> None:
         if self.current_investigation is not None:
             self.investigation_page.show_summary(self.library.summary(self.current_investigation))
@@ -140,6 +150,7 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         if self.search_popup.isVisible():
             self.search_popup.reveal()
+        self.notification_area.place()
 
     def restore_saved_geometry(self) -> None:
         saved_geometry = self.settings.value(GEOMETRY_SETTING_KEY)

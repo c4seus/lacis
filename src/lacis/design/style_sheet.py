@@ -106,6 +106,21 @@ QFrame#investigationCard:focus {{
     border-color: {colours.accent};
 }}
 
+QFrame#notification {{
+    border: 1px solid {colours.strong_border};
+    border-left: 4px solid {colours.information};
+    border-radius: {radii.medium}px;
+    background-color: {colours.surface};
+}}
+
+QFrame#notification[kind="success"] {{
+    border-left-color: {colours.success};
+}}
+
+QFrame#notification[kind="error"] {{
+    border-left-color: {colours.high_severity};
+}}
+
 QFrame#searchPopup {{
     border: 1px solid {colours.strong_border};
     border-radius: {radii.medium}px;

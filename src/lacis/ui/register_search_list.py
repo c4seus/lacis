@@ -266,7 +266,8 @@ class RegisterSearchPopup(QFrame):
 
 
 class RegisterSearch(QObject):
-    company_added = Signal(str)
+    company_added = Signal(str, str)
+    adding_failed = Signal(str)
     company_shown = Signal(str, str)
 
     def __init__(
@@ -384,17 +385,16 @@ class RegisterSearch(QObject):
         if row is None:
             return
         row.show_result(row.result.added())
-        self.popup.show_notice("")
         announcements.announce(self.field, added_message(row.result.title), announcements.POLITE)
-        self.company_added.emit(row.result.identifier)
+        self.company_added.emit(row.result.identifier, added_message(row.result.title))
 
     def show_adding_failure(self, message: str) -> None:
         row = self.finished_row()
         if row is None:
             return
         row.show_result(row.result)
-        self.popup.show_notice(message, problem=True)
         announcements.announce(self.field, message)
+        self.adding_failed.emit(message)
 
     def move(self, step: int) -> None:
         if not self.popup.isVisible():

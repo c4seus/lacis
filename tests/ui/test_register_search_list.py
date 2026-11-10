@@ -21,6 +21,7 @@ from lacis.storage.graph_store import GraphStore
 from lacis.storage.investigations import InvestigationLibrary
 from lacis.ui import announcements
 from lacis.ui.main_window import MainWindow
+from lacis.ui.notifications import NotificationKind
 from lacis.ui.register_search_list import (
     NAVIGATION_HINT,
     SEARCHING_TEXT,
@@ -276,6 +277,10 @@ def test_enter_adds_the_current_result_to_the_investigation(
     assert row.action_button.isEnabled()
     assert heard == [(added_message("DUPONT SERVICES"), announcements.POLITE)]
     assert added_message("X") == "X a été ajoutée à l'enquête."
+    [notification] = main_window.notification_area.notifications
+    assert notification.message == added_message("DUPONT SERVICES")
+    assert notification.kind is NotificationKind.SUCCESS
+    assert main_window.header_bar.search_field.hasFocus()
     assert main_window.investigation_page.counts_label.text() == "1 entité, 0 lien"
 
 
@@ -356,7 +361,7 @@ def test_errors_of_the_api_are_shown_in_the_list_in_french(
     main_window.register_search.stop()
 
 
-def test_a_failed_addition_is_shown_in_the_list(
+def test_a_failed_addition_is_notified_as_an_error(
     qtbot: QtBot,
     main_window: MainWindow,
     library: InvestigationLibrary,
@@ -369,7 +374,10 @@ def test_a_failed_addition_is_shown_in_the_list(
     main_window.register_search.choose(row)
     qtbot.waitUntil(row.action_button.isEnabled, timeout=WAIT_MILLISECONDS)
     expected = f"L'enquête « {INVESTIGATION_NAME} » est introuvable."
-    assert main_window.search_popup.message_label.text() == expected
+    [notification] = main_window.notification_area.notifications
+    assert notification.message == expected
+    assert notification.kind is NotificationKind.ERROR
+    assert notification.stays
     assert row.action_button.text() == "Ajouter"
     assert heard == [(expected, announcements.ASSERTIVE)]
 
