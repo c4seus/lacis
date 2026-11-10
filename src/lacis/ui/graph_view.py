@@ -1,6 +1,7 @@
+import math
 from typing import override
 
-from PySide6.QtCore import QEvent, QPointF, QRect, QRectF, Qt
+from PySide6.QtCore import QEvent, QLineF, QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -26,7 +27,7 @@ from PySide6.QtWidgets import (
 
 from lacis.design.icons import ColoursProvider
 from lacis.design.tokens import FONT_FAMILIES, Colours
-from lacis.graph.drawing import SHAPES, GraphDrawing, GraphNode, NodeShape
+from lacis.graph.drawing import SHAPES, EdgeKind, GraphDrawing, GraphEdge, GraphNode, NodeShape
 from lacis.storage.entities import EntityKind
 
 GRAPH_ACCESSIBLE_NAME = "Graphe de l'enquête"
@@ -53,6 +54,15 @@ LEGEND_ENTRIES = (
     (EntityKind.ESTABLISHMENT, "Établissement"),
     (EntityKind.FOREIGN_COMPANY, "Étranger"),
 )
+EDGE_WIDTHS = {EdgeKind.DIRECTS: 1.6, EdgeKind.STRUCTURE: 1.0, EdgeKind.IDENTITY: 2.0}
+IDENTITY_DASH_PATTERN = (3.0, 2.0)
+ARROW_LENGTH = 8.0
+ARROW_HALF_WIDTH = 4.0
+EDGE_LABEL_PIXEL_SIZE = 10
+EDGE_MARGIN = 4.0
+BOUNDARY_STEPS = 24
+RIGHT_ANGLE = 90.0
+HALF_TURN = 180.0
 HEXAGON_POINTS = ((-0.5, -1.0), (0.5, -1.0), (1.0, 0.0), (0.5, 1.0), (-0.5, 1.0), (-1.0, 0.0))
 DIAMOND_POINTS = ((0.0, -1.0), (1.0, 0.0), (0.0, 1.0), (-1.0, 0.0))
 
@@ -124,11 +134,71 @@ def draw_label_background(painter: QPainter, area: QRectF, colours: Colours) -> 
     painter.drawRoundedRect(padded, LABEL_PADDING * 2, LABEL_PADDING * 2)
 
 
+def edge_colour(colours: Colours, kind: EdgeKind) -> QColor:
+    if kind is EdgeKind.DIRECTS:
+        return QColor(colours.person)
+    if kind is EdgeKind.IDENTITY:
+        return QColor(colours.identity)
+    return QColor(colours.graph_edge)
+
+
+def edge_pen(colours: Colours, kind: EdgeKind) -> QPen:
+    pen = QPen(edge_colour(colours, kind), EDGE_WIDTHS[kind])
+    pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+    if kind is EdgeKind.IDENTITY:
+        pen.setDashPattern(list(IDENTITY_DASH_PATTERN))
+    return pen
+
+
+def edge_label_font(kind: EdgeKind) -> QFont:
+    font = QFont(list(FONT_FAMILIES))
+    font.setPixelSize(EDGE_LABEL_PIXEL_SIZE)
+    font.setWeight(QFont.Weight.DemiBold if kind is EdgeKind.IDENTITY else QFont.Weight.Normal)
+    return font
+
+
+def edge_label_colour(colours: Colours, kind: EdgeKind) -> QColor:
+    return QColor(colours.identity if kind is EdgeKind.IDENTITY else colours.muted_text)
+
+
+def boundary_point(path: QPainterPath, centre: QPointF, towards: QPointF) -> QPointF:
+    inside = 0.0
+    outside = 1.0
+    for _ in range(BOUNDARY_STEPS):
+        middle = (inside + outside) / 2
+        if path.contains((towards - centre) * middle):
+            inside = middle
+        else:
+            outside = middle
+    return centre + (towards - centre) * outside
+
+
+def upright_angle(start: QPointF, end: QPointF) -> float:
+    angle = math.degrees(math.atan2(end.y() - start.y(), end.x() - start.x()))
+    if angle > RIGHT_ANGLE:
+        return angle - HALF_TURN
+    if angle <= -RIGHT_ANGLE:
+        return angle + HALF_TURN
+    return angle
+
+
+def arrow_head(tip: QPointF, start: QPointF) -> QPolygonF:
+    line = QLineF(tip, start)
+    if line.length() == 0:
+        return QPolygonF()
+    direction = line.unitVector()
+    along = QPointF(direction.dx(), direction.dy()) * ARROW_LENGTH
+    across = QPointF(-direction.dy(), direction.dx()) * ARROW_HALF_WIDTH
+    base = tip + along
+    return QPolygonF([tip, base + across, base - across])
+
+
 class GraphScene(QGraphicsScene):
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.colours_provider = colours_provider
         self.node_items: dict[str, NodeItem] = {}
+        self.edge_items: list[EdgeItem] = []
 
     def colours(self) -> Colours:
         return self.colours_provider()
@@ -140,6 +210,13 @@ class GraphScene(QGraphicsScene):
             item = NodeItem(node)
             self.addItem(item)
             self.node_items[node.identifier] = item
+        self.edge_items = []
+        for edge in drawing.edges:
+            source = self.node_items[edge.source]
+            target = self.node_items[edge.target]
+            edge_item = EdgeItem(edge, source, target)
+            self.addItem(edge_item)
+            self.edge_items.append(edge_item)
 
 
 class NodeItem(QGraphicsItem):
@@ -190,6 +267,74 @@ class NodeItem(QGraphicsItem):
         painter.setFont(self.font)
         painter.setPen(label_colour(colours, self.node.kind))
         painter.drawText(self.label_area, Qt.AlignmentFlag.AlignHCenter, self.node.label)
+
+
+class EdgeItem(QGraphicsItem):
+    def __init__(self, edge: GraphEdge, source: "NodeItem", target: "NodeItem") -> None:
+        super().__init__()
+        self.edge = edge
+        self.setZValue(-1)
+        source_centre = source.pos()
+        target_centre = target.pos()
+        self.start = boundary_point(source.path, source_centre, target_centre)
+        self.end = boundary_point(target.path, target_centre, source_centre)
+        self.arrow = arrow_head(self.end, self.start) if edge.has_arrow else QPolygonF()
+        self.line_end = (
+            (self.arrow.at(1) + self.arrow.at(2)) / 2
+            if edge.has_arrow and self.arrow
+            else self.end
+        )
+        self.font = edge_label_font(edge.kind)
+        self.label_area = QFontMetricsF(self.font).boundingRect(edge.label)
+        self.label_area.moveCenter(QPointF(0, 0))
+        self.label_angle = upright_angle(self.start, self.end)
+
+    @property
+    def middle(self) -> QPointF:
+        return (self.start + self.end) / 2
+
+    def colours(self) -> Colours:
+        scene = self.scene()
+        assert isinstance(scene, GraphScene)
+        return scene.colours()
+
+    @override
+    def boundingRect(self) -> QRectF:
+        line_area = QRectF(self.start, self.end).normalized()
+        line_area = line_area.united(self.arrow.boundingRect())
+        reach = max(self.label_area.width(), self.label_area.height()) / 2 + LABEL_PADDING
+        label_area = QRectF(
+            self.middle - QPointF(reach, reach), self.middle + QPointF(reach, reach)
+        )
+        if self.edge.label:
+            line_area = line_area.united(label_area)
+        return line_area.adjusted(-EDGE_MARGIN, -EDGE_MARGIN, EDGE_MARGIN, EDGE_MARGIN)
+
+    @override
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionGraphicsItem,
+        widget: QWidget | None = None,
+    ) -> None:
+        colours = self.colours()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(edge_pen(colours, self.edge.kind))
+        painter.drawLine(QLineF(self.start, self.line_end))
+        if self.edge.has_arrow:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(edge_colour(colours, self.edge.kind))
+            painter.drawPolygon(self.arrow)
+        if not self.edge.label:
+            return
+        painter.save()
+        painter.translate(self.middle)
+        painter.rotate(self.label_angle)
+        draw_label_background(painter, self.label_area, colours)
+        painter.setFont(self.font)
+        painter.setPen(edge_label_colour(colours, self.edge.kind))
+        painter.drawText(self.label_area, Qt.AlignmentFlag.AlignCenter, self.edge.label)
+        painter.restore()
 
 
 class GraphView(QGraphicsView):

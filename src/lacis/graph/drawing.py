@@ -18,6 +18,15 @@ ROW_HEIGHTS = {DIRECTOR_ROW: 0.0, COMPANY_ROW: 170.0, ESTABLISHMENT_ROW: 310.0, 
 ROW_ORDER = (COMPANY_ROW, DIRECTOR_ROW, ESTABLISHMENT_ROW, ADDRESS_ROW)
 
 
+IDENTITY_LABEL = "même personne"
+
+
+class EdgeKind(StrEnum):
+    DIRECTS = "directs"
+    STRUCTURE = "structure"
+    IDENTITY = "identity"
+
+
 class NodeShape(StrEnum):
     ROUNDED_SQUARE = "rounded_square"
     CIRCLE = "circle"
@@ -73,8 +82,28 @@ class GraphNode:
 
 
 @dataclass(frozen=True)
+class GraphEdge:
+    identifier: str
+    kind: EdgeKind
+    source: str
+    target: str
+    label: str
+
+    @property
+    def has_arrow(self) -> bool:
+        return self.kind is EdgeKind.DIRECTS
+
+    def touches(self, identifier: str) -> bool:
+        return identifier in {self.source, self.target}
+
+    def other_end(self, identifier: str) -> str:
+        return self.target if self.source == identifier else self.source
+
+
+@dataclass(frozen=True)
 class GraphDrawing:
     nodes: tuple[GraphNode, ...] = ()
+    edges: tuple[GraphEdge, ...] = ()
 
     def node(self, identifier: str) -> GraphNode | None:
         return next((node for node in self.nodes if node.identifier == identifier), None)
@@ -142,16 +171,10 @@ def spread(desired: dict[str, float]) -> dict[str, float]:
 
 
 def neighbour_positions(
-    identifier: str, links: Iterable[Link], placed: dict[str, float]
+    identifier: str, edges: Iterable[GraphEdge], placed: dict[str, float]
 ) -> list[float]:
-    positions = []
-    for link in links:
-        if identifier not in {link.source, link.target}:
-            continue
-        other = link.target if link.source == identifier else link.source
-        if other in placed:
-            positions.append(placed[other])
-    return positions
+    neighbours = (edge.other_end(identifier) for edge in edges if edge.touches(identifier))
+    return [placed[neighbour] for neighbour in neighbours if neighbour in placed]
 
 
 def row_of(entity: Entity, director_only: set[str]) -> int:
@@ -165,7 +188,7 @@ def row_of(entity: Entity, director_only: set[str]) -> int:
 
 
 def layered_positions(
-    entities: list[Entity], links: list[Link], director_only: set[str]
+    entities: list[Entity], edges: list[GraphEdge], director_only: set[str]
 ) -> dict[str, tuple[float, float]]:
     rows: dict[int, list[Entity]] = {row: [] for row in ROW_ORDER}
     for entity in entities:
@@ -176,7 +199,7 @@ def layered_positions(
         members = sorted(rows[row], key=lambda entity: (entity.label, entity.identifier))
         desired = {}
         for index, entity in enumerate(members):
-            around = neighbour_positions(entity.identifier, links, placed)
+            around = neighbour_positions(entity.identifier, edges, placed)
             desired[entity.identifier] = fmean(around) if around else index * COLUMN_GAP
         for identifier, position in spread(desired).items():
             placed[identifier] = position
@@ -184,8 +207,40 @@ def layered_positions(
     return positions
 
 
-def drawn_links(links: list[Link]) -> list[Link]:
-    return [link for link in links if link.kind is not LinkKind.SAME_PERSON]
+def edge_kind(link: Link) -> EdgeKind:
+    if link.kind is LinkKind.MANDATE:
+        return EdgeKind.DIRECTS
+    if link.kind is LinkKind.SAME_PERSON:
+        return EdgeKind.IDENTITY
+    return EdgeKind.STRUCTURE
+
+
+def edge_label(link: Link) -> str:
+    if link.kind is LinkKind.MANDATE:
+        return link.role
+    if link.kind is LinkKind.SAME_PERSON:
+        return IDENTITY_LABEL
+    return ""
+
+
+def offices_reached_through_establishments(links: list[Link]) -> set[tuple[str, str]]:
+    company_of_establishment = {
+        link.source: link.target for link in links if link.kind is LinkKind.ESTABLISHMENT_OF
+    }
+    return {
+        (company_of_establishment[link.source], link.target)
+        for link in links
+        if link.kind is LinkKind.LOCATED_AT and link.source in company_of_establishment
+    }
+
+
+def graph_edges(links: list[Link]) -> list[GraphEdge]:
+    reached = offices_reached_through_establishments(links)
+    return [
+        GraphEdge(link.identifier, edge_kind(link), link.source, link.target, edge_label(link))
+        for link in links
+        if not (link.kind is LinkKind.REGISTERED_OFFICE and (link.source, link.target) in reached)
+    ]
 
 
 def graph_drawing(connection: sqlite3.Connection) -> GraphDrawing:
@@ -197,7 +252,9 @@ def graph_drawing(connection: sqlite3.Connection) -> GraphDrawing:
         for entity in entities
         if entity.kind is EntityKind.COMPANY and is_known_as_director_only(graph_store, entity)
     }
-    positions = layered_positions(entities, drawn_links(links), director_only)
+    edges = graph_edges(links)
+    layout_edges = [edge for edge in edges if edge.kind is not EdgeKind.IDENTITY]
+    positions = layered_positions(entities, layout_edges, director_only)
     nodes = tuple(
         GraphNode(
             identifier=entity.identifier,
@@ -210,4 +267,4 @@ def graph_drawing(connection: sqlite3.Connection) -> GraphDrawing:
         )
         for entity in entities
     )
-    return GraphDrawing(nodes)
+    return GraphDrawing(nodes, tuple(edges))
