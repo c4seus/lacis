@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -16,8 +17,8 @@ from PySide6.QtWidgets import (
 
 from lacis.design.icons import IconFactory
 from lacis.storage.investigations import InvestigationLibrary, InvestigationSummary
-from lacis.ui.header_bar import IconMark
-from lacis.ui.investigation_form import NewInvestigationPanel
+from lacis.ui.header_bar import IconMark, create_icon_button
+from lacis.ui.investigation_form import EditInvestigationDialog, NewInvestigationPanel
 
 HOME_TITLE = "Enquêtes"
 HOME_SUBTITLE = (
@@ -42,6 +43,8 @@ CARD_ICON_SIZE = QSize(14, 14)
 CARD_SPACING = 14
 OPEN_KEYS = frozenset({Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space})
 FIRST_PLURAL = 2
+ACTIONS_TOOLTIP = "Actions"
+EDIT_ACTION_TEXT = "&Modifier le nom ou la question…"
 
 
 def counted(count: int, singular: str, plural: str) -> str:
@@ -52,8 +55,13 @@ def modification_text(summary: InvestigationSummary) -> str:
     return f"Modifiée le {summary.modified_at.astimezone().strftime('%d/%m/%Y')}"
 
 
+def actions_name(name: str) -> str:
+    return f"Actions de l'enquête {name}"
+
+
 class InvestigationCard(QFrame):
     open_requested = Signal(str)
+    edit_requested = Signal(str)
     focused = Signal(QWidget)
 
     def __init__(
@@ -78,6 +86,15 @@ class InvestigationCard(QFrame):
         self.name_label.setProperty("tone", "card-title")
         top_row.addWidget(self.name_label)
         top_row.addStretch(1)
+        self.more_button = create_icon_button(
+            icon_factory.icon("more"), actions_name(summary.name), ACTIONS_TOOLTIP, self
+        )
+        self.actions_menu = QMenu(self.more_button)
+        self.edit_action = self.actions_menu.addAction(EDIT_ACTION_TEXT)
+        self.edit_action.setEnabled(not summary.problem)
+        self.edit_action.triggered.connect(lambda: self.edit_requested.emit(summary.name))
+        self.more_button.setMenu(self.actions_menu)
+        top_row.addWidget(self.more_button)
         layout.addLayout(top_row)
 
         self.question_label = QLabel(summary.problem or summary.question, self)
@@ -152,6 +169,7 @@ class HomeScreen(QScrollArea):
         self.library = library
         self.icon_factory = icon_factory
         self.cards: list[InvestigationCard] = []
+        self.edit_dialog: EditInvestigationDialog | None = None
         self.setObjectName("homeScreen")
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -235,14 +253,18 @@ class HomeScreen(QScrollArea):
     def refresh(self) -> None:
         for card in self.cards:
             self.card_grid.removeWidget(card)
+            card.hide()
             card.deleteLater()
         self.cards = []
         for position, summary in enumerate(self.library.summaries()):
             card = InvestigationCard(summary, self.icon_factory)
             card.open_requested.connect(self.investigation_opened)
+            card.edit_requested.connect(self.edit_investigation)
             card.focused.connect(self.ensureWidgetVisible)
             row, column = divmod(position, CARD_COLUMNS)
             self.card_grid.addWidget(card, row, column)
+            if self.isVisible():
+                card.show()
             self.cards.append(card)
         for column in range(CARD_COLUMNS):
             self.card_grid.setColumnStretch(column, 1)
@@ -264,6 +286,21 @@ class HomeScreen(QScrollArea):
             self.create_first_button.setFocus()
             return
         self.new_investigation_button.setFocus()
+
+    def card_named(self, name: str) -> InvestigationCard:
+        return next(card for card in self.cards if card.summary.name == name)
+
+    def edit_investigation(self, name: str) -> None:
+        summary = self.card_named(name).summary
+        self.edit_dialog = EditInvestigationDialog(
+            self.library, summary.name, summary.question, self
+        )
+        self.edit_dialog.saved.connect(self.show_saved_investigation)
+        self.edit_dialog.open()
+
+    def show_saved_investigation(self, name: str) -> None:
+        self.refresh()
+        self.card_named(name).setFocus()
 
     def show_created_investigation(self, name: str) -> None:
         self.refresh()
