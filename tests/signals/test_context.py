@@ -73,3 +73,11 @@ def test_the_context_gives_the_notices_of_a_company(context: InvestigationContex
         "B202300150001"
     ]
     assert context.notices_of(ACME) == {}
+
+
+def test_the_context_computes_each_kind_of_identities_once(
+    context: InvestigationContext,
+) -> None:
+    confirmed = context.identities(include_probable=False)
+    assert context.identities(include_probable=False) is confirmed
+    assert context.identities(include_probable=True) is not confirmed
