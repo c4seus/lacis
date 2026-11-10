@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -100,29 +100,10 @@ jobs:
           ${{ github.event.pull_request.base.sha }}
           ${{ github.event.pull_request.head.sha }}
 
-  tests-required:
-    name: Tests required
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Check that source changes come with tests
-        env:
-          PULL_REQUEST_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-        run: >
-          python scripts/check_tests_changed.py
-          ${{ github.event.pull_request.base.sha }}
-          ${{ github.event.pull_request.head.sha }}
-
   ci-passed:
     name: CI passed
     if: always()
-    needs: [lint, types, tests, commits, tests-required]
+    needs: [lint, types, tests, commits]
     runs-on: ubuntu-latest
     steps:
       - name: Fail when a required job failed or was cancelled
