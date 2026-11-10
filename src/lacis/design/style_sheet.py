@@ -415,6 +415,44 @@ QSplitter::handle {{
     background-color: {colours.border};
 }}
 
+QFrame#queueColumn, QFrame#detailsPanel {{
+    background-color: {colours.surface};
+}}
+
+QFrame#columnHead {{
+    border-bottom: 1px solid {colours.border};
+}}
+
+QFrame#graphArea {{
+    background-color: {colours.background};
+}}
+
+QLabel[tone="column-title"] {{
+    color: {colours.muted_text};
+    font-size: {font_sizes.small}px;
+    font-weight: {font_weights.bold};
+    letter-spacing: 1px;
+}}
+
+QTabWidget#detailsTabs::pane {{
+    border: none;
+    border-top: 1px solid {colours.border};
+}}
+
+QTabWidget#detailsTabs QTabBar::tab {{
+    padding: {spacing.step_2}px {spacing.step_3}px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background-color: transparent;
+    color: {colours.muted_text};
+}}
+
+QTabWidget#detailsTabs QTabBar::tab:selected {{
+    border-bottom-color: {colours.accent};
+    color: {colours.text};
+    font-weight: {font_weights.medium};
+}}
+
 QScrollBar:vertical {{
     width: {SCROLL_BAR_THICKNESS}px;
     background-color: transparent;

@@ -8,7 +8,12 @@ from pytestqt.qtbot import QtBot
 from investigation_builder import InvestigationBuilder
 from lacis.design.theme_controller import ThemeController
 from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
-from lacis.ui.investigation_page import Counter, InvestigationPage, noun_for
+from lacis.ui.investigation_page import (
+    COLUMNS_SETTING,
+    Counter,
+    InvestigationPage,
+    noun_for,
+)
 from lacis.ui.main_window import MainWindow
 
 INVESTIGATION_NAME = "faux-plombiers-31"
@@ -148,3 +153,67 @@ def test_counts_are_singular_up_to_one(qtbot: QtBot) -> None:
     counter.show_count(2)
     assert counter.text() == "2 liens"
     assert noun_for(None, "signal", "signaux") == "signaux"
+
+
+def column_widths(page: InvestigationPage) -> list[int]:
+    return page.columns.sizes()
+
+
+def test_the_screen_has_the_queue_the_graph_and_the_details_in_columns(
+    main_window: MainWindow,
+) -> None:
+    page = main_window.investigation_page
+    assert [page.columns.widget(index) for index in range(page.columns.count())] == [
+        page.queue_column,
+        page.graph_area,
+        page.details_panel,
+    ]
+    assert page.columns.geometry().top() == page.header.geometry().bottom() + 1
+    assert page.queue_column.summary_label.text() == "1 signal, 0 homonyme, 5 pistes"
+
+
+def test_the_columns_match_the_design_target_at_1440_by_900(main_window: MainWindow) -> None:
+    queue, graph, details = column_widths(main_window.investigation_page)
+    assert queue == pytest.approx(320, abs=20)
+    assert details == pytest.approx(420, abs=30)
+    assert graph > queue + details - 100
+
+
+def test_the_columns_stay_usable_at_1024_by_640(qtbot: QtBot, main_window: MainWindow) -> None:
+    main_window.resize(1024, 640)
+    qtbot.waitUntil(lambda: main_window.width() == 1024)
+    page = main_window.investigation_page
+    for column in (page.queue_column, page.graph_area, page.details_panel):
+        assert column.isVisible()
+        assert column.width() >= column.minimumWidth()
+    assert sum(column_widths(page)) <= page.width()
+
+
+def test_resized_columns_are_remembered_between_sessions(
+    qtbot: QtBot, main_window: MainWindow, settings: QSettings
+) -> None:
+    page = main_window.investigation_page
+    page.columns.setSizes([400, 600, 440])
+    page.columns.splitterMoved.emit(400, 1)
+    remembered = page.columns.sizes()
+    next_page = InvestigationPage(settings)
+    qtbot.addWidget(next_page)
+    next_page.resize(page.size())
+    next_page.show()
+    assert next_page.columns.sizes() == remembered
+
+
+def test_an_unreadable_column_state_falls_back_to_the_default_widths(
+    qtbot: QtBot, settings: QSettings
+) -> None:
+    pages = []
+    for stored in (None, b"pas un etat"):
+        settings.setValue(COLUMNS_SETTING, stored)
+        page = InvestigationPage(settings)
+        qtbot.addWidget(page)
+        page.resize(1440, 760)
+        page.show()
+        pages.append(page)
+    default, fallback = pages
+    assert fallback.columns.sizes() == default.columns.sizes()
+    assert default.columns.sizes()[0] == pytest.approx(320, abs=20)

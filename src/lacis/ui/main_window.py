@@ -66,7 +66,7 @@ class MainWindow(QMainWindow):
         self.pages = QStackedWidget(self.content_area)
         self.home_screen = HomeScreen(self.library, self.icon_factory)
         self.home_screen.investigation_opened.connect(self.open_investigation)
-        self.investigation_page = InvestigationPage()
+        self.investigation_page = InvestigationPage(settings)
         self.pages.addWidget(self.home_screen)
         self.pages.addWidget(self.investigation_page)
         content_layout.addWidget(self.pages)
