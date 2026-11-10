@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from lacis.graph.roles import DirectorRole, director_role
 from lacis.signals.context import InvestigationContext
@@ -35,3 +35,22 @@ def mandates(context: InvestigationContext, settings: RuleSettings) -> Iterator[
             else director.identifier
         )
         yield Mandate(director, company, identity)
+
+
+@dataclass
+class DirectedCompanies:
+    director: Entity
+    members: dict[str, Entity] = field(default_factory=dict)
+    companies: dict[str, Entity] = field(default_factory=dict)
+
+
+def directed_companies(
+    context: InvestigationContext, settings: RuleSettings
+) -> dict[str, DirectedCompanies]:
+    directed: dict[str, DirectedCompanies] = {}
+    for mandate in mandates(context, settings):
+        director = context.entity(mandate.identity) or mandate.director
+        found = directed.setdefault(mandate.identity, DirectedCompanies(director))
+        found.members[mandate.director.identifier] = mandate.director
+        found.companies[mandate.company.identifier] = mandate.company
+    return directed

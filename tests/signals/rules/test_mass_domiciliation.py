@@ -192,7 +192,8 @@ def test_the_engine_gives_a_scored_signal_with_the_rule_severity(
 ) -> None:
     activities = mixed_activities(10)
     domiciled(builder, [(RECENT, activities[position]) for position in range(10)])
-    [signal] = SignalEngine.configured().signals(builder.context())
+    signals = SignalEngine.configured().signals(builder.context())
+    [signal] = [signal for signal in signals if signal.rule == RULE.name]
     assert signal.rule == "mass_domiciliation"
     assert signal.title == "Domiciliation de masse"
     assert signal.severity is Severity.LOW

@@ -234,7 +234,8 @@ def test_the_engine_gives_the_signal_with_the_rule_severity(
 ) -> None:
     director = builder.person("Paul", "MARTIN")
     directed(builder, director, (*SHORT_LIFETIMES, None, None))
-    [signal] = SignalEngine.configured().signals(builder.context())
+    signals = SignalEngine.configured().signals(builder.context())
+    [signal] = [signal for signal in signals if signal.rule == RULE.name]
     assert signal.title == "Sociétés éphémères en série"
     assert signal.severity is Severity.MEDIUM
     assert signal.score == 0.42
