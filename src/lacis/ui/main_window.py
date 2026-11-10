@@ -1,17 +1,21 @@
+import sqlite3
 from typing import override
 
 from PySide6.QtCore import QByteArray, QSettings, QSize, Qt
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
 
 from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
+from lacis.storage.errors import InvestigationError
+from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE as UNREADABLE
 from lacis.storage.investigations import InvestigationLibrary
 from lacis.storage.locations import investigations_directory
 from lacis.ui.about_dialog import AboutDialog
-from lacis.ui.header_bar import HeaderBar
+from lacis.ui.header_bar import HOME_TRAIL, HeaderBar
 from lacis.ui.home_screen import HomeScreen
+from lacis.ui.investigation_page import InvestigationPage
 from lacis.ui.menu_bar import MainMenuBar
 
 WINDOW_TITLE = "Lacis"
@@ -19,6 +23,7 @@ DEMO_WINDOW_TITLE = "Lacis — démonstration"
 MINIMUM_SIZE = QSize(1024, 640)
 DEFAULT_SIZE = QSize(1440, 900)
 GEOMETRY_SETTING_KEY = "main_window/geometry"
+OPENING_FAILED_TITLE = "Impossible d'ouvrir l'enquête"
 
 
 class MainWindow(QMainWindow):
@@ -51,8 +56,15 @@ class MainWindow(QMainWindow):
         self.content_area.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         content_layout = QVBoxLayout(self.content_area)
         content_layout.setContentsMargins(0, 0, 0, 0)
-        self.home_screen = HomeScreen(self.library, self.icon_factory, self.content_area)
-        content_layout.addWidget(self.home_screen)
+        self.pages = QStackedWidget(self.content_area)
+        self.home_screen = HomeScreen(self.library, self.icon_factory)
+        self.home_screen.investigation_opened.connect(self.open_investigation)
+        self.investigation_page = InvestigationPage()
+        self.investigation_page.home_requested.connect(self.show_home)
+        self.pages.addWidget(self.home_screen)
+        self.pages.addWidget(self.investigation_page)
+        content_layout.addWidget(self.pages)
+        self.current_investigation: str | None = None
         central_widget = QWidget(self)
         central_layout = QVBoxLayout(central_widget)
         central_layout.setContentsMargins(0, 0, 0, 0)
@@ -63,6 +75,27 @@ class MainWindow(QMainWindow):
 
         self.content_area.setFocus()
         self.restore_saved_geometry()
+
+    def open_investigation(self, name: str) -> None:
+        try:
+            with self.library.open(name) as opened:
+                investigation = opened.investigation
+        except (InvestigationError, sqlite3.DatabaseError) as problem:
+            message = str(problem) if isinstance(problem, InvestigationError) else UNREADABLE
+            QMessageBox.warning(self, OPENING_FAILED_TITLE, message)
+            self.home_screen.refresh()
+            return
+        self.current_investigation = name
+        self.investigation_page.show_investigation(investigation)
+        self.header_bar.breadcrumb.set_trail((*HOME_TRAIL, name))
+        self.pages.setCurrentWidget(self.investigation_page)
+        self.investigation_page.back_button.setFocus()
+
+    def show_home(self) -> None:
+        self.current_investigation = None
+        self.header_bar.breadcrumb.set_trail(HOME_TRAIL)
+        self.home_screen.refresh()
+        self.pages.setCurrentWidget(self.home_screen)
 
     def show_about_dialog(self) -> None:
         if self.about_dialog is None:
