@@ -10,7 +10,7 @@ from lacis.collectors.endpoints import BODACC_RECORDS_URL, MAXIMUM_NOTICES_PER_P
 from lacis.collectors.http_client import SOURCE_NAMES, CollectionError, CollectorHttpClient
 from lacis.storage.comparison_keys import normalise_text
 from lacis.storage.entities import company_identifier, remove_spaces
-from lacis.storage.notices import CollectedNotice, NoticeFamily, NoticeRole
+from lacis.storage.notices import CollectedNotice, NoticeFamily, NoticeRole, OfficeTransfer
 from lacis.storage.responses import ResponseSource, ResponseSummary, StoredResponse
 
 SOURCE = ResponseSource.BODACC
@@ -262,13 +262,6 @@ def date_in_text(text: str) -> date | None:
     return next((found for found in dates_in_text(text) if found is not None), None)
 
 
-@dataclass(frozen=True)
-class OfficeTransfer:
-    country: str | None
-    effective_on: date
-    effective_date_stated: bool
-
-
 def country_in(details: list[object], texts: list[str]) -> str | None:
     for detail in details:
         for country in values_of(detail, "pays"):
@@ -338,6 +331,7 @@ class BodaccNotice:
             companies={
                 company_identifier(siren): role for siren, role in self.company_roles.items()
             },
+            office_transfer=self.office_transfer,
         )
 
 

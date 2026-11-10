@@ -132,6 +132,12 @@ def add_notice_withdrawal(connection: sqlite3.Connection) -> None:
     connection.execute("ALTER TABLE notice ADD COLUMN withdrawn_at TEXT")
 
 
+def add_notice_office_transfer(connection: sqlite3.Connection) -> None:
+    connection.execute("ALTER TABLE notice ADD COLUMN office_transfer_country TEXT")
+    connection.execute("ALTER TABLE notice ADD COLUMN office_transfer_effective_on TEXT")
+    connection.execute("ALTER TABLE notice ADD COLUMN office_transfer_date_stated INTEGER")
+
+
 def create_collection_log_table(connection: sqlite3.Connection) -> None:
     connection.execute(
         """
@@ -179,6 +185,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     add_notice_withdrawal,
     create_collection_log_table,
     create_homonym_decision_table,
+    add_notice_office_transfer,
 )
 
 

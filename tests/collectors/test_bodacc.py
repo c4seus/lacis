@@ -11,7 +11,6 @@ from fake_time import FakeTime
 from lacis.collectors.bodacc import (
     Bodacc,
     BodaccNotice,
-    OfficeTransfer,
     family_of,
     notice_from,
 )
@@ -33,7 +32,7 @@ from lacis.collectors.rate_limiting import RateLimiters
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.entities import CollectedEntity
 from lacis.storage.graph_store import GraphStore
-from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore
+from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore, OfficeTransfer
 from lacis.storage.responses import ResponseSource, ResponseStore, ResponseSummary
 
 Handler = Callable[[httpx.Request], httpx.Response]
@@ -471,6 +470,13 @@ def test_a_transfer_of_the_registered_office_abroad_gives_its_country_and_date(
 ) -> None:
     [notice] = bodacc.notices_of("333333333").notices
     assert notice.office_transfer == OfficeTransfer(
+        "Belgique", date(2025, 9, 1), effective_date_stated=True
+    )
+
+
+def test_a_collected_notice_keeps_its_transfer_abroad(bodacc: Bodacc) -> None:
+    [notice] = bodacc.notices_of("333333333").notices
+    assert notice.collected_notice().office_transfer == OfficeTransfer(
         "Belgique", date(2025, 9, 1), effective_date_stated=True
     )
 
