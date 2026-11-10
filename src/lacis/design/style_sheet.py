@@ -81,7 +81,17 @@ QFrame#emptyState {{
     background-color: transparent;
 }}
 
-QFrame#investigationCard {{
+QLabel[tone="field-label"] {{
+    font-size: {font_sizes.small}px;
+    font-weight: {font_weights.bold};
+}}
+
+QLabel[tone="problem"] {{
+    color: {colours.high_severity};
+    font-size: {font_sizes.small}px;
+}}
+
+QFrame#newInvestigation, QFrame#investigationCard {{
     padding: {spacing.step_2}px;
     border: 1px solid {colours.border};
     border-radius: {radii.medium}px;
@@ -225,6 +235,10 @@ QTabBar:focus {{
 QSlider:focus {{
     border: 2px solid {colours.accent};
     border-radius: {radii.small}px;
+}}
+
+QLineEdit[problem="true"] {{
+    border-color: {colours.high_severity};
 }}
 
 QLineEdit[variant="search"] {{

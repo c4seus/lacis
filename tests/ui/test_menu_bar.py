@@ -72,9 +72,21 @@ def test_quit_is_in_the_file_menu_with_ctrl_q(
     qtbot: QtBot, theme_controller: ThemeController
 ) -> None:
     menu_bar = create_menu_bar(qtbot, theme_controller)
-    assert menu_bar.file_menu.actions() == [menu_bar.quit_action]
+    assert menu_bar.file_menu.actions()[-1] is menu_bar.quit_action
     assert menu_bar.quit_action.text() == "&Quitter"
     assert menu_bar.quit_action.shortcut() == QKeySequence("Ctrl+Q")
+
+
+def test_a_new_investigation_starts_from_the_file_menu_with_ctrl_n(
+    qtbot: QtBot, theme_controller: ThemeController
+) -> None:
+    menu_bar = create_menu_bar(qtbot, theme_controller)
+    first_action, separator, quit_action = menu_bar.file_menu.actions()
+    assert first_action is menu_bar.new_investigation_action
+    assert separator.isSeparator()
+    assert quit_action is menu_bar.quit_action
+    assert menu_bar.new_investigation_action.text() == "&Nouvelle enquête…"
+    assert menu_bar.new_investigation_action.shortcut() == QKeySequence("Ctrl+N")
 
 
 def test_menus_without_entries_are_disabled(

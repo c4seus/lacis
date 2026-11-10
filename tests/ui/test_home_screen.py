@@ -39,7 +39,8 @@ def open_home_screen(
     qtbot.addWidget(home_screen)
     home_screen.resize(1200, 800)
     home_screen.show()
-    qtbot.waitExposed(home_screen)
+    home_screen.activateWindow()
+    qtbot.waitUntil(home_screen.isActiveWindow)
     return home_screen
 
 
@@ -130,8 +131,10 @@ def test_an_empty_library_shows_an_invitation_to_create_an_investigation(
     assert home_screen.cards == []
     assert home_screen.empty_state.isVisible()
     assert home_screen.create_first_button.text() == "Créer une première enquête"
-    with qtbot.waitSignal(home_screen.creation_requested):
-        home_screen.create_first_button.click()
+    home_screen.create_first_button.click()
+    assert home_screen.new_investigation_panel.isVisible()
+    assert not home_screen.empty_state.isVisible()
+    assert home_screen.new_investigation_panel.fields.name_field.input.hasFocus()
 
 
 def test_the_invitation_disappears_once_an_investigation_exists(
@@ -152,12 +155,36 @@ def test_investigations_hide_the_invitation(
     assert not home_screen.empty_state.isVisible()
 
 
-def test_the_new_investigation_button_asks_for_a_creation(
+def test_the_new_investigation_button_opens_the_creation_form_above_the_cards(
     qtbot: QtBot, library: InvestigationLibrary, icon_factory: IconFactory
 ) -> None:
     home_screen = open_home_screen(qtbot, library, icon_factory)
-    with qtbot.waitSignal(home_screen.creation_requested):
-        home_screen.new_investigation_button.click()
+    assert not home_screen.new_investigation_panel.isVisible()
+    home_screen.new_investigation_button.click()
+    panel = home_screen.new_investigation_panel
+    assert panel.isVisible()
+    assert panel.parentWidget() is home_screen.cards[0].parentWidget()
+    assert panel.y() < home_screen.cards[0].y()
+
+
+def test_cancelling_the_first_creation_brings_the_invitation_back(
+    qtbot: QtBot, tmp_path: Path, icon_factory: IconFactory
+) -> None:
+    home_screen = open_home_screen(qtbot, InvestigationLibrary(tmp_path / "vide"), icon_factory)
+    home_screen.create_first_button.click()
+    home_screen.new_investigation_panel.cancel_button.click()
+    assert home_screen.empty_state.isVisible()
+    assert home_screen.create_first_button.hasFocus()
+
+
+def test_cancelling_a_creation_gives_the_focus_back_to_the_new_investigation_button(
+    qtbot: QtBot, library: InvestigationLibrary, icon_factory: IconFactory
+) -> None:
+    home_screen = open_home_screen(qtbot, library, icon_factory)
+    home_screen.new_investigation_button.click()
+    home_screen.new_investigation_panel.cancel_button.click()
+    assert home_screen.new_investigation_button.hasFocus()
+    assert not home_screen.empty_state.isVisible()
 
 
 def open_main_window(
@@ -169,12 +196,47 @@ def open_main_window(
     main_window = MainWindow(settings, theme_controller, library=library)
     qtbot.addWidget(main_window)
     main_window.show()
-    qtbot.waitExposed(main_window)
+    main_window.activateWindow()
+    qtbot.waitUntil(main_window.isActiveWindow)
     return main_window
 
 
 def card_named(main_window: MainWindow, name: str) -> InvestigationCard:
     return next(card for card in main_window.home_screen.cards if card.summary.name == name)
+
+
+def test_a_created_investigation_is_opened(
+    qtbot: QtBot,
+    settings: QSettings,
+    theme_controller: ThemeController,
+    library: InvestigationLibrary,
+) -> None:
+    main_window = open_main_window(qtbot, settings, theme_controller, library)
+    main_window.home_screen.new_investigation_button.click()
+    fields = main_window.home_screen.new_investigation_panel.fields
+    fields.fill("rafale-marseille", "Qui a créé quatre sociétés en trois semaines ?")
+    main_window.home_screen.new_investigation_panel.create_button.click()
+    assert main_window.current_investigation == "rafale-marseille"
+    assert main_window.investigation_page.question_label.text() == (
+        "Qui a créé quatre sociétés en trois semaines ?"
+    )
+    assert card_named(main_window, "rafale-marseille") is main_window.home_screen.cards[0]
+
+
+def test_the_file_menu_starts_a_creation_from_any_page(
+    qtbot: QtBot,
+    settings: QSettings,
+    theme_controller: ThemeController,
+    library: InvestigationLibrary,
+) -> None:
+    main_window = open_main_window(qtbot, settings, theme_controller, library)
+    main_window.open_investigation("fournisseur-acme")
+    main_window.main_menu_bar.new_investigation_action.trigger()
+    assert main_window.pages.currentWidget() is main_window.home_screen
+    assert main_window.current_investigation is None
+    assert main_window.home_screen.new_investigation_panel.isVisible()
+    main_window.main_menu_bar.new_investigation_action.trigger()
+    assert main_window.home_screen.new_investigation_panel.fields.name_field.input.hasFocus()
 
 
 def test_clicking_a_card_opens_its_investigation(

@@ -10,6 +10,8 @@ EDIT_MENU_TITLE = "&Édition"
 VIEW_MENU_TITLE = "&Affichage"
 INVESTIGATION_MENU_TITLE = "&Enquête"
 QUIT_ACTION_TEXT = "&Quitter"
+NEW_INVESTIGATION_ACTION_TEXT = "&Nouvelle enquête…"
+NEW_INVESTIGATION_SHORTCUT = QKeySequence("Ctrl+N")
 QUIT_SHORTCUT = QKeySequence("Ctrl+Q")
 UNDO_PREFIX = "&Annuler"
 REDO_PREFIX = "&Rétablir"
@@ -29,8 +31,12 @@ class MainMenuBar(QMenuBar):
         self.help_menu = help_menu
         self.addMenu(help_menu)
 
+        self.new_investigation_action = QAction(NEW_INVESTIGATION_ACTION_TEXT, self)
+        self.new_investigation_action.setShortcut(NEW_INVESTIGATION_SHORTCUT)
         self.quit_action = QAction(QUIT_ACTION_TEXT, self)
         self.quit_action.setShortcut(QUIT_SHORTCUT)
+        self.file_menu.addAction(self.new_investigation_action)
+        self.file_menu.addSeparator()
         self.file_menu.addAction(self.quit_action)
         self.histories = QUndoGroup(self)
         self.no_history = InvestigationHistory(self)

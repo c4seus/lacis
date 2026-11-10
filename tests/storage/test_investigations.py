@@ -20,6 +20,7 @@ from lacis.storage.investigations import (
     MAXIMUM_QUESTION_LENGTH,
     InvestigationLibrary,
     InvestigationSummary,
+    question_problem,
 )
 from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 
@@ -258,4 +259,35 @@ def test_an_unreadable_database_is_summarised_with_its_problem(
     investigation.database_path.write_bytes(b"pas une base SQLite")
     assert library.summary("abimee").problem == (
         "La base de données de cette enquête est illisible."
+    )
+
+
+def test_a_free_and_valid_name_has_no_problem(library: InvestigationLibrary) -> None:
+    assert library.name_problem("faux-plombiers-31") == ""
+
+
+def test_a_name_problem_explains_what_is_wrong(library: InvestigationLibrary) -> None:
+    library.create("faux-plombiers-31", QUESTION)
+    assert library.name_problem("") == "Le nom de l'enquête est obligatoire."
+    assert library.name_problem("Faux Plombiers").startswith(
+        "Le nom de l'enquête ne peut contenir que"
+    )
+    assert library.name_problem("faux-plombiers-31") == (
+        "Une enquête nommée « faux-plombiers-31 » existe déjà."
+    )
+
+
+def test_the_current_name_of_an_investigation_has_no_problem(
+    library: InvestigationLibrary,
+) -> None:
+    library.create("faux-plombiers-31", QUESTION)
+    assert library.name_problem("faux-plombiers-31", "faux-plombiers-31") == ""
+    assert library.name_problem("", "faux-plombiers-31") == "Le nom de l'enquête est obligatoire."
+
+
+def test_a_question_problem_explains_what_is_wrong() -> None:
+    assert question_problem(QUESTION) == ""
+    assert question_problem("") == ""
+    assert question_problem("?" * (MAXIMUM_QUESTION_LENGTH + 1)) == (
+        f"La question de départ ne doit pas dépasser {MAXIMUM_QUESTION_LENGTH} caractères."
     )
