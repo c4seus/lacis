@@ -138,6 +138,49 @@ def add_notice_office_transfer(connection: sqlite3.Connection) -> None:
     connection.execute("ALTER TABLE notice ADD COLUMN office_transfer_date_stated INTEGER")
 
 
+REVISED_TABLES = ("entity", "link", "notice", "notice_company", "homonym_decision")
+REVISING_EVENTS = ("INSERT", "UPDATE", "DELETE")
+
+
+def track_revisions_and_signals(connection: sqlite3.Connection) -> None:
+    connection.execute("ALTER TABLE investigation ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+    for table in REVISED_TABLES:
+        for event in REVISING_EVENTS:
+            connection.execute(
+                f"""
+                CREATE TRIGGER revise_after_{table}_{event.lower()}
+                AFTER {event} ON {table}
+                BEGIN
+                    UPDATE investigation SET revision = revision + 1;
+                END
+                """
+            )
+    connection.execute(
+        """
+        CREATE TABLE signal_computation (
+            revision INTEGER NOT NULL,
+            computed_on TEXT NOT NULL,
+            configuration TEXT NOT NULL,
+            computed_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE signal (
+            position INTEGER PRIMARY KEY,
+            rule TEXT NOT NULL,
+            title TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            score REAL NOT NULL,
+            explanation TEXT NOT NULL,
+            justifying_entities TEXT NOT NULL
+        )
+        """
+    )
+
+
 def create_collection_log_table(connection: sqlite3.Connection) -> None:
     connection.execute(
         """
@@ -186,6 +229,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     create_collection_log_table,
     create_homonym_decision_table,
     add_notice_office_transfer,
+    track_revisions_and_signals,
 )
 
 

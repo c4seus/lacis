@@ -24,6 +24,8 @@ from lacis.graph.background import (
 from lacis.graph.expansion import ExpansionReport
 from lacis.graph.progress import ExpansionProgress
 from lacis.graph.register_search import RegisterSearchResults
+from lacis.signals.refresher import SignalRefresher
+from lacis.signals.store import SignalReport, SignalStore
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.investigations import InvestigationLibrary
@@ -290,3 +292,75 @@ def test_a_waiting_job_wakes_up_when_cancelled() -> None:
     started = time.monotonic()
     sleep(30)
     assert time.monotonic() - started < 5
+
+
+def add_acme(
+    qtbot: QtBot, settings: CollectionSettings, started_jobs: list[BackgroundJob]
+) -> None:
+    page = run(qtbot, search_job(settings, "111111111"), started_jobs)
+    assert isinstance(page, CompanySearchPage)
+    run(qtbot, add_company_job(settings, page.companies[0], page.response), started_jobs)
+
+
+def stored_report(library: InvestigationLibrary) -> tuple[int, SignalReport | None]:
+    with library.open(INVESTIGATION_NAME) as investigation:
+        store = SignalStore(investigation.connection)
+        return store.revision(), store.report()
+
+
+def test_an_expansion_leaves_signals_computed_for_its_result(
+    qtbot: QtBot,
+    settings: CollectionSettings,
+    started_jobs: list[BackgroundJob],
+    library: InvestigationLibrary,
+) -> None:
+    add_acme(qtbot, settings, started_jobs)
+    run(qtbot, expansion_job(settings, "company:111111111"), started_jobs)
+    revision, report = stored_report(library)
+    assert report is not None
+    assert report.revision == revision
+
+
+def test_adding_a_company_leaves_signals_computed_too(
+    qtbot: QtBot,
+    settings: CollectionSettings,
+    started_jobs: list[BackgroundJob],
+    library: InvestigationLibrary,
+) -> None:
+    page = run(qtbot, search_job(settings, "lilas"), started_jobs)
+    assert isinstance(page, CompanySearchPage)
+    run(qtbot, add_company_job(settings, page.companies[0], page.response), started_jobs)
+    revision, report = stored_report(library)
+    assert report is not None
+    assert report.revision == revision
+
+
+def test_an_invalid_signal_configuration_does_not_fail_the_expansion(
+    qtbot: QtBot,
+    settings: CollectionSettings,
+    started_jobs: list[BackgroundJob],
+    isolated_configuration_directory: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    add_acme(qtbot, settings, started_jobs)
+    with settings.library.open(INVESTIGATION_NAME) as investigation, investigation.connection:
+        investigation.connection.execute("DELETE FROM signal_computation")
+    isolated_configuration_directory.mkdir(parents=True)
+    (isolated_configuration_directory / "signals.toml").write_text("[rules.inconnue]\n")
+    run(qtbot, expansion_job(settings, "company:111111111"), started_jobs)
+    assert stored_report(settings.library)[1] is None
+    assert "Signals left to recompute later" in caplog.text
+
+
+def test_the_refresher_follows_jobs(
+    qtbot: QtBot,
+    settings: CollectionSettings,
+    started_jobs: list[BackgroundJob],
+    library: InvestigationLibrary,
+) -> None:
+    add_acme(qtbot, settings, started_jobs)
+    refresher = SignalRefresher(library, INVESTIGATION_NAME)
+    job = expansion_job(settings, "company:111111111")
+    refresher.follow_job(job)
+    with qtbot.waitSignal(refresher.refreshed, timeout=SIGNAL_TIMEOUT_MILLISECONDS):
+        run(qtbot, job, started_jobs)
