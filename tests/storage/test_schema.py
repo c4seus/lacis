@@ -1,10 +1,14 @@
 import sqlite3
+from datetime import date
 from pathlib import Path
 
 import pytest
 
+from investigation_builder import InvestigationBuilder
 from lacis.storage.errors import NewerInvestigationError
+from lacis.storage.homonym_decisions import HomonymDecisionStore
 from lacis.storage.investigations import InvestigationLibrary
+from lacis.storage.notices import NoticeFamily
 from lacis.storage.schema import (
     MIGRATIONS,
     NewerSchemaError,
@@ -106,3 +110,39 @@ def test_a_failing_migration_leaves_the_investigation_as_it_was(tmp_path: Path) 
     database_path = tmp_path / "fragile" / "investigation.sqlite3"
     assert stored_version(database_path) == 1
     assert "half_done" not in table_names(database_path)
+
+
+def revision_of(connection: sqlite3.Connection) -> int:
+    revision: int = connection.execute("SELECT revision FROM investigation").fetchone()[0]
+    return revision
+
+
+def test_every_change_of_the_graph_or_of_decisions_moves_the_revision(
+    investigation_connection: sqlite3.Connection,
+) -> None:
+    builder = InvestigationBuilder(investigation_connection)
+    revisions = [revision_of(investigation_connection)]
+    company = builder.company("SOCIETE A")
+    revisions.append(revision_of(investigation_connection))
+    director = builder.person("Paul", "MARTIN")
+    builder.mandate(director, company)
+    revisions.append(revision_of(investigation_connection))
+    builder.notice(company, NoticeFamily.REMOVAL, date(2025, 1, 20), "Radiation.")
+    revisions.append(revision_of(investigation_connection))
+    other = builder.person("Paul Louis", "MARTIN")
+    builder.same_person(director, other)
+    revisions.append(revision_of(investigation_connection))
+    HomonymDecisionStore(investigation_connection).withdraw(director, other)
+    revisions.append(revision_of(investigation_connection))
+    assert revisions == sorted(set(revisions))
+
+
+def test_storing_signals_does_not_move_the_revision(
+    investigation_connection: sqlite3.Connection,
+) -> None:
+    before = revision_of(investigation_connection)
+    with investigation_connection:
+        investigation_connection.execute(
+            "INSERT INTO signal_computation VALUES (0, '2026-11-10', 'x', '2026-11-10T08:00')"
+        )
+    assert revision_of(investigation_connection) == before

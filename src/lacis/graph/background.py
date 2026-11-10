@@ -1,4 +1,5 @@
 import logging
+import sqlite3
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -21,6 +22,9 @@ from lacis.collectors.http_client import (
 from lacis.graph.expansion import ExpansionError, ExpansionReport, GraphExpander
 from lacis.graph.progress import ProgressTracker
 from lacis.graph.register_search import search_register
+from lacis.signals.configuration import SignalConfigurationError
+from lacis.signals.engine import SignalEngine
+from lacis.signals.recomputation import InvestigationSignals
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import InvestigationLibrary
@@ -44,6 +48,7 @@ class CollectionSettings:
 class CollectionSession:
     company_register: CompanyRegister
     expander: GraphExpander
+    connection: sqlite3.Connection
 
 
 def interruptible_sleep(cancellation: threading.Event) -> Callable[[float], None]:
@@ -70,7 +75,7 @@ def collection_session(
             company_register = CompanyRegister(http_client)
             expander = GraphExpander(connection, company_register, Bodacc(http_client))
             expander.entities_found = tracker.entities_found
-            yield CollectionSession(company_register, expander)
+            yield CollectionSession(company_register, expander, connection)
         finally:
             http_client.close()
 
@@ -140,15 +145,41 @@ def register_search_job(settings: CollectionSettings, text: str) -> BackgroundJo
     )
 
 
+def recompute_signals(connection: sqlite3.Connection) -> None:
+    try:
+        engine = SignalEngine.configured()
+    except SignalConfigurationError as problem:
+        logging.getLogger(COLLECTORS_LOGGER_NAME).warning(
+            "Signals left to recompute later: %s", problem
+        )
+        return
+    InvestigationSignals(connection, engine).recompute()
+
+
+def with_signals_recomputed(task: CollectionTask) -> CollectionTask:
+    def run(session: CollectionSession) -> object:
+        result = task(session)
+        recompute_signals(session.connection)
+        return result
+
+    return run
+
+
 def add_company_job(
     settings: CollectionSettings, company: Company, response: ResponseSummary
 ) -> BackgroundJob:
-    return BackgroundJob(settings, lambda session: session.expander.add_company(company, response))
+    return BackgroundJob(
+        settings,
+        with_signals_recomputed(lambda session: session.expander.add_company(company, response)),
+    )
 
 
 def expansion_job(
     settings: CollectionSettings, identifier: str, depth: int = 1, *, refresh: bool = False
 ) -> BackgroundJob:
     return BackgroundJob(
-        settings, lambda session: session.expander.expand(identifier, depth, refresh=refresh)
+        settings,
+        with_signals_recomputed(
+            lambda session: session.expander.expand(identifier, depth, refresh=refresh)
+        ),
     )
