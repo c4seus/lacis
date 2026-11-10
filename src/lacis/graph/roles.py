@@ -19,6 +19,9 @@ class DirectorRole(StrEnum):
     STATUTORY_AUDITOR = "Commissaire aux comptes"
     ALTERNATE_AUDITOR = "Commissaire aux comptes suppléant"
     LIQUIDATOR = "Liquidateur"
+    COURT_ADMINISTRATOR = "Administrateur judiciaire"
+    COURT_REPRESENTATIVE = "Mandataire judiciaire"
+    COURT_LIQUIDATOR = "Liquidateur judiciaire"
     PERMANENT_REPRESENTATIVE = "Représentant permanent"
     SOLE_PROPRIETOR = "Entrepreneur individuel"
     OTHER = "Autre fonction"
@@ -48,6 +51,9 @@ ROLE_WORDS = (
     ({"PRESIDENT", "DIRECTOIRE"}, DirectorRole.MANAGEMENT_BOARD_CHAIR),
     ({"DIRECTOIRE"}, DirectorRole.MANAGEMENT_BOARD_MEMBER),
     ({"PRESIDENT", "CONSEIL", "ADMINISTRATION"}, DirectorRole.BOARD_CHAIR),
+    ({"ADMINISTRATEUR", "JUDICIAIRE"}, DirectorRole.COURT_ADMINISTRATOR),
+    ({"MANDATAIRE", "JUDICIAIRE"}, DirectorRole.COURT_REPRESENTATIVE),
+    ({"LIQUIDATEUR", "JUDICIAIRE"}, DirectorRole.COURT_LIQUIDATOR),
     ({"ADMINISTRATEUR"}, DirectorRole.BOARD_MEMBER),
     ({"COMMISSAIRE", "COMPTES", "SUPPLEANT"}, DirectorRole.ALTERNATE_AUDITOR),
     ({"COMMISSAIRE", "COMPTES"}, DirectorRole.STATUTORY_AUDITOR),
