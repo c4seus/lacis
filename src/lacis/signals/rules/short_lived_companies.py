@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from lacis.graph.expansion import EXPANDED_AT_ATTRIBUTE
 from lacis.signals.context import InvestigationContext
@@ -10,7 +10,12 @@ from lacis.signals.rules.company_life import (
     mentions_liquidation,
     shown_months,
 )
-from lacis.signals.rules.directors import EXCLUDED_ROLES, INCLUDE_PROBABLE, mandates
+from lacis.signals.rules.directors import (
+    EXCLUDED_ROLES,
+    INCLUDE_PROBABLE,
+    DirectedCompanies,
+    directed_companies,
+)
 from lacis.signals.signal import Finding, Severity
 from lacis.storage.entities import Entity, EntityKind
 
@@ -23,30 +28,11 @@ LIQUIDATION_BONUS = 0.2
 NOT_EXPANDED_TEXT = " ; cette personne n'a pas encore été étendue"
 
 
-@dataclass
-class DirectedCompanies:
-    director: Entity
-    members: dict[str, Entity] = field(default_factory=dict)
-    companies: dict[str, Entity] = field(default_factory=dict)
-
-
 @dataclass(frozen=True)
 class ShortLived:
     company: Entity
     months: float
     liquidated: bool
-
-
-def directed_companies(
-    context: InvestigationContext, settings: RuleSettings
-) -> dict[str, DirectedCompanies]:
-    directed: dict[str, DirectedCompanies] = {}
-    for mandate in mandates(context, settings):
-        director = context.entity(mandate.identity) or mandate.director
-        found = directed.setdefault(mandate.identity, DirectedCompanies(director))
-        found.members[mandate.director.identifier] = mandate.director
-        found.companies[mandate.company.identifier] = mandate.company
-    return directed
 
 
 def short_lived_of(

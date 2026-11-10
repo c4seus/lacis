@@ -78,11 +78,11 @@ class InvestigationBuilder:
         self.graph_store.save_entity(CollectedEntity(identifier, label, attributes), self.response)
         return identifier
 
-    def address(self, text: str, *, expanded: bool = False) -> str:
+    def address(self, text: str, *, expanded: bool = False, postcode: str | None = None) -> str:
         identifier = address_identifier(text)
-        attributes: Attributes = (
-            {EXPANDED_AT_ATTRIBUTE: COLLECTED_AT.isoformat()} if expanded else {}
-        )
+        attributes: Attributes = {"postcode": postcode}
+        if expanded:
+            attributes[EXPANDED_AT_ATTRIBUTE] = COLLECTED_AT.isoformat()
         self.graph_store.save_entity(CollectedEntity(identifier, text, attributes), self.response)
         return identifier
 

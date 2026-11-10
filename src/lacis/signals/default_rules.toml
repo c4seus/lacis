@@ -43,3 +43,21 @@ excluded_roles = [
     "Mandataire judiciaire",
     "Liquidateur judiciaire",
 ]
+
+[rules.creation_burst]
+enabled = true
+severity = "low"
+weight = 1.0
+minimum_companies = 3
+window_days = 90
+by_activity_and_department = true
+activity_minimum_companies = 5
+activity_window_days = 30
+include_probable = false
+excluded_roles = [
+    "Commissaire aux comptes",
+    "Commissaire aux comptes suppléant",
+    "Administrateur judiciaire",
+    "Mandataire judiciaire",
+    "Liquidateur judiciaire",
+]
