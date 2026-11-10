@@ -20,6 +20,7 @@ from lacis.collectors.http_client import (
 )
 from lacis.graph.expansion import ExpansionError, ExpansionReport, GraphExpander
 from lacis.graph.progress import ProgressTracker
+from lacis.graph.register_search import search_register
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import InvestigationLibrary
@@ -100,6 +101,9 @@ class BackgroundJob(QObject):
     def cancel(self) -> None:
         self.cancellation.set()
 
+    def is_running(self) -> bool:
+        return self.worker_thread.is_alive()
+
     def wait(self) -> None:
         if self.worker_thread.is_alive():
             self.worker_thread.join()
@@ -125,6 +129,15 @@ class BackgroundJob(QObject):
 
 def search_job(settings: CollectionSettings, text: str, page: int = 1) -> BackgroundJob:
     return BackgroundJob(settings, lambda session: session.company_register.search(text, page))
+
+
+def register_search_job(settings: CollectionSettings, text: str) -> BackgroundJob:
+    return BackgroundJob(
+        settings,
+        lambda session: search_register(
+            session.company_register, session.expander.graph_store, text
+        ),
+    )
 
 
 def add_company_job(
