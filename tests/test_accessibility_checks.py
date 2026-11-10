@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
+    QGraphicsView,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -82,6 +83,16 @@ def test_hidden_and_decorative_widgets_are_ignored(qtbot: QtBot) -> None:
     window = window_with(qtbot, QLabel("Lacis"), QWidget(), hidden_button)
     hidden_button.hide()
     assert interactive_widgets_without_accessible_name(window) == []
+
+
+def test_a_widget_that_hands_its_focus_to_a_proxy_is_not_reported(qtbot: QtBot) -> None:
+    view = QGraphicsView()
+    view.setAccessibleName("Graphe de l'enquête")
+    window = window_with(qtbot, view)
+    assert view.viewport().focusProxy() is view
+    assert interactive_widgets_without_accessible_name(window) == []
+    view.setAccessibleName("")
+    assert interactive_widgets_without_accessible_name(window) == [view]
 
 
 def test_the_tab_order_follows_the_focus_chain(qtbot: QtBot) -> None:

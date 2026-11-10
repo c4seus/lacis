@@ -115,15 +115,14 @@ class InvestigationPage(QWidget):
         self.queue_column.collapse_button.clicked.connect(self.collapse_queue)
         self.queue_rail = QueueRail(icon_factory, self)
         self.queue_rail.expand_button.clicked.connect(self.expand_queue)
-        self.graph_area = GraphArea(self)
+        self.graph_area = GraphArea(icon_factory.colours_provider, self)
         self.details_panel = DetailsPanel(self)
         self.selection_label = QLabel(self.graph_area)
         self.selection_label.setProperty("tone", "muted")
         self.selection_label.hide()
-        self.graph_area.graph_layout.addWidget(
-            self.selection_label, 0, Qt.AlignmentFlag.AlignCenter
+        self.graph_area.graph_layout.insertWidget(
+            0, self.selection_label, 0, Qt.AlignmentFlag.AlignCenter
         )
-        self.graph_area.graph_layout.addStretch(1)
         self.columns = QSplitter(Qt.Orientation.Horizontal, self)
         self.columns.setObjectName("investigationColumns")
         self.columns.setChildrenCollapsible(False)
@@ -192,6 +191,7 @@ class InvestigationPage(QWidget):
         self.header.show_overview(overview)
         self.queue_column.show_overview(overview)
         self.queue_rail.show_overview(overview)
+        self.graph_area.show_drawing(overview.drawing)
 
     def show_entity(self, identifier: str, label: str) -> None:
         self.selected_entity = identifier

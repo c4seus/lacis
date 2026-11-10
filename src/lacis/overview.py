@@ -1,7 +1,8 @@
 import sqlite3
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from lacis.graph.drawing import GraphDrawing, graph_drawing
 from lacis.graph.leads import unexpanded_leads
 from lacis.identity.homonyms import homonym_proposals
 from lacis.signals.configuration import SignalConfigurationError
@@ -23,6 +24,7 @@ class InvestigationOverview:
     leads: int
     report: SignalReport | None
     signal_problem: str = ""
+    drawing: GraphDrawing = field(default_factory=GraphDrawing)
 
     @property
     def signals(self) -> int | None:
@@ -48,6 +50,7 @@ def overview_of(
         leads=len(unexpanded_leads(graph_store)),
         report=InvestigationSignals(connection, engine).current() if engine else None,
         signal_problem=signal_problem,
+        drawing=graph_drawing(connection),
     )
 
 

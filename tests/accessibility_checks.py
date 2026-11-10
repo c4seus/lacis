@@ -5,7 +5,8 @@ from PySide6.QtWidgets import QAbstractButton, QWidget
 
 def is_interactive(widget: QWidget) -> bool:
     accepts_tab_focus = bool(widget.focusPolicy() & Qt.FocusPolicy.TabFocus)
-    return accepts_tab_focus or isinstance(widget, QAbstractButton)
+    takes_focus_itself = accepts_tab_focus and widget.focusProxy() is None
+    return takes_focus_itself or isinstance(widget, QAbstractButton)
 
 
 def accessible_name(widget: QWidget) -> str:
