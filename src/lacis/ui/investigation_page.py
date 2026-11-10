@@ -1,10 +1,12 @@
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import QByteArray, QSettings, Qt
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget
 
 from lacis.overview import InvestigationOverview
 from lacis.storage.investigations import Investigation
+from lacis.ui.investigation_columns import DetailsPanel, GraphArea, QueueColumn
 
-UPCOMING_WORKSPACE_TEXT = "Le graphe, la file de revue et la fiche de l'enquête s'afficheront ici."
+COLUMNS_SETTING = "investigation/columns"
+DEFAULT_COLUMN_WIDTHS = (320, 700, 420)
 SELECTION_PREFIX = "Sélection : "
 COUNTERS_ACCESSIBLE_NAME = "Compteurs de l'enquête"
 UNAVAILABLE_TEXT = "?"
@@ -97,26 +99,44 @@ class InvestigationHeader(QFrame):
 
 
 class InvestigationPage(QWidget):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, settings: QSettings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.settings = settings
         self.setObjectName("investigationPage")
         self.header = InvestigationHeader(self)
         self.selected_entity: str | None = None
-        self.selection_label = QLabel(self)
+        self.queue_column = QueueColumn(self)
+        self.graph_area = GraphArea(self)
+        self.details_panel = DetailsPanel(self)
+        self.selection_label = QLabel(self.graph_area)
         self.selection_label.setProperty("tone", "muted")
-        self.upcoming_label = QLabel(UPCOMING_WORKSPACE_TEXT, self)
-        self.upcoming_label.setProperty("tone", "faint")
-        self.upcoming_label.setWordWrap(True)
-        body = QVBoxLayout()
-        body.setContentsMargins(24, 24, 24, 24)
-        body.addWidget(self.selection_label, 0, Qt.AlignmentFlag.AlignHCenter)
-        body.addWidget(self.upcoming_label, 0, Qt.AlignmentFlag.AlignHCenter)
-        body.addStretch(1)
+        self.selection_label.hide()
+        self.graph_area.graph_layout.addWidget(
+            self.selection_label, 0, Qt.AlignmentFlag.AlignCenter
+        )
+        self.graph_area.graph_layout.addStretch(1)
+        self.columns = QSplitter(Qt.Orientation.Horizontal, self)
+        self.columns.setObjectName("investigationColumns")
+        self.columns.setChildrenCollapsible(False)
+        self.columns.setHandleWidth(1)
+        for column in (self.queue_column, self.graph_area, self.details_panel):
+            self.columns.addWidget(column)
+        self.columns.setStretchFactor(1, 1)
+        self.restore_columns()
+        self.columns.splitterMoved.connect(self.save_columns)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.header)
-        layout.addLayout(body, 1)
+        layout.addWidget(self.columns, 1)
+
+    def restore_columns(self) -> None:
+        state = self.settings.value(COLUMNS_SETTING)
+        if not isinstance(state, QByteArray) or not self.columns.restoreState(state):
+            self.columns.setSizes(list(DEFAULT_COLUMN_WIDTHS))
+
+    def save_columns(self) -> None:
+        self.settings.setValue(COLUMNS_SETTING, self.columns.saveState())
 
     def show_investigation(self, investigation: Investigation) -> None:
         self.header.show_investigation(investigation)
@@ -126,6 +146,7 @@ class InvestigationPage(QWidget):
 
     def show_overview(self, overview: InvestigationOverview) -> None:
         self.header.show_overview(overview)
+        self.queue_column.show_overview(overview)
 
     def show_entity(self, identifier: str, label: str) -> None:
         self.selected_entity = identifier
