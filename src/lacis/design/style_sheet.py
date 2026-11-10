@@ -106,6 +106,57 @@ QFrame#investigationCard:focus {{
     border-color: {colours.accent};
 }}
 
+QFrame#searchPopup {{
+    border: 1px solid {colours.strong_border};
+    border-radius: {radii.medium}px;
+    background-color: {colours.surface};
+}}
+
+QScrollArea#searchList, QWidget#searchListContent {{
+    border: none;
+    background-color: {colours.surface};
+}}
+
+QFrame#searchResult {{
+    border-top: 1px solid {colours.border};
+    background-color: {colours.surface};
+}}
+
+QFrame#searchResult:hover {{
+    background-color: {colours.raised_surface};
+}}
+
+QFrame#searchResult[current="true"] {{
+    background-color: {colours.soft_accent};
+}}
+
+QLabel[tone="result-title"] {{
+    font-weight: {font_weights.bold};
+}}
+
+QLabel[tone="badge-active"], QLabel[tone="badge-closed"], QLabel[tone="badge-outline"] {{
+    padding: 1px {spacing.step_2}px;
+    border: 1px solid transparent;
+    border-radius: {radii.small}px;
+    font-size: {font_sizes.caption}px;
+    font-weight: {font_weights.medium};
+}}
+
+QLabel[tone="badge-active"] {{
+    background-color: {colours.soft_success};
+    color: {colours.success};
+}}
+
+QLabel[tone="badge-closed"] {{
+    background-color: {colours.soft_closed};
+    color: {colours.closed};
+}}
+
+QLabel[tone="badge-outline"] {{
+    border-color: {colours.strong_border};
+    color: {colours.muted_text};
+}}
+
 QLabel[tone="heading"] {{
     font-size: {font_sizes.title}px;
     font-weight: {font_weights.bold};

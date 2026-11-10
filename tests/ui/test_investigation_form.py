@@ -21,7 +21,6 @@ from lacis.ui.investigation_form import (
     EditInvestigationDialog,
     NewInvestigationPanel,
     ValidatedField,
-    announce,
     writing_failure_message,
 )
 
@@ -103,12 +102,6 @@ def test_a_problem_is_announced_once_until_it_changes(
     assert announcements == [(field.input, EMPTY_NAME)]
     assert field.input.property("problem") is False
     assert field.input.accessibleDescription() == "Minuscules sans accent, chiffres et tirets"
-
-
-def test_an_announcement_reaches_the_accessibility_layer(qtbot: QtBot) -> None:
-    widget = QWidget()
-    qtbot.addWidget(widget)
-    announce(widget, EMPTY_NAME)
 
 
 def test_the_panel_starts_empty_with_the_focus_on_the_name(

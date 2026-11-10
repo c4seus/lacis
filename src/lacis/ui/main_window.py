@@ -2,12 +2,13 @@ import sqlite3
 from typing import override
 
 from PySide6.QtCore import QByteArray, QSettings, QSize, Qt
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QResizeEvent
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
 
 from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
+from lacis.graph.background import CollectionSettings
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE as UNREADABLE
 from lacis.storage.investigations import InvestigationLibrary
@@ -17,6 +18,7 @@ from lacis.ui.header_bar import HOME_TRAIL, HeaderBar
 from lacis.ui.home_screen import HomeScreen
 from lacis.ui.investigation_page import InvestigationPage
 from lacis.ui.menu_bar import MainMenuBar
+from lacis.ui.register_search_list import RegisterSearch, RegisterSearchPopup
 
 WINDOW_TITLE = "Lacis"
 DEMO_WINDOW_TITLE = "Lacis — démonstration"
@@ -74,6 +76,14 @@ class MainWindow(QMainWindow):
         central_layout.addWidget(self.content_area, 1)
         self.setCentralWidget(central_widget)
 
+        self.search_popup = RegisterSearchPopup(self.header_bar.search_field, self)
+        self.register_search = RegisterSearch(
+            self.header_bar.search_field, self.search_popup, self
+        )
+        self.header_bar.search_button.clicked.connect(self.register_search.search_now)
+        self.register_search.company_added.connect(self.show_investigation_counts)
+        self.register_search.company_shown.connect(self.investigation_page.show_entity)
+
         self.content_area.setFocus()
         self.restore_saved_geometry()
 
@@ -88,11 +98,28 @@ class MainWindow(QMainWindow):
             return
         self.current_investigation = name
         self.investigation_page.show_investigation(investigation)
+        self.show_investigation_counts()
+        self.register_search.start(
+            CollectionSettings(
+                self.library,
+                name,
+                self.collection_environment,
+                self.collection_environment.timing,
+            )
+        )
+        self.header_bar.set_search_enabled(True)
         self.header_bar.breadcrumb.set_trail((*HOME_TRAIL, name))
         self.pages.setCurrentWidget(self.investigation_page)
         self.investigation_page.back_button.setFocus()
 
+    def show_investigation_counts(self) -> None:
+        if self.current_investigation is not None:
+            self.investigation_page.show_summary(self.library.summary(self.current_investigation))
+
     def show_home(self) -> None:
+        self.register_search.stop()
+        self.header_bar.search_field.clear()
+        self.header_bar.set_search_enabled(False)
         self.current_investigation = None
         self.header_bar.breadcrumb.set_trail(HOME_TRAIL)
         self.home_screen.refresh()
@@ -108,6 +135,12 @@ class MainWindow(QMainWindow):
             self.about_dialog = AboutDialog(self.icon_factory, self)
         self.about_dialog.open()
 
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        if self.search_popup.isVisible():
+            self.search_popup.reveal()
+
     def restore_saved_geometry(self) -> None:
         saved_geometry = self.settings.value(GEOMETRY_SETTING_KEY)
         if isinstance(saved_geometry, QByteArray) and self.restoreGeometry(saved_geometry):
@@ -120,5 +153,6 @@ class MainWindow(QMainWindow):
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
+        self.register_search.stop()
         self.save_geometry()
         super().closeEvent(event)

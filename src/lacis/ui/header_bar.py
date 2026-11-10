@@ -1,9 +1,11 @@
 from collections.abc import Sequence
 from typing import override
 
-from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
+    QFocusEvent,
     QIcon,
+    QKeyEvent,
     QPainter,
     QPaintEvent,
     QResizeEvent,
@@ -47,6 +49,36 @@ THEME_PREFERENCE_ICONS = {
     ThemePreference.LIGHT: "sun",
     ThemePreference.DARK: "moon",
 }
+
+
+NAVIGATION_KEYS = {Qt.Key.Key_Down: 1, Qt.Key.Key_Up: -1}
+CHOICE_KEYS = frozenset({Qt.Key.Key_Return, Qt.Key.Key_Enter})
+
+
+class SearchField(QLineEdit):
+    moved = Signal(int)
+    chosen = Signal()
+    closed = Signal()
+    left = Signal()
+
+    @override
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        key = Qt.Key(event.key())
+        if key in NAVIGATION_KEYS:
+            self.moved.emit(NAVIGATION_KEYS[key])
+            return
+        if key in CHOICE_KEYS:
+            self.chosen.emit()
+            return
+        if key == Qt.Key.Key_Escape:
+            self.closed.emit()
+            return
+        super().keyPressEvent(event)
+
+    @override
+    def focusOutEvent(self, event: QFocusEvent) -> None:
+        super().focusOutEvent(event)
+        self.left.emit()
 
 
 def displayed_version(version: str) -> str:
@@ -147,7 +179,7 @@ class HeaderBar(QWidget):
         self.breadcrumb = Breadcrumb(self)
 
     def create_search(self) -> None:
-        self.search_field = QLineEdit(self)
+        self.search_field = SearchField(self)
         self.search_field.setProperty("variant", "search")
         self.search_field.setPlaceholderText(SEARCH_PLACEHOLDER)
         self.search_field.setAccessibleName(SEARCH_ACCESSIBLE_NAME)
