@@ -1,1 +1,8 @@
-[rules]
+[rules.mass_domiciliation]
+enabled = true
+severity = "low"
+weight = 1.0
+minimum_companies = 10
+recent_years = 2
+minimum_recent_share = 0.5
+minimum_same_activity_share = 0.5

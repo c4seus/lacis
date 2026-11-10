@@ -73,6 +73,16 @@ def test_a_finding_may_raise_the_severity_of_its_rule(context: InvestigationCont
     assert severities == {ACME: Severity.HIGH, DUPONT_SERVICES: Severity.LOW}
 
 
+def test_a_finding_never_lowers_the_configured_severity(
+    context: InvestigationContext,
+) -> None:
+    rule = FixedRule((Finding(ACME, 1.0, "Moins grave.", (), Severity.LOW),))
+    defaults = defaults_for([rule.name]).replace('severity = "low"', 'severity = "medium"')
+    engine = SignalEngine((rule,), load_configuration((rule,), None, defaults))
+    [signal] = engine.signals(context)
+    assert signal.severity is Severity.MEDIUM
+
+
 def test_signals_come_strongest_first_then_most_severe(context: InvestigationContext) -> None:
     rule = FixedRule(
         (
