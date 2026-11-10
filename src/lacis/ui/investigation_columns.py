@@ -8,14 +8,23 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from lacis.design.icons import IconFactory
 from lacis.overview import InvestigationOverview
 from lacis.signals.facts import counted
+from lacis.ui.header_bar import create_icon_button
 
 QUEUE_TITLE = "À examiner"
 QUEUE_EMPTY_TEXT = "Les signaux, les homonymes et les pistes à examiner s'afficheront ici."
 GRAPH_EMPTY_TEXT = "Le graphe de l'enquête s'affichera ici."
 DETAILS_ACCESSIBLE_NAME = "Panneau de détails"
+COLLAPSE_TEXT = "Replier la colonne À examiner"
+EXPAND_TEXT = "Déplier la colonne À examiner"
+COLLAPSE_TOOLTIP = "Replier"
+EXPAND_TOOLTIP = "Déplier"
+RAIL_ACCESSIBLE_NAME = "Colonne À examiner repliée"
 QUEUE_MINIMUM_WIDTH = 240
+RAIL_WIDTH = 44
+RAIL_COUNT_HEIGHT = 18
 GRAPH_MINIMUM_WIDTH = 320
 DETAILS_MINIMUM_WIDTH = 340
 DETAILS_TABS = (
@@ -45,7 +54,7 @@ def placeholder(text: str, parent: QWidget) -> QLabel:
 
 
 class QueueColumn(QFrame):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, icon_factory: IconFactory, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("queueColumn")
         self.setMinimumWidth(QUEUE_MINIMUM_WIDTH)
@@ -63,6 +72,10 @@ class QueueColumn(QFrame):
         titles.addWidget(self.title_label)
         titles.addWidget(self.summary_label)
         self.head_layout.addLayout(titles, 1)
+        self.collapse_button = create_icon_button(
+            icon_factory.icon("collapse"), COLLAPSE_TEXT, COLLAPSE_TOOLTIP, self.head
+        )
+        self.head_layout.addWidget(self.collapse_button, 0, Qt.AlignmentFlag.AlignTop)
         self.empty_label = placeholder(QUEUE_EMPTY_TEXT, self)
         body = QVBoxLayout()
         body.setContentsMargins(14, 14, 14, 14)
@@ -76,6 +89,33 @@ class QueueColumn(QFrame):
 
     def show_overview(self, overview: InvestigationOverview) -> None:
         self.summary_label.setText(queue_summary(overview))
+
+
+class QueueRail(QFrame):
+    def __init__(self, icon_factory: IconFactory, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("queueRail")
+        self.setFixedWidth(RAIL_WIDTH)
+        self.setAccessibleName(RAIL_ACCESSIBLE_NAME)
+        self.expand_button = create_icon_button(
+            icon_factory.icon("expand"), EXPAND_TEXT, EXPAND_TOOLTIP, self
+        )
+        self.count_label = QLabel(self)
+        self.count_label.setProperty("tone", "rail-count")
+        self.count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.count_label.setFixedHeight(RAIL_COUNT_HEIGHT)
+        self.count_label.hide()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 12, 6, 12)
+        layout.setSpacing(6)
+        layout.addWidget(self.expand_button, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(self.count_label, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addStretch(1)
+
+    def show_overview(self, overview: InvestigationOverview) -> None:
+        self.count_label.setText(str(overview.signals or ""))
+        self.count_label.setVisible(bool(overview.signals))
+        self.expand_button.setAccessibleDescription(queue_summary(overview))
 
 
 class GraphArea(QFrame):
@@ -99,6 +139,7 @@ class DetailsPanel(QFrame):
         self.tabs.setObjectName("detailsTabs")
         self.tabs.setAccessibleName(DETAILS_ACCESSIBLE_NAME)
         self.tabs.setDocumentMode(True)
+        self.tabs.tabBar().setDrawBase(False)
         for title, empty_text in DETAILS_TABS:
             page = QWidget(self.tabs)
             page_layout = QVBoxLayout(page)

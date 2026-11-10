@@ -105,6 +105,7 @@ CONTRAST_REQUIREMENTS = (
     *text_requirements(("text", "muted_text"), ("soft_accent",)),
     *text_requirements(STATUS_COLOURS, ("surface",)),
     *text_requirements(("high_severity",), ("background",)),
+    *text_requirements(("text_on_accent",), ("high_severity",)),
     *[
         ContrastRequirement(status_colour, f"soft_{status_colour}", TEXT_MINIMUM_RATIO)
         for status_colour in STATUS_COLOURS

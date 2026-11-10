@@ -3,9 +3,11 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QSettings
+from PySide6.QtGui import QKeySequence
 from pytestqt.qtbot import QtBot
 
 from investigation_builder import InvestigationBuilder
+from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
 from lacis.ui.investigation_page import (
@@ -190,13 +192,13 @@ def test_the_columns_stay_usable_at_1024_by_640(qtbot: QtBot, main_window: MainW
 
 
 def test_resized_columns_are_remembered_between_sessions(
-    qtbot: QtBot, main_window: MainWindow, settings: QSettings
+    qtbot: QtBot, main_window: MainWindow, settings: QSettings, icon_factory: IconFactory
 ) -> None:
     page = main_window.investigation_page
     page.columns.setSizes([400, 600, 440])
     page.columns.splitterMoved.emit(400, 1)
     remembered = page.columns.sizes()
-    next_page = InvestigationPage(settings)
+    next_page = InvestigationPage(settings, icon_factory)
     qtbot.addWidget(next_page)
     next_page.resize(page.size())
     next_page.show()
@@ -204,12 +206,12 @@ def test_resized_columns_are_remembered_between_sessions(
 
 
 def test_an_unreadable_column_state_falls_back_to_the_default_widths(
-    qtbot: QtBot, settings: QSettings
+    qtbot: QtBot, settings: QSettings, icon_factory: IconFactory
 ) -> None:
     pages = []
     for stored in (None, b"pas un etat"):
         settings.setValue(COLUMNS_SETTING, stored)
-        page = InvestigationPage(settings)
+        page = InvestigationPage(settings, icon_factory)
         qtbot.addWidget(page)
         page.resize(1440, 760)
         page.show()
@@ -217,3 +219,66 @@ def test_an_unreadable_column_state_falls_back_to_the_default_widths(
     default, fallback = pages
     assert fallback.columns.sizes() == default.columns.sizes()
     assert default.columns.sizes()[0] == pytest.approx(320, abs=20)
+
+
+def test_the_queue_column_collapses_into_a_rail_and_expands_again(
+    main_window: MainWindow,
+) -> None:
+    page = main_window.investigation_page
+    assert page.queue_column.isVisible()
+    assert not page.queue_rail.isVisible()
+    page.queue_column.collapse_button.click()
+    assert not page.queue_column.isVisible()
+    assert page.queue_rail.isVisible()
+    assert page.queue_rail.count_label.text() == "1"
+    assert page.queue_rail.expand_button.hasFocus()
+    assert page.graph_area.width() > 900
+    page.queue_rail.expand_button.click()
+    assert page.queue_column.isVisible()
+    assert not page.queue_rail.isVisible()
+    assert page.queue_column.collapse_button.hasFocus()
+    assert page.queue_column.width() == pytest.approx(320, abs=20)
+
+
+def test_collapsing_twice_or_expanding_twice_changes_nothing(main_window: MainWindow) -> None:
+    page = main_window.investigation_page
+    page.expand_queue()
+    assert page.queue_column.isVisible()
+    page.collapse_queue()
+    page.collapse_queue()
+    assert page.is_queue_collapsed()
+
+
+def test_the_view_menu_collapses_and_expands_the_queue(main_window: MainWindow) -> None:
+    action = main_window.main_menu_bar.queue_action
+    assert action.isEnabled()
+    assert action.isChecked()
+    assert action.shortcut() == QKeySequence("Ctrl+1")
+    action.trigger()
+    assert main_window.investigation_page.is_queue_collapsed()
+    main_window.investigation_page.queue_rail.expand_button.click()
+    assert action.isChecked()
+    main_window.show_home()
+    assert not action.isEnabled()
+
+
+def test_a_collapsed_queue_is_remembered_between_sessions(
+    qtbot: QtBot, main_window: MainWindow, settings: QSettings, icon_factory: IconFactory
+) -> None:
+    main_window.investigation_page.collapse_queue()
+    next_page = InvestigationPage(settings, icon_factory)
+    qtbot.addWidget(next_page)
+    next_page.show()
+    assert next_page.is_queue_collapsed()
+    assert next_page.queue_rail.isVisible()
+
+
+def test_the_collapsed_screen_stays_usable_at_1024_by_640(
+    qtbot: QtBot, main_window: MainWindow
+) -> None:
+    main_window.resize(1024, 640)
+    qtbot.waitUntil(lambda: main_window.width() == 1024)
+    page = main_window.investigation_page
+    page.collapse_queue()
+    assert page.graph_area.width() >= page.graph_area.minimumWidth()
+    assert page.details_panel.width() >= page.details_panel.minimumWidth()

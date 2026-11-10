@@ -415,6 +415,21 @@ QSplitter::handle {{
     background-color: {colours.border};
 }}
 
+QFrame#queueRail {{
+    border-right: 1px solid {colours.border};
+    background-color: {colours.surface};
+}}
+
+QLabel[tone="rail-count"] {{
+    min-width: 10px;
+    padding: 0 {spacing.step_1}px;
+    border-radius: 9px;
+    background-color: {colours.high_severity};
+    color: {colours.text_on_accent};
+    font-size: {font_sizes.caption}px;
+    font-weight: {font_weights.bold};
+}}
+
 QFrame#queueColumn, QFrame#detailsPanel {{
     background-color: {colours.surface};
 }}
