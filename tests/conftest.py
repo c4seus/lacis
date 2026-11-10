@@ -13,7 +13,7 @@ from lacis.design.theme_controller import ThemeController
 from lacis.diagnostics import LOG_DIRECTORY_VARIABLE, LOGGER_NAME
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.investigations import InvestigationLibrary
-from lacis.storage.locations import DATA_DIRECTORY_VARIABLE
+from lacis.storage.locations import CONFIGURATION_DIRECTORY_VARIABLE, DATA_DIRECTORY_VARIABLE
 from lacis.storage.responses import ResponseStore
 
 OFFSCREEN_SCREEN_CONFIGURATION = Path(__file__).with_name("offscreen-screen.json")
@@ -45,6 +45,13 @@ def isolated_data_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     data_directory = tmp_path / "data"
     monkeypatch.setenv(DATA_DIRECTORY_VARIABLE, str(data_directory))
     return data_directory
+
+
+@pytest.fixture(autouse=True)
+def isolated_configuration_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    configuration_directory = tmp_path / "configuration"
+    monkeypatch.setenv(CONFIGURATION_DIRECTORY_VARIABLE, str(configuration_directory))
+    return configuration_directory
 
 
 @pytest.fixture(autouse=True)
