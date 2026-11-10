@@ -18,10 +18,12 @@ from lacis.graph.background import (
     add_company_job,
     expansion_job,
     interruptible_sleep,
+    register_search_job,
     search_job,
 )
 from lacis.graph.expansion import ExpansionReport
 from lacis.graph.progress import ExpansionProgress
+from lacis.graph.register_search import RegisterSearchResults
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.investigations import InvestigationLibrary
@@ -93,12 +95,39 @@ def test_a_task_runs_outside_the_interface_thread(
     assert task_thread != threading.get_ident()
 
 
+def test_a_job_runs_until_its_task_ends(
+    qtbot: QtBot, settings: CollectionSettings, started_jobs: list[BackgroundJob]
+) -> None:
+    release = threading.Event()
+    job = BackgroundJob(settings, lambda session: release.wait(SIGNAL_TIMEOUT_MILLISECONDS))
+    assert not job.is_running()
+    started_jobs.append(job)
+    with qtbot.waitSignal(job.succeeded, timeout=SIGNAL_TIMEOUT_MILLISECONDS):
+        job.start()
+        assert job.is_running()
+        release.set()
+    job.wait()
+    assert not job.is_running()
+
+
 def test_a_search_runs_in_the_background(
     qtbot: QtBot, settings: CollectionSettings, started_jobs: list[BackgroundJob]
 ) -> None:
     search_page = run(qtbot, search_job(settings, "dupont services"), started_jobs)
     assert isinstance(search_page, CompanySearchPage)
     assert [company.siren for company in search_page.companies] == ["222222222"]
+
+
+def test_a_register_search_marks_the_companies_already_in_the_investigation(
+    qtbot: QtBot, settings: CollectionSettings, started_jobs: list[BackgroundJob]
+) -> None:
+    before = run(qtbot, register_search_job(settings, "lilas"), started_jobs)
+    assert isinstance(before, RegisterSearchResults)
+    acme = before.results[0]
+    run(qtbot, add_company_job(settings, acme.company, before.page.response), started_jobs)
+    after = run(qtbot, register_search_job(settings, "lilas"), started_jobs)
+    assert isinstance(after, RegisterSearchResults)
+    assert [result.in_investigation for result in after.results] == [True, False, False]
 
 
 def test_a_company_found_by_a_search_is_added_in_the_background(
