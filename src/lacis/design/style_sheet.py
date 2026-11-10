@@ -75,6 +75,12 @@ QScrollArea#homeScreen, QWidget#homePage {{
     background-color: {colours.background};
 }}
 
+QFrame#emptyState {{
+    border: 1px dashed {colours.strong_border};
+    border-radius: {radii.medium}px;
+    background-color: transparent;
+}}
+
 QFrame#investigationCard {{
     padding: {spacing.step_2}px;
     border: 1px solid {colours.border};

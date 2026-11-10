@@ -28,6 +28,13 @@ DATA_NOTICE = (
     "Les noms et mois de naissance des dirigeants sont des données personnelles : gardez vos "
     "enquêtes locales et proportionnées. Un lien dans le graphe est une piste, pas une preuve."
 )
+EMPTY_STATE_TITLE = "Aucune enquête pour l'instant"
+EMPTY_STATE_TEXT = (
+    "Une enquête rassemble les entreprises, les dirigeants et les adresses que vous suivez, "
+    "avec la source de chaque information. Commencez par en créer une."
+)
+CREATE_FIRST_INVESTIGATION_TEXT = "Créer une première enquête"
+EMPTY_STATE_TEXT_WIDTH = 600
 CONTENT_MAXIMUM_WIDTH = 1040
 CARD_COLUMNS = 2
 CARD_ICON_SIZE = QSize(14, 14)
@@ -164,6 +171,8 @@ class HomeScreen(QScrollArea):
         self.content_layout.setContentsMargins(0, 0, 0, 0)
         self.content_layout.setSpacing(18)
         self.content_layout.addLayout(self.create_head())
+        self.empty_state = self.create_empty_state(content)
+        self.content_layout.addWidget(self.empty_state)
         self.card_grid = QGridLayout()
         self.card_grid.setSpacing(CARD_SPACING)
         self.content_layout.addLayout(self.card_grid)
@@ -196,6 +205,29 @@ class HomeScreen(QScrollArea):
         head.addWidget(self.new_investigation_button, 0, Qt.AlignmentFlag.AlignBottom)
         return head
 
+    def create_empty_state(self, parent: QWidget) -> QFrame:
+        empty_state = QFrame(parent)
+        empty_state.setObjectName("emptyState")
+        layout = QVBoxLayout(empty_state)
+        layout.setContentsMargins(24, 28, 24, 28)
+        layout.setSpacing(8)
+        title = QLabel(EMPTY_STATE_TITLE, empty_state)
+        title.setProperty("tone", "card-title")
+        text = QLabel(EMPTY_STATE_TEXT, empty_state)
+        text.setWordWrap(True)
+        text.setProperty("tone", "subtitle")
+        self.create_first_button = QPushButton(CREATE_FIRST_INVESTIGATION_TEXT, empty_state)
+        self.create_first_button.setProperty("variant", "primary")
+        self.create_first_button.setIcon(self.icon_factory.icon_on_accent("plus"))
+        self.create_first_button.clicked.connect(self.creation_requested)
+        layout.addWidget(title, 0, Qt.AlignmentFlag.AlignHCenter)
+        text.setFixedWidth(EMPTY_STATE_TEXT_WIDTH)
+        layout.addWidget(text, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addSpacing(8)
+        layout.addWidget(self.create_first_button, 0, Qt.AlignmentFlag.AlignHCenter)
+        text.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        return empty_state
+
     def refresh(self) -> None:
         for card in self.cards:
             self.card_grid.removeWidget(card)
@@ -210,3 +242,4 @@ class HomeScreen(QScrollArea):
             self.cards.append(card)
         for column in range(CARD_COLUMNS):
             self.card_grid.setColumnStretch(column, 1)
+        self.empty_state.setVisible(not self.cards)
