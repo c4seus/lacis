@@ -5,9 +5,16 @@ from pathlib import Path
 
 import httpx
 import pytest
-from PySide6.QtCore import QLocale, QSettings, Qt, qInstallMessageHandler
+from PySide6.QtCore import (
+    QCoreApplication,
+    QEvent,
+    QLocale,
+    QSettings,
+    Qt,
+    qInstallMessageHandler,
+)
 from PySide6.QtGui import QFontInfo
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 
 from lacis import __version__
 from lacis.application import (
@@ -33,6 +40,14 @@ from lacis.ui.error_dialog import UnexpectedErrorHandler
 from lacis.ui.main_window import DEMO_WINDOW_TITLE, MainWindow
 
 
+def delete_windows_created_since(qapp: QApplication, windows_before: set[QWidget]) -> None:
+    for window in qapp.topLevelWidgets():
+        if window not in windows_before:
+            window.close()
+            window.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
 @pytest.fixture(autouse=True)
 def remove_theme_controllers_created_by_main(
     qapp: QApplication, monkeypatch: pytest.MonkeyPatch
@@ -40,7 +55,9 @@ def remove_theme_controllers_created_by_main(
     monkeypatch.setattr(sys, "excepthook", sys.excepthook)
     qt_message_handler = qInstallMessageHandler(None)
     qInstallMessageHandler(qt_message_handler)
+    windows_before = set(qapp.topLevelWidgets())
     yield
+    delete_windows_created_since(qapp, windows_before)
     qInstallMessageHandler(qt_message_handler)
     for theme_controller in qapp.findChildren(ThemeController):
         qapp.styleHints().colorSchemeChanged.disconnect(
@@ -227,3 +244,11 @@ def test_the_help_describes_the_demo_option(capsys: pytest.CaptureFixture[str]) 
     help_text = " ".join(capsys.readouterr().out.split())
     assert "--demo" in help_text
     assert "entreprises fictives" in help_text
+
+
+def test_windows_left_by_the_command_are_deleted_after_each_test(qapp: QApplication) -> None:
+    windows_before = set(qapp.topLevelWidgets())
+    left_window = QWidget()
+    left_window.show()
+    delete_windows_created_since(qapp, windows_before)
+    assert set(qapp.topLevelWidgets()) == windows_before
