@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from lacis.design.icons import IconFactory
 from lacis.storage.investigations import InvestigationLibrary, InvestigationSummary
 from lacis.ui.header_bar import IconMark
+from lacis.ui.investigation_form import NewInvestigationPanel
 
 HOME_TITLE = "Enquêtes"
 HOME_SUBTITLE = (
@@ -140,7 +141,6 @@ class InvestigationCard(QFrame):
 
 class HomeScreen(QScrollArea):
     investigation_opened = Signal(str)
-    creation_requested = Signal()
 
     def __init__(
         self,
@@ -171,6 +171,10 @@ class HomeScreen(QScrollArea):
         self.content_layout.setContentsMargins(0, 0, 0, 0)
         self.content_layout.setSpacing(18)
         self.content_layout.addLayout(self.create_head())
+        self.new_investigation_panel = NewInvestigationPanel(library, content)
+        self.new_investigation_panel.created.connect(self.show_created_investigation)
+        self.new_investigation_panel.cancelled.connect(self.finish_creation)
+        self.content_layout.addWidget(self.new_investigation_panel)
         self.empty_state = self.create_empty_state(content)
         self.content_layout.addWidget(self.empty_state)
         self.card_grid = QGridLayout()
@@ -201,7 +205,7 @@ class HomeScreen(QScrollArea):
         self.new_investigation_button = QPushButton(NEW_INVESTIGATION_TEXT)
         self.new_investigation_button.setProperty("variant", "primary")
         self.new_investigation_button.setIcon(self.icon_factory.icon_on_accent("plus"))
-        self.new_investigation_button.clicked.connect(self.creation_requested)
+        self.new_investigation_button.clicked.connect(self.start_creation)
         head.addWidget(self.new_investigation_button, 0, Qt.AlignmentFlag.AlignBottom)
         return head
 
@@ -219,7 +223,7 @@ class HomeScreen(QScrollArea):
         self.create_first_button = QPushButton(CREATE_FIRST_INVESTIGATION_TEXT, empty_state)
         self.create_first_button.setProperty("variant", "primary")
         self.create_first_button.setIcon(self.icon_factory.icon_on_accent("plus"))
-        self.create_first_button.clicked.connect(self.creation_requested)
+        self.create_first_button.clicked.connect(self.start_creation)
         layout.addWidget(title, 0, Qt.AlignmentFlag.AlignHCenter)
         text.setFixedWidth(EMPTY_STATE_TEXT_WIDTH)
         layout.addWidget(text, 0, Qt.AlignmentFlag.AlignHCenter)
@@ -242,4 +246,25 @@ class HomeScreen(QScrollArea):
             self.cards.append(card)
         for column in range(CARD_COLUMNS):
             self.card_grid.setColumnStretch(column, 1)
-        self.empty_state.setVisible(not self.cards)
+        self.update_empty_state()
+
+    def update_empty_state(self) -> None:
+        self.empty_state.setVisible(
+            not self.cards and not self.new_investigation_panel.isVisibleTo(self)
+        )
+
+    def start_creation(self) -> None:
+        self.new_investigation_panel.start()
+        self.update_empty_state()
+        self.ensureWidgetVisible(self.new_investigation_panel)
+
+    def finish_creation(self) -> None:
+        self.update_empty_state()
+        if self.empty_state.isVisibleTo(self):
+            self.create_first_button.setFocus()
+            return
+        self.new_investigation_button.setFocus()
+
+    def show_created_investigation(self, name: str) -> None:
+        self.refresh()
+        self.investigation_opened.emit(name)

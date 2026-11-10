@@ -48,6 +48,7 @@ class MainWindow(QMainWindow):
             self.header_bar.theme_menu, self.header_bar.help_menu, self
         )
         self.main_menu_bar.quit_action.triggered.connect(self.close)
+        self.main_menu_bar.new_investigation_action.triggered.connect(self.start_new_investigation)
         self.header_bar.help_menu.about_action.triggered.connect(self.show_about_dialog)
         self.about_dialog: AboutDialog | None = None
         self.setMenuBar(self.main_menu_bar)
@@ -96,6 +97,11 @@ class MainWindow(QMainWindow):
         self.header_bar.breadcrumb.set_trail(HOME_TRAIL)
         self.home_screen.refresh()
         self.pages.setCurrentWidget(self.home_screen)
+
+    def start_new_investigation(self) -> None:
+        if self.pages.currentWidget() is not self.home_screen:
+            self.show_home()
+        self.home_screen.start_creation()
 
     def show_about_dialog(self) -> None:
         if self.about_dialog is None:

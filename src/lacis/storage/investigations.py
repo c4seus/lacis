@@ -9,6 +9,7 @@ from typing import Self
 from PySide6.QtCore import QFile
 
 from lacis.storage.errors import (
+    InvalidInvestigationNameError,
     InvalidInvestigationQuestionError,
     InvestigationAlreadyExistsError,
     InvestigationError,
@@ -84,6 +85,14 @@ def validate_question(question: str) -> str:
     return cleaned_question
 
 
+def question_problem(question: str) -> str:
+    try:
+        validate_question(question)
+    except InvalidInvestigationQuestionError as problem:
+        return str(problem)
+    return ""
+
+
 def connect(database_path: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(database_path, autocommit=True)
     connection.execute("PRAGMA foreign_keys = ON")
@@ -119,6 +128,17 @@ class InvestigationLibrary:
             for directory in self.root.iterdir()
             if (directory / DATABASE_FILE_NAME).is_file()
         )
+
+    def name_problem(self, name: str, current_name: str | None = None) -> str:
+        if name == current_name:
+            return ""
+        try:
+            validated_name = validate_investigation_name(name)
+        except InvalidInvestigationNameError as problem:
+            return str(problem)
+        if self.directory_of(validated_name).exists():
+            return str(InvestigationAlreadyExistsError(validated_name))
+        return ""
 
     def summary(self, name: str) -> InvestigationSummary:
         database_path = self.existing_directory_of(name) / DATABASE_FILE_NAME
