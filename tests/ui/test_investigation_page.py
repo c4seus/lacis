@@ -282,3 +282,22 @@ def test_the_collapsed_screen_stays_usable_at_1024_by_640(
     page.collapse_queue()
     assert page.graph_area.width() >= page.graph_area.minimumWidth()
     assert page.details_panel.width() >= page.details_panel.minimumWidth()
+
+
+def test_the_graph_of_the_investigation_is_drawn_and_selectable(main_window: MainWindow) -> None:
+    page = main_window.investigation_page
+    scene = page.graph_view.graph_scene
+    assert len(scene.node_items) == 5
+    assert page.graph_area.legend.isVisible()
+    jean = next(
+        identifier
+        for identifier, item in scene.node_items.items()
+        if item.node.label.startswith("Jean DUPONT")
+    )
+    assert scene.node_items[jean].node.severity is not None
+    page.show_entity(jean, "Jean DUPONT")
+    assert page.selected_entity == jean
+    main_window.show_home()
+    main_window.open_investigation(INVESTIGATION_NAME)
+    assert page.selected_entity is None
+    assert scene.selected_identifier() is None

@@ -1,8 +1,10 @@
 import sqlite3
+from datetime import UTC, date, datetime
 
 import pytest
-from PySide6.QtCore import QPoint, QPointF
+from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QColor, QFont, QImage
+from PySide6.QtTest import QTest
 from pytestqt.qtbot import QtBot
 
 from graph_scenario import PlumbersScenario, plumbers_scenario
@@ -17,11 +19,15 @@ from lacis.graph.drawing import (
     NodeShape,
     graph_drawing,
 )
+from lacis.signals.signal import Severity, Signal
+from lacis.signals.store import SignalReport
 from lacis.storage.entities import EntityKind
 from lacis.ui.graph_view import (
     ARROW_LENGTH,
     CLOSED_FILL_OPACITY,
     GRAPH_ACCESSIBLE_NAME,
+    RING_WIDTH,
+    SELECTION_OPACITY,
     GraphLegend,
     GraphView,
     NodeItem,
@@ -33,6 +39,11 @@ from lacis.ui.graph_view import (
     kind_colour,
     node_border,
     node_fill,
+    ring_path,
+    ring_pen,
+    selection_area,
+    selection_colour,
+    severity_colour,
     shape_path,
     upright_angle,
 )
@@ -211,7 +222,16 @@ def test_the_view_fits_the_whole_graph_without_enlarging_it(
 def test_the_legend_names_each_kind(qtbot: QtBot, icon_factory: IconFactory) -> None:
     legend = GraphLegend(icon_factory.colours_provider)
     qtbot.addWidget(legend)
-    assert legend.texts == ["Entreprise", "Personne", "Adresse", "Établissement", "Étranger"]
+    assert legend.texts == [
+        "Entreprise",
+        "Personne",
+        "Adresse",
+        "Établissement",
+        "Étranger",
+        "Signal",
+    ]
+    legend.show()
+    legend.grab()
     assert legend.accessibleName() == "Légende du graphe"
 
 
@@ -312,3 +332,107 @@ def test_the_view_draws_the_links_under_the_entities(
     assert mandate.end.y() == pytest.approx(company.y() - 17, abs=0.01)
     assert mandate.boundingRect().contains(mandate.middle)
     view.grab()
+
+
+def flagged_drawing(connection: sqlite3.Connection, scenario: PlumbersScenario) -> GraphDrawing:
+    signal = Signal(
+        "phoenix_scheme",
+        "Schéma phénix",
+        scenario.dupont_services,
+        Severity.HIGH,
+        0.85,
+        "",
+        (scenario.acme, scenario.jean),
+    )
+    report = SignalReport((signal,), 1, date(2026, 11, 10), "", datetime(2026, 11, 10, tzinfo=UTC))
+    return graph_drawing(connection, report)
+
+
+@pytest.mark.parametrize("colours", [LIGHT_THEME.colours, DARK_THEME.colours])
+def test_each_severity_rings_in_its_colour(colours: Colours) -> None:
+    assert severity_colour(colours, Severity.HIGH) == QColor(colours.high_severity)
+    assert severity_colour(colours, Severity.MEDIUM) == QColor(colours.medium_severity)
+    assert severity_colour(colours, Severity.LOW) == QColor(colours.low_severity)
+    assert ring_pen(colours, Severity.HIGH).widthF() == RING_WIDTH
+
+
+def test_the_ring_follows_the_shape_three_pixels_away() -> None:
+    company = node(EntityKind.COMPANY)
+    ring = ring_path(company)
+    assert ring.boundingRect().width() == pytest.approx(34 + 2 * (1 + 3 + 1.5))
+    person = GraphNode("person:1", EntityKind.PERSON, "Jean DUPONT", False, False, 0, 0)
+    assert ring_path(person).boundingRect().width() == pytest.approx(41.0)
+
+
+def test_the_selection_is_a_soft_accent_square_around_the_entity() -> None:
+    assert selection_area(node(EntityKind.COMPANY)).width() == pytest.approx(58.0)
+    colour = selection_colour(COLOURS)
+    assert colour.name() == QColor(COLOURS.accent).name()
+    assert colour.alphaF() == pytest.approx(SELECTION_OPACITY, abs=0.01)
+
+
+def pixel_beside_node(view: GraphView, identifier: str, offset: float) -> QColor:
+    item = view.graph_scene.node_items[identifier]
+    position = view.mapFromScene(item.pos() + QPointF(offset, 0))
+    return view.viewport().grab().toImage().pixelColor(position)
+
+
+def test_flagged_entities_are_ringed_in_the_severity_colour(
+    qtbot: QtBot,
+    icon_factory: IconFactory,
+    investigation_connection: sqlite3.Connection,
+    scenario: PlumbersScenario,
+) -> None:
+    view = shown_view(qtbot, icon_factory, flagged_drawing(investigation_connection, scenario))
+    view.resetTransform()
+    view.centerOn(view.graph_scene.node_items[scenario.acme])
+    ring_offset = 17 + 1 + 3 + 1.5
+    high = QColor(COLOURS.high_severity)
+    assert same_colour(pixel_beside_node(view, scenario.acme, ring_offset), high, 40)
+    view.centerOn(view.graph_scene.node_items[scenario.holding])
+    assert not same_colour(pixel_beside_node(view, scenario.holding, ring_offset), high, 40)
+
+
+def test_a_click_selects_an_entity_and_tells_who_listens(
+    qtbot: QtBot,
+    icon_factory: IconFactory,
+    scenario: PlumbersScenario,
+    scenario_drawing: GraphDrawing,
+) -> None:
+    view = shown_view(qtbot, icon_factory, scenario_drawing)
+    acme = view.graph_scene.node_items[scenario.acme]
+    with qtbot.waitSignal(view.selection_changed) as selected:
+        QTest.mouseClick(
+            view.viewport(), Qt.MouseButton.LeftButton, pos=view.mapFromScene(acme.pos())
+        )
+    assert selected.args == [scenario.acme]
+    assert acme.isSelected()
+    assert view.selected_identifier == scenario.acme
+    with qtbot.waitSignal(view.selection_changed) as cleared:
+        QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton, pos=QPoint(2, 2))
+    assert cleared.args == [""]
+    assert view.selected_identifier is None
+
+
+def test_the_selection_is_painted_and_survives_a_new_drawing(
+    qtbot: QtBot,
+    icon_factory: IconFactory,
+    investigation_connection: sqlite3.Connection,
+    scenario: PlumbersScenario,
+    scenario_drawing: GraphDrawing,
+) -> None:
+    view = shown_view(qtbot, icon_factory, scenario_drawing)
+    view.resetTransform()
+    view.centerOn(view.graph_scene.node_items[scenario.holding])
+    before = pixel_beside_node(view, scenario.holding, 22)
+    with qtbot.assertNotEmitted(view.selection_changed, wait=10):
+        assert not view.select("company:000000000")
+    assert view.select(scenario.holding)
+    after = pixel_beside_node(view, scenario.holding, 22)
+    assert after != before
+    with qtbot.assertNotEmitted(view.selection_changed, wait=10):
+        view.show_drawing(flagged_drawing(investigation_connection, scenario))
+    assert view.graph_scene.node_items[scenario.holding].isSelected()
+    with qtbot.waitSignal(view.selection_changed) as lost:
+        view.show_drawing(GraphDrawing())
+    assert lost.args == [""]

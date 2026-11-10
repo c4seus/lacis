@@ -1,7 +1,7 @@
 import math
 from typing import override
 
-from PySide6.QtCore import QEvent, QLineF, QPointF, QRect, QRectF, Qt
+from PySide6.QtCore import QEvent, QLineF, QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from lacis.design.icons import ColoursProvider
 from lacis.design.tokens import FONT_FAMILIES, Colours
 from lacis.graph.drawing import SHAPES, EdgeKind, GraphDrawing, GraphEdge, GraphNode, NodeShape
+from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
 
 GRAPH_ACCESSIBLE_NAME = "Graphe de l'enquête"
@@ -44,7 +45,11 @@ LABEL_PADDING = 2.0
 LABEL_BACKGROUND_OPACITY = 0.92
 LABEL_PIXEL_SIZE = 12
 SMALL_LABEL_PIXEL_SIZE = 10
-NODE_MARGIN = 12.0
+RING_WIDTH = 3.0
+RING_OFFSET = 3.0
+SELECTION_OPACITY = 0.22
+SELECTION_PADDING = 12.0
+SIGNAL_LEGEND_TEXT = "Signal"
 LEGEND_MARGIN = 12
 LEGEND_SWATCH_SIZE = 10
 LEGEND_ENTRIES = (
@@ -193,10 +198,40 @@ def arrow_head(tip: QPointF, start: QPointF) -> QPolygonF:
     return QPolygonF([tip, base + across, base - across])
 
 
+def severity_colour(colours: Colours, severity: Severity) -> QColor:
+    tokens = {
+        Severity.HIGH: colours.high_severity,
+        Severity.MEDIUM: colours.medium_severity,
+        Severity.LOW: colours.low_severity,
+    }
+    return QColor(tokens[severity])
+
+
+def ring_path(node: GraphNode) -> QPainterPath:
+    reach = BORDER_WIDTH / 2 + RING_OFFSET + RING_WIDTH / 2
+    return shape_path(node.shape, node.size + reach * 2)
+
+
+def ring_pen(colours: Colours, severity: Severity) -> QPen:
+    return QPen(severity_colour(colours, severity), RING_WIDTH)
+
+
+def selection_area(node: GraphNode) -> QRectF:
+    half_size = node.size / 2 + SELECTION_PADDING
+    return QRectF(-half_size, -half_size, half_size * 2, half_size * 2)
+
+
+def selection_colour(colours: Colours) -> QColor:
+    colour = QColor(colours.accent)
+    colour.setAlphaF(SELECTION_OPACITY)
+    return colour
+
+
 class GraphScene(QGraphicsScene):
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.colours_provider = colours_provider
+        self.setItemIndexMethod(QGraphicsScene.ItemIndexMethod.NoIndex)
         self.node_items: dict[str, NodeItem] = {}
         self.edge_items: list[EdgeItem] = []
 
@@ -218,12 +253,26 @@ class GraphScene(QGraphicsScene):
             self.addItem(edge_item)
             self.edge_items.append(edge_item)
 
+    def selected_identifier(self) -> str | None:
+        selected = [item for item in self.selectedItems() if isinstance(item, NodeItem)]
+        return selected[0].node.identifier if selected else None
+
+    def select(self, identifier: str | None) -> bool:
+        item = self.node_items.get(identifier or "")
+        self.clearSelection()
+        if item is None:
+            return False
+        item.setSelected(True)
+        return True
+
 
 class NodeItem(QGraphicsItem):
     def __init__(self, node: GraphNode) -> None:
         super().__init__()
         self.node = node
         self.setPos(node.x, node.y)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.font = label_font(node.kind)
         self.path = shape_path(node.shape, node.size)
         text_area = QFontMetricsF(self.font).boundingRect(
@@ -240,7 +289,7 @@ class NodeItem(QGraphicsItem):
 
     @override
     def boundingRect(self) -> QRectF:
-        half_size = self.node.size / 2 + NODE_MARGIN
+        half_size = self.node.size / 2 + SELECTION_PADDING
         shape_area = QRectF(-half_size, -half_size, half_size * 2, half_size * 2)
         label_area = self.label_area.adjusted(
             -LABEL_PADDING, -LABEL_PADDING, LABEL_PADDING, LABEL_PADDING
@@ -260,6 +309,15 @@ class NodeItem(QGraphicsItem):
     ) -> None:
         colours = self.colours()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self.isSelected():
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(selection_colour(colours))
+            area = selection_area(self.node)
+            painter.drawRoundedRect(area, area.width() / 8, area.width() / 8)
+        if self.node.severity is not None:
+            painter.setPen(ring_pen(colours, self.node.severity))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(ring_path(self.node))
         painter.setPen(node_border(colours, self.node))
         painter.setBrush(node_fill(colours, self.node))
         painter.drawPath(self.path)
@@ -338,6 +396,8 @@ class EdgeItem(QGraphicsItem):
 
 
 class GraphView(QGraphicsView):
+    selection_changed = Signal(str)
+
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("graphView")
@@ -345,6 +405,8 @@ class GraphView(QGraphicsView):
         self.graph_scene = GraphScene(colours_provider, self)
         self.setScene(self.graph_scene)
         self.drawing = GraphDrawing()
+        self.selected_identifier: str | None = None
+        self.graph_scene.selectionChanged.connect(self.follow_selection)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setRenderHints(
             QPainter.RenderHint.Antialiasing | QPainter.RenderHint.TextAntialiasing
@@ -355,9 +417,27 @@ class GraphView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
 
     def show_drawing(self, drawing: GraphDrawing) -> None:
+        kept = self.selected_identifier
         self.drawing = drawing
+        self.graph_scene.blockSignals(True)
         self.graph_scene.show_drawing(drawing)
+        self.graph_scene.select(kept)
+        self.graph_scene.blockSignals(False)
+        self.follow_selection()
         self.fit()
+
+    def select(self, identifier: str) -> bool:
+        found = self.graph_scene.select(identifier)
+        if found:
+            self.ensureVisible(self.graph_scene.node_items[identifier], 0, 0)
+        return found
+
+    def follow_selection(self) -> None:
+        identifier = self.graph_scene.selected_identifier()
+        if identifier == self.selected_identifier:
+            return
+        self.selected_identifier = identifier
+        self.selection_changed.emit(identifier or "")
 
     def fit(self) -> None:
         self.resetTransform()
@@ -429,6 +509,23 @@ class LegendSwatch(QWidget):
         painter.end()
 
 
+class RingSwatch(QWidget):
+    def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.colours_provider = colours_provider
+        self.setFixedSize(LEGEND_SWATCH_SIZE + 2, LEGEND_SWATCH_SIZE + 2)
+
+    @override
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(ring_pen(self.colours_provider(), Severity.HIGH))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        inset = RING_WIDTH / 2
+        painter.drawEllipse(QRectF(self.rect()).adjusted(inset, inset, -inset, -inset))
+        painter.end()
+
+
 class GraphLegend(QFrame):
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -447,6 +544,18 @@ class GraphLegend(QFrame):
             entry.addWidget(label)
             self.entry_labels.append(label)
             layout.addLayout(entry)
+        divider = QFrame(self)
+        divider.setObjectName("legendDivider")
+        divider.setFixedSize(1, 14)
+        layout.addWidget(divider)
+        signal_entry = QHBoxLayout()
+        signal_entry.setSpacing(5)
+        signal_entry.addWidget(RingSwatch(colours_provider, self))
+        signal_label = QLabel(SIGNAL_LEGEND_TEXT, self)
+        signal_label.setProperty("tone", "legend-signal")
+        signal_entry.addWidget(signal_label)
+        self.entry_labels.append(signal_label)
+        layout.addLayout(signal_entry)
 
     @property
     def texts(self) -> list[str]:

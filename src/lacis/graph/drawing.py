@@ -5,6 +5,8 @@ from enum import StrEnum
 from statistics import fmean
 
 from lacis.graph.leads import is_known_as_director_only
+from lacis.signals.signal import Severity
+from lacis.signals.store import SignalReport
 from lacis.storage.entities import Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
 
@@ -67,6 +69,7 @@ class GraphNode:
     partial: bool
     x: float
     y: float
+    severity: Severity | None = None
 
     @property
     def shape(self) -> NodeShape:
@@ -243,7 +246,19 @@ def graph_edges(links: list[Link]) -> list[GraphEdge]:
     ]
 
 
-def graph_drawing(connection: sqlite3.Connection) -> GraphDrawing:
+def flagged_entities(report: SignalReport | None) -> dict[str, Severity]:
+    severities: dict[str, Severity] = {}
+    for signal in report.signals if report is not None else ():
+        for identifier in (signal.subject, *signal.justifying_entities):
+            known = severities.get(identifier)
+            if known is None or signal.severity.rank > known.rank:
+                severities[identifier] = signal.severity
+    return severities
+
+
+def graph_drawing(
+    connection: sqlite3.Connection, report: SignalReport | None = None
+) -> GraphDrawing:
     graph_store = GraphStore(connection)
     entities = graph_store.entities()
     links = graph_store.links()
@@ -255,6 +270,7 @@ def graph_drawing(connection: sqlite3.Connection) -> GraphDrawing:
     edges = graph_edges(links)
     layout_edges = [edge for edge in edges if edge.kind is not EdgeKind.IDENTITY]
     positions = layered_positions(entities, layout_edges, director_only)
+    severities = flagged_entities(report)
     nodes = tuple(
         GraphNode(
             identifier=entity.identifier,
@@ -264,6 +280,7 @@ def graph_drawing(connection: sqlite3.Connection) -> GraphDrawing:
             partial=entity.identifier in director_only,
             x=positions[entity.identifier][0],
             y=positions[entity.identifier][1],
+            severity=severities.get(entity.identifier),
         )
         for entity in entities
     )
