@@ -28,3 +28,18 @@ excluded_roles = [
     "Mandataire judiciaire",
     "Liquidateur judiciaire",
 ]
+
+[rules.phoenix_scheme]
+enabled = true
+severity = "low"
+weight = 1.0
+window_months = 12
+name_overlap = 0.5
+include_probable = false
+excluded_roles = [
+    "Commissaire aux comptes",
+    "Commissaire aux comptes suppléant",
+    "Administrateur judiciaire",
+    "Mandataire judiciaire",
+    "Liquidateur judiciaire",
+]
