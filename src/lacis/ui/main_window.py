@@ -66,7 +66,11 @@ class MainWindow(QMainWindow):
         self.pages = QStackedWidget(self.content_area)
         self.home_screen = HomeScreen(self.library, self.icon_factory)
         self.home_screen.investigation_opened.connect(self.open_investigation)
-        self.investigation_page = InvestigationPage(settings)
+        self.investigation_page = InvestigationPage(settings, self.icon_factory)
+        queue_action = self.main_menu_bar.queue_action
+        queue_action.setChecked(not self.investigation_page.is_queue_collapsed())
+        queue_action.toggled.connect(self.investigation_page.toggle_queue)
+        self.investigation_page.queue_toggled.connect(queue_action.setChecked)
         self.pages.addWidget(self.home_screen)
         self.pages.addWidget(self.investigation_page)
         content_layout.addWidget(self.pages)
@@ -115,6 +119,7 @@ class MainWindow(QMainWindow):
         self.header_bar.set_search_enabled(True)
         self.header_bar.breadcrumb.set_trail((*HOME_TRAIL, name))
         self.main_menu_bar.close_investigation_action.setEnabled(True)
+        self.main_menu_bar.queue_action.setEnabled(True)
         self.pages.setCurrentWidget(self.investigation_page)
         self.header_bar.search_field.setFocus()
 
@@ -146,6 +151,7 @@ class MainWindow(QMainWindow):
         self.header_bar.set_search_enabled(False)
         self.current_investigation = None
         self.main_menu_bar.close_investigation_action.setEnabled(False)
+        self.main_menu_bar.queue_action.setEnabled(False)
         self.header_bar.breadcrumb.set_trail(HOME_TRAIL)
         self.home_screen.refresh()
         self.pages.setCurrentWidget(self.home_screen)

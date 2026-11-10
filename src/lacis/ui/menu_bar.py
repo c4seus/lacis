@@ -14,6 +14,8 @@ NEW_INVESTIGATION_ACTION_TEXT = "&Nouvelle enquête…"
 NEW_INVESTIGATION_SHORTCUT = QKeySequence("Ctrl+N")
 CLOSE_INVESTIGATION_ACTION_TEXT = "&Fermer l'enquête"
 CLOSE_INVESTIGATION_SHORTCUT = QKeySequence("Ctrl+W")
+QUEUE_ACTION_TEXT = "&Colonne À examiner"
+QUEUE_SHORTCUT = QKeySequence("Ctrl+1")
 QUIT_SHORTCUT = QKeySequence("Ctrl+Q")
 UNDO_PREFIX = "&Annuler"
 REDO_PREFIX = "&Rétablir"
@@ -52,6 +54,11 @@ class MainMenuBar(QMenuBar):
         self.redo_action = self.histories.createRedoAction(self, REDO_PREFIX)
         self.redo_action.setShortcut(REDO_SHORTCUT)
         self.edit_menu.addActions([self.undo_action, self.redo_action])
+        self.queue_action = QAction(QUEUE_ACTION_TEXT, self)
+        self.queue_action.setCheckable(True)
+        self.queue_action.setShortcut(QUEUE_SHORTCUT)
+        self.queue_action.setEnabled(False)
+        self.view_menu.addAction(self.queue_action)
         self.view_menu.addMenu(theme_menu)
         self.update_menu_availability()
 

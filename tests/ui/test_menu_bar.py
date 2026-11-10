@@ -155,7 +155,9 @@ def test_the_view_menu_offers_the_theme_choice(
     theme_menu = ThemeMenu(theme_controller)
     menu_bar = MainMenuBar(theme_menu, HelpMenu())
     qtbot.addWidget(menu_bar)
-    assert menu_bar.view_menu.actions() == [theme_menu.menuAction()]
+    assert menu_bar.view_menu.actions() == [menu_bar.queue_action, theme_menu.menuAction()]
+    assert menu_bar.queue_action.isCheckable()
+    assert not menu_bar.queue_action.isEnabled()
     assert menu_bar.view_menu.menuAction().isEnabled()
 
 
@@ -165,7 +167,7 @@ def test_the_view_menu_and_the_theme_button_share_the_same_choice(
     main_window = open_main_window(qtbot, settings, theme_controller)
     shared_menu = main_window.header_bar.theme_menu
     assert main_window.header_bar.theme_button.menu() is shared_menu
-    assert main_window.main_menu_bar.view_menu.actions() == [shared_menu.menuAction()]
+    assert main_window.main_menu_bar.view_menu.actions()[-1] is shared_menu.menuAction()
     shared_menu.preference_actions[ThemePreference.DARK].trigger()
     assert theme_controller.current_theme is DARK_THEME
 

@@ -1,11 +1,13 @@
-from PySide6.QtCore import QByteArray, QSettings, Qt
+from PySide6.QtCore import QByteArray, QSettings, Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget
 
+from lacis.design.icons import IconFactory
 from lacis.overview import InvestigationOverview
 from lacis.storage.investigations import Investigation
-from lacis.ui.investigation_columns import DetailsPanel, GraphArea, QueueColumn
+from lacis.ui.investigation_columns import DetailsPanel, GraphArea, QueueColumn, QueueRail
 
 COLUMNS_SETTING = "investigation/columns"
+QUEUE_COLLAPSED_SETTING = "investigation/queue_collapsed"
 DEFAULT_COLUMN_WIDTHS = (320, 700, 420)
 SELECTION_PREFIX = "Sélection : "
 COUNTERS_ACCESSIBLE_NAME = "Compteurs de l'enquête"
@@ -99,13 +101,20 @@ class InvestigationHeader(QFrame):
 
 
 class InvestigationPage(QWidget):
-    def __init__(self, settings: QSettings, parent: QWidget | None = None) -> None:
+    queue_toggled = Signal(bool)
+
+    def __init__(
+        self, settings: QSettings, icon_factory: IconFactory, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self.settings = settings
         self.setObjectName("investigationPage")
         self.header = InvestigationHeader(self)
         self.selected_entity: str | None = None
-        self.queue_column = QueueColumn(self)
+        self.queue_column = QueueColumn(icon_factory, self)
+        self.queue_column.collapse_button.clicked.connect(self.collapse_queue)
+        self.queue_rail = QueueRail(icon_factory, self)
+        self.queue_rail.expand_button.clicked.connect(self.expand_queue)
         self.graph_area = GraphArea(self)
         self.details_panel = DetailsPanel(self)
         self.selection_label = QLabel(self.graph_area)
@@ -124,11 +133,17 @@ class InvestigationPage(QWidget):
         self.columns.setStretchFactor(1, 1)
         self.restore_columns()
         self.columns.splitterMoved.connect(self.save_columns)
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+        body.addWidget(self.queue_rail)
+        body.addWidget(self.columns, 1)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.header)
-        layout.addWidget(self.columns, 1)
+        layout.addLayout(body, 1)
+        self.show_queue(not self.settings.value(QUEUE_COLLAPSED_SETTING, False, type=bool))
 
     def restore_columns(self) -> None:
         state = self.settings.value(COLUMNS_SETTING)
@@ -137,6 +152,35 @@ class InvestigationPage(QWidget):
 
     def save_columns(self) -> None:
         self.settings.setValue(COLUMNS_SETTING, self.columns.saveState())
+
+    def is_queue_collapsed(self) -> bool:
+        return self.queue_column.isHidden()
+
+    def show_queue(self, shown: bool) -> None:
+        self.queue_column.setVisible(shown)
+        self.queue_rail.setVisible(not shown)
+        self.settings.setValue(QUEUE_COLLAPSED_SETTING, not shown)
+        self.queue_toggled.emit(shown)
+
+    def collapse_queue(self) -> None:
+        if self.is_queue_collapsed():
+            return
+        self.save_columns()
+        self.show_queue(False)
+        self.queue_rail.expand_button.setFocus()
+
+    def expand_queue(self) -> None:
+        if not self.is_queue_collapsed():
+            return
+        self.show_queue(True)
+        self.restore_columns()
+        self.queue_column.collapse_button.setFocus()
+
+    def toggle_queue(self, shown: bool) -> None:
+        if shown:
+            self.expand_queue()
+        else:
+            self.collapse_queue()
 
     def show_investigation(self, investigation: Investigation) -> None:
         self.header.show_investigation(investigation)
@@ -147,6 +191,7 @@ class InvestigationPage(QWidget):
     def show_overview(self, overview: InvestigationOverview) -> None:
         self.header.show_overview(overview)
         self.queue_column.show_overview(overview)
+        self.queue_rail.show_overview(overview)
 
     def show_entity(self, identifier: str, label: str) -> None:
         self.selected_entity = identifier

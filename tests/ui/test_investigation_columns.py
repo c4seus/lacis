@@ -1,5 +1,6 @@
 from pytestqt.qtbot import QtBot
 
+from lacis.design.icons import IconFactory
 from lacis.overview import InvestigationOverview
 from lacis.ui.investigation_columns import (
     DETAILS_MINIMUM_WIDTH,
@@ -8,6 +9,7 @@ from lacis.ui.investigation_columns import (
     DetailsPanel,
     GraphArea,
     QueueColumn,
+    QueueRail,
     queue_summary,
 )
 
@@ -16,8 +18,10 @@ def overview() -> InvestigationOverview:
     return InvestigationOverview(9, 8, 1, 0, 2, None, "")
 
 
-def test_the_queue_column_sums_up_what_is_left_to_examine(qtbot: QtBot) -> None:
-    column = QueueColumn()
+def test_the_queue_column_sums_up_what_is_left_to_examine(
+    qtbot: QtBot, icon_factory: IconFactory
+) -> None:
+    column = QueueColumn(icon_factory)
     qtbot.addWidget(column)
     assert column.title_label.text() == "À EXAMINER"
     assert column.title_label.accessibleName() == "À examiner"
@@ -50,3 +54,27 @@ def test_the_details_panel_has_its_four_tabs(qtbot: QtBot) -> None:
         "Journal",
     ]
     assert panel.tabs.accessibleName() == "Panneau de détails"
+
+
+def test_the_queue_column_can_be_collapsed_with_a_named_button(
+    qtbot: QtBot, icon_factory: IconFactory
+) -> None:
+    column = QueueColumn(icon_factory)
+    qtbot.addWidget(column)
+    assert column.collapse_button.accessibleName() == "Replier la colonne À examiner"
+    assert column.collapse_button.toolTip() == "Replier"
+
+
+def test_the_rail_shows_the_signal_count_and_describes_the_queue(
+    qtbot: QtBot, icon_factory: IconFactory
+) -> None:
+    rail = QueueRail(icon_factory)
+    qtbot.addWidget(rail)
+    rail.show()
+    assert rail.accessibleName() == "Colonne À examiner repliée"
+    assert rail.expand_button.accessibleName() == "Déplier la colonne À examiner"
+    rail.show_overview(InvestigationOverview(9, 8, 1, 0, 2, None, ""))
+    assert not rail.count_label.isVisible()
+    assert rail.expand_button.accessibleDescription() == (
+        "signaux indisponibles, 0 homonyme, 2 pistes"
+    )
