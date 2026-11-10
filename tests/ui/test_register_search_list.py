@@ -254,7 +254,7 @@ def test_escape_closes_the_list_and_down_opens_it_again(
 
 def test_leaving_the_search_field_closes_the_list(qtbot: QtBot, main_window: MainWindow) -> None:
     search_for(qtbot, main_window, "lilas")
-    main_window.investigation_page.back_button.setFocus()
+    main_window.header_bar.breadcrumb.links[0].setFocus()
     assert not main_window.search_popup.isVisible()
 
 
@@ -281,7 +281,9 @@ def test_enter_adds_the_current_result_to_the_investigation(
     assert notification.message == added_message("DUPONT SERVICES")
     assert notification.kind is NotificationKind.SUCCESS
     assert main_window.header_bar.search_field.hasFocus()
-    assert main_window.investigation_page.counts_label.text() == "1 entité, 0 lien"
+    header = main_window.investigation_page.header
+    assert header.entity_counter.text() == "1 entité"
+    assert header.link_counter.text() == "0 lien"
 
 
 def test_a_click_on_add_adds_the_result(

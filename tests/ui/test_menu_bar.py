@@ -81,8 +81,12 @@ def test_a_new_investigation_starts_from_the_file_menu_with_ctrl_n(
     qtbot: QtBot, theme_controller: ThemeController
 ) -> None:
     menu_bar = create_menu_bar(qtbot, theme_controller)
-    first_action, separator, quit_action = menu_bar.file_menu.actions()
+    first_action, close_action, separator, quit_action = menu_bar.file_menu.actions()
     assert first_action is menu_bar.new_investigation_action
+    assert close_action is menu_bar.close_investigation_action
+    assert close_action.text() == "&Fermer l'enquête"
+    assert close_action.shortcut() == QKeySequence("Ctrl+W")
+    assert not close_action.isEnabled()
     assert separator.isSeparator()
     assert quit_action is menu_bar.quit_action
     assert menu_bar.new_investigation_action.text() == "&Nouvelle enquête…"

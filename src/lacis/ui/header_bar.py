@@ -109,13 +109,16 @@ class IconMark(QWidget):
 
 
 class Breadcrumb(QWidget):
+    step_activated = Signal(int)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setAccessibleName(BREADCRUMB_ACCESSIBLE_NAME)
         self.trail_layout = QHBoxLayout(self)
         self.trail_layout.setContentsMargins(0, 0, 0, 0)
         self.trail_layout.setSpacing(8)
-        self.step_labels: list[QLabel] = []
+        self.step_labels: list[QLabel | QPushButton] = []
+        self.links: list[QPushButton] = []
         self.set_trail(HOME_TRAIL)
 
     def set_trail(self, trail: Sequence[str]) -> None:
@@ -125,14 +128,27 @@ class Breadcrumb(QWidget):
                 removed_widget.setParent(None)
                 removed_widget.deleteLater()
         self.step_labels = []
+        self.links = []
         for position, step in enumerate(trail):
             if position > 0:
                 self.trail_layout.addWidget(self.create_label(BREADCRUMB_SEPARATOR, "faint"))
             is_current_step = position == len(trail) - 1
-            step_label = self.create_label(step, "current" if is_current_step else "muted")
+            step_label = (
+                self.create_label(step, "current")
+                if is_current_step
+                else self.create_link(step, position)
+            )
             self.step_labels.append(step_label)
             self.trail_layout.addWidget(step_label)
         self.setAccessibleDescription(f" {BREADCRUMB_SEPARATOR} ".join(trail))
+
+    def create_link(self, text: str, position: int) -> QPushButton:
+        link = QPushButton(text, self)
+        link.setProperty("variant", "link")
+        link.setCursor(Qt.CursorShape.PointingHandCursor)
+        link.clicked.connect(lambda: self.step_activated.emit(position))
+        self.links.append(link)
+        return link
 
     def create_label(self, text: str, tone: str) -> QLabel:
         label = QLabel(text, self)
