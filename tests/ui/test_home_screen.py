@@ -12,7 +12,7 @@ from accessibility_checks import interactive_widgets_without_accessible_name, ta
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
-from lacis.ui.home_screen import HomeScreen, InvestigationCard, counted
+from lacis.ui.home_screen import HomeScreen, InvestigationCard, actions_name, counted
 from lacis.ui.main_window import MainWindow
 
 INVESTIGATIONS = (
@@ -282,7 +282,8 @@ def test_cards_are_reached_with_tab(
 ) -> None:
     main_window = open_main_window(qtbot, settings, theme_controller, library)
     order = tab_order(main_window)
-    assert order[-3:] == main_window.home_screen.cards
+    cards = main_window.home_screen.cards
+    assert order[-6:] == [widget for card in cards for widget in (card, card.more_button)]
     assert interactive_widgets_without_accessible_name(main_window) == []
 
 
@@ -342,3 +343,65 @@ def test_an_investigation_that_cannot_be_opened_is_reported(
         ("Impossible d'ouvrir l'enquête", "L'enquête « absente » est introuvable."),
     ]
     assert main_window.current_investigation is None
+
+
+def test_each_card_has_an_actions_button_named_after_its_investigation(
+    qtbot: QtBot, library: InvestigationLibrary, icon_factory: IconFactory
+) -> None:
+    home_screen = open_home_screen(qtbot, library, icon_factory)
+    card = home_screen.cards[0]
+    assert card.more_button.accessibleName() == "Actions de l'enquête faux-plombiers-31"
+    assert actions_name("serie-montpellier") == "Actions de l'enquête serie-montpellier"
+    assert card.more_button.menu() is card.actions_menu
+    assert card.edit_action.text() == "&Modifier le nom ou la question…"
+    assert card.edit_action.isEnabled()
+
+
+def test_clicking_the_actions_button_does_not_open_the_investigation(
+    qtbot: QtBot, library: InvestigationLibrary, icon_factory: IconFactory
+) -> None:
+    home_screen = open_home_screen(qtbot, library, icon_factory)
+    opened: list[str] = []
+    home_screen.investigation_opened.connect(opened.append)
+    card = home_screen.cards[0]
+    card.actions_menu.aboutToShow.connect(card.actions_menu.close)
+    QTest.mouseClick(card.more_button, Qt.MouseButton.LeftButton)
+    assert opened == []
+
+
+def test_editing_a_card_opens_the_edit_dialog_with_its_investigation(
+    qtbot: QtBot, library: InvestigationLibrary, icon_factory: IconFactory
+) -> None:
+    home_screen = open_home_screen(qtbot, library, icon_factory)
+    home_screen.card_named("serie-montpellier").edit_action.trigger()
+    dialog = home_screen.edit_dialog
+    assert dialog is not None
+    assert dialog.isVisible()
+    assert dialog.fields.name() == "serie-montpellier"
+    assert dialog.fields.question() == (
+        "Le gérant de MOREAU BATIMENT enchaîne-t-il les sociétés ?"
+    )
+
+
+def test_a_saved_edit_updates_the_cards_and_focuses_the_edited_one(
+    qtbot: QtBot, library: InvestigationLibrary, icon_factory: IconFactory
+) -> None:
+    home_screen = open_home_screen(qtbot, library, icon_factory)
+    home_screen.edit_investigation("fournisseur-acme")
+    dialog = home_screen.edit_dialog
+    assert dialog is not None
+    dialog.fields.fill("fournisseur-acme-2026", "Ce fournisseur paie-t-il ses dettes ?")
+    dialog.save_button.click()
+    card = home_screen.card_named("fournisseur-acme-2026")
+    assert card.question_label.text() == "Ce fournisseur paie-t-il ses dettes ?"
+    assert len(home_screen.cards) == 3
+    assert home_screen.focusWidget() is card
+
+
+def test_an_unreadable_investigation_cannot_be_edited(
+    qtbot: QtBot, library: InvestigationLibrary, icon_factory: IconFactory
+) -> None:
+    broken = library.directory_of("fournisseur-acme") / DATABASE_FILE_NAME
+    broken.write_bytes(b"pas une base SQLite")
+    home_screen = open_home_screen(qtbot, library, icon_factory)
+    assert not home_screen.card_named("fournisseur-acme").edit_action.isEnabled()

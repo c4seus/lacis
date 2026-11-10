@@ -291,3 +291,25 @@ def test_a_question_problem_explains_what_is_wrong() -> None:
     assert question_problem("?" * (MAXIMUM_QUESTION_LENGTH + 1)) == (
         f"La question de départ ne doit pas dépasser {MAXIMUM_QUESTION_LENGTH} caractères."
     )
+
+
+def test_changing_the_question_stores_it_cleaned(library: InvestigationLibrary) -> None:
+    library.create("faux-plombiers-31", QUESTION)
+    library.change_question("faux-plombiers-31", "  Qui gère   ces sociétés ?  ")
+    with library.open("faux-plombiers-31") as opened:
+        assert opened.investigation.question == "Qui gère ces sociétés ?"
+
+
+def test_a_too_long_new_question_changes_nothing(library: InvestigationLibrary) -> None:
+    library.create("faux-plombiers-31", QUESTION)
+    with pytest.raises(InvalidInvestigationQuestionError):
+        library.change_question("faux-plombiers-31", "?" * (MAXIMUM_QUESTION_LENGTH + 1))
+    with library.open("faux-plombiers-31") as opened:
+        assert opened.investigation.question == QUESTION
+
+
+def test_changing_the_question_of_a_missing_investigation_is_refused(
+    library: InvestigationLibrary,
+) -> None:
+    with pytest.raises(InvestigationNotFoundError):
+        library.change_question("absente", QUESTION)

@@ -1,8 +1,10 @@
+import sqlite3
 from typing import override
 
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QAccessible, QAccessibleAnnouncementEvent, QKeyEvent
 from PySide6.QtWidgets import (
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -14,7 +16,11 @@ from PySide6.QtWidgets import (
 )
 
 from lacis.storage.errors import InvalidInvestigationQuestionError, InvestigationError
-from lacis.storage.investigations import InvestigationLibrary, question_problem
+from lacis.storage.investigations import (
+    UNREADABLE_DATABASE_MESSAGE,
+    InvestigationLibrary,
+    question_problem,
+)
 
 NAME_LABEL = "Nom"
 NAME_HINT = "Minuscules sans accent, chiffres et tirets"
@@ -23,6 +29,10 @@ QUESTION_HINT = "Ce à quoi l'enquête doit répondre"
 CANCEL_TEXT = "Annuler"
 CREATE_TEXT = "Créer"
 CREATION_FAILED_TITLE = "Impossible de créer l'enquête"
+EDIT_TITLE = "Modifier l'enquête"
+SAVE_TEXT = "Enregistrer"
+EDITING_FAILED_TITLE = "Impossible de modifier l'enquête"
+EDIT_DIALOG_MINIMUM_WIDTH = 520
 FIELD_SPACING = 5
 NAME_STRETCH = 10
 QUESTION_STRETCH = 16
@@ -207,3 +217,67 @@ class NewInvestigationPanel(QFrame):
             return
         self.hide()
         self.created.emit(investigation.name)
+
+
+class EditInvestigationDialog(QDialog):
+    saved = Signal(str)
+
+    def __init__(
+        self,
+        library: InvestigationLibrary,
+        name: str,
+        question: str,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.library = library
+        self.original_name = name
+        self.original_question = question
+        self.setWindowTitle(EDIT_TITLE)
+        self.setModal(True)
+        self.setMinimumWidth(EDIT_DIALOG_MINIMUM_WIDTH)
+        self.fields = InvestigationFields(library, self, current_name=name)
+        self.fields.fill(name, question)
+        self.cancel_button = QPushButton(CANCEL_TEXT, self)
+        self.cancel_button.setProperty("variant", "subtle")
+        self.cancel_button.setAutoDefault(False)
+        self.cancel_button.clicked.connect(self.reject)
+        self.save_button = QPushButton(SAVE_TEXT, self)
+        self.save_button.setProperty("variant", "primary")
+        self.save_button.setDefault(True)
+        self.save_button.clicked.connect(self.save)
+
+        button_row = QHBoxLayout()
+        button_row.setSpacing(6)
+        button_row.addStretch(1)
+        button_row.addWidget(self.cancel_button)
+        button_row.addWidget(self.save_button)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(14)
+        layout.addWidget(self.fields.name_field)
+        layout.addWidget(self.fields.question_field)
+        layout.addLayout(button_row)
+        self.fields.name_field.input.setFocus()
+
+    def save(self) -> None:
+        if not self.fields.validate():
+            return
+        name = self.fields.name()
+        question = self.fields.question()
+        try:
+            if question != self.original_question:
+                self.library.change_question(self.original_name, question)
+            if name != self.original_name:
+                self.library.rename(self.original_name, name)
+        except InvestigationError as problem:
+            self.fields.report_storage_problem(problem)
+            return
+        except sqlite3.DatabaseError:
+            QMessageBox.warning(self, EDITING_FAILED_TITLE, UNREADABLE_DATABASE_MESSAGE)
+            return
+        except OSError as problem:
+            QMessageBox.warning(self, EDITING_FAILED_TITLE, writing_failure_message(problem))
+            return
+        self.accept()
+        self.saved.emit(name)

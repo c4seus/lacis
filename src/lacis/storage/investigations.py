@@ -190,6 +190,13 @@ class InvestigationLibrary:
             raise InvestigationAlreadyExistsError(validated_new_name)
         directory.rename(new_directory)
 
+    def change_question(self, name: str, question: str) -> None:
+        validated_question = validate_question(question)
+        with self.open(name) as opened, opened.connection:
+            opened.connection.execute(
+                "UPDATE investigation SET question = ?", (validated_question,)
+            )
+
     def delete(self, name: str) -> None:
         directory = self.existing_directory_of(name)
         if not self.move_to_trash(directory):
