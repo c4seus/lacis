@@ -1,7 +1,7 @@
 import sqlite3
 from collections.abc import Iterator
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
@@ -38,7 +38,7 @@ from lacis.storage.entities import (
     person_identifier,
 )
 from lacis.storage.graph_store import GraphStore
-from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore
+from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore, OfficeTransfer
 from lacis.storage.responses import ResponseStore
 
 DUPONT_SERVICES = "company:222222222"
@@ -246,6 +246,20 @@ def test_expanding_dupont_services_fetches_its_bodacc_notices(
     removal = notices[NoticeFamily.REMOVAL][0]
     assert removal.role is NoticeRole.SUBJECT
     assert removal.notice.court == "GREFFE DU TRIBUNAL DE COMMERCE DE TOULOUSE"
+
+
+def test_expanding_a_company_keeps_the_transfer_of_its_office_abroad(
+    expander: GraphExpander, notice_store: NoticeStore
+) -> None:
+    expander.expand_company("333333333")
+    notices = notice_store.notices_of_company(company_identifier("333333333"))
+    transfers = [
+        company_notice.notice.office_transfer
+        for family_notices in notices.values()
+        for company_notice in family_notices
+        if company_notice.notice.office_transfer is not None
+    ]
+    assert transfers == [OfficeTransfer("Belgique", date(2025, 9, 1), effective_date_stated=True)]
 
 
 def test_expanding_twice_adds_no_notice(expander: GraphExpander) -> None:

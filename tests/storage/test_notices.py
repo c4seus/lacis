@@ -1,5 +1,6 @@
 import sqlite3
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from lacis.storage.notices import (
     NoticeFamily,
     NoticeRole,
     NoticeStore,
+    OfficeTransfer,
 )
 from lacis.storage.responses import (
     CollectedResponse,
@@ -367,3 +369,46 @@ def test_notices_collected_by_the_refresh_itself_are_not_withdrawn(
     withdrawn = notice_store.record_refresh(DUPONT_SERVICES, refresh, ["kept"])
     assert [notice.identifier for notice in withdrawn] == ["gone"]
     assert not notice_store.require_notice("new").is_withdrawn
+
+
+def test_a_transfer_abroad_is_stored_with_its_notice(
+    notice_store: NoticeStore, connection: sqlite3.Connection
+) -> None:
+    transfer = OfficeTransfer("Belgique", date(2025, 9, 1), effective_date_stated=True)
+    stored = notice_store.save_notice(
+        replace(INSOLVENCY, office_transfer=transfer),
+        bodacc_response(connection, FIRST_COLLECTION),
+    )
+    assert stored.office_transfer == transfer
+
+
+def test_a_transfer_without_country_nor_stated_date_is_kept_as_such(
+    notice_store: NoticeStore, connection: sqlite3.Connection
+) -> None:
+    transfer = OfficeTransfer(None, date(2025, 3, 4), effective_date_stated=False)
+    stored = notice_store.save_notice(
+        replace(REMOVAL, office_transfer=transfer), bodacc_response(connection, FIRST_COLLECTION)
+    )
+    assert stored.office_transfer == transfer
+
+
+def test_a_notice_without_transfer_has_none(
+    notice_store: NoticeStore, connection: sqlite3.Connection
+) -> None:
+    stored = notice_store.save_notice(REMOVAL, bodacc_response(connection, FIRST_COLLECTION))
+    assert stored.office_transfer is None
+
+
+def test_a_newer_collection_updates_the_transfer(
+    notice_store: NoticeStore, connection: sqlite3.Connection
+) -> None:
+    first = OfficeTransfer(None, date(2025, 3, 4), effective_date_stated=False)
+    corrected = OfficeTransfer("Suisse", date(2025, 3, 15), effective_date_stated=True)
+    notice_store.save_notice(
+        replace(REMOVAL, office_transfer=first), bodacc_response(connection, FIRST_COLLECTION)
+    )
+    stored = notice_store.save_notice(
+        replace(REMOVAL, office_transfer=corrected),
+        bodacc_response(connection, SECOND_COLLECTION),
+    )
+    assert stored.office_transfer == corrected

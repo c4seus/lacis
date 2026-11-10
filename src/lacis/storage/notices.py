@@ -34,11 +34,35 @@ class InvalidNoticeError(ValueError):
 
 NOTICE_COLUMNS = (
     "identifier, family, published_on, court, judgment, summary, response_identifier, "
-    "first_collected_at, last_collected_at, withdrawn_at"
+    "first_collected_at, last_collected_at, withdrawn_at, office_transfer_country, "
+    "office_transfer_effective_on, office_transfer_date_stated"
 )
 
 REPLACE_ROLE = "DO UPDATE SET role = excluded.role"
 KEEP_ROLE = "DO NOTHING"
+
+
+@dataclass(frozen=True)
+class OfficeTransfer:
+    country: str | None
+    effective_on: date
+    effective_date_stated: bool
+
+
+def office_transfer_from_columns(
+    country: str | None, effective_on: str | None, date_stated: int | None
+) -> OfficeTransfer | None:
+    if effective_on is None:
+        return None
+    return OfficeTransfer(country, date.fromisoformat(effective_on), bool(date_stated))
+
+
+def office_transfer_columns(
+    transfer: OfficeTransfer | None,
+) -> tuple[str | None, str | None, int | None]:
+    if transfer is None:
+        return None, None, None
+    return transfer.country, transfer.effective_on.isoformat(), int(transfer.effective_date_stated)
 
 
 @dataclass(frozen=True)
@@ -50,6 +74,7 @@ class CollectedNotice:
     summary: str
     judgment: str = ""
     companies: dict[str, NoticeRole] = field(default_factory=dict)
+    office_transfer: OfficeTransfer | None = None
 
     def __post_init__(self) -> None:
         for company_identifier in self.companies:
@@ -69,15 +94,19 @@ class Notice:
     first_collected_at: datetime
     last_collected_at: datetime
     withdrawn_at: datetime | None = None
+    office_transfer: OfficeTransfer | None = None
 
     @property
     def is_withdrawn(self) -> bool:
         return self.withdrawn_at is not None
 
 
-def notice_from_row(
-    row: tuple[str, str, str, str, str, str, int, str, str, str | None],
-) -> Notice:
+type NoticeRow = tuple[
+    str, str, str, str, str, str, int, str, str, str | None, str | None, str | None, int | None
+]
+
+
+def notice_from_row(row: NoticeRow) -> Notice:
     (
         identifier,
         family,
@@ -89,6 +118,9 @@ def notice_from_row(
         first_collected_at,
         last_collected_at,
         withdrawn_at,
+        transfer_country,
+        transfer_effective_on,
+        transfer_date_stated,
     ) = row
     return Notice(
         identifier=identifier,
@@ -101,6 +133,9 @@ def notice_from_row(
         first_collected_at=datetime.fromisoformat(first_collected_at),
         last_collected_at=datetime.fromisoformat(last_collected_at),
         withdrawn_at=datetime.fromisoformat(withdrawn_at) if withdrawn_at is not None else None,
+        office_transfer=office_transfer_from_columns(
+            transfer_country, transfer_effective_on, transfer_date_stated
+        ),
     )
 
 
@@ -129,7 +164,8 @@ class NoticeStore:
 
     def insert_notice(self, collected_notice: CollectedNotice, response: ResponseSummary) -> None:
         self.connection.execute(
-            f"INSERT INTO notice ({NOTICE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+            f"INSERT INTO notice ({NOTICE_COLUMNS}) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)",
             (
                 collected_notice.identifier,
                 collected_notice.family.value,
@@ -140,6 +176,7 @@ class NoticeStore:
                 response.identifier,
                 response.collected_at.isoformat(),
                 response.collected_at.isoformat(),
+                *office_transfer_columns(collected_notice.office_transfer),
             ),
         )
 
@@ -148,7 +185,9 @@ class NoticeStore:
             """
             UPDATE notice
             SET family = ?, published_on = ?, court = ?, judgment = ?, summary = ?,
-                response_identifier = ?, last_collected_at = ?, withdrawn_at = NULL
+                response_identifier = ?, last_collected_at = ?, withdrawn_at = NULL,
+                office_transfer_country = ?, office_transfer_effective_on = ?,
+                office_transfer_date_stated = ?
             WHERE identifier = ?
             """,
             (
@@ -159,6 +198,7 @@ class NoticeStore:
                 collected_notice.summary,
                 response.identifier,
                 response.collected_at.isoformat(),
+                *office_transfer_columns(collected_notice.office_transfer),
                 collected_notice.identifier,
             ),
         )
