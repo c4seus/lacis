@@ -19,6 +19,7 @@ ICON_NAMES = (
     "external",
     "filter",
     "fit",
+    "graph",
     "help",
     "layout",
     "monitor",
@@ -122,6 +123,16 @@ class IconFactory:
 
         def render_source(mode: QIcon.Mode, state: QIcon.State) -> str:
             return colour_icon_source(source, icon_colour(self.colours_provider(), mode, state))
+
+        return QIcon(ThemedSvgIconEngine(render_source))
+
+    def icon_on_accent(self, name: str) -> QIcon:
+        source = read_icon_source(name)
+
+        def render_source(mode: QIcon.Mode, state: QIcon.State) -> str:
+            colours = self.colours_provider()
+            colour = colours.faint_text if mode == QIcon.Mode.Disabled else colours.text_on_accent
+            return colour_icon_source(source, colour)
 
         return QIcon(ThemedSvgIconEngine(render_source))
 

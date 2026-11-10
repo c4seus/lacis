@@ -57,6 +57,39 @@ QWidget#headerBar {{
     background-color: {colours.surface};
 }}
 
+QLabel[tone="page-title"] {{
+    font-size: {font_sizes.heading}px;
+    font-weight: {font_weights.bold};
+}}
+
+QLabel[tone="subtitle"] {{
+    color: {colours.muted_text};
+}}
+
+QLabel[tone="card-title"] {{
+    font-size: {font_sizes.large}px;
+    font-weight: {font_weights.bold};
+}}
+
+QScrollArea#homeScreen, QWidget#homePage {{
+    background-color: {colours.background};
+}}
+
+QFrame#investigationCard {{
+    padding: {spacing.step_2}px;
+    border: 1px solid {colours.border};
+    border-radius: {radii.medium}px;
+    background-color: {colours.surface};
+}}
+
+QFrame#investigationCard:hover {{
+    border-color: {colours.strong_border};
+}}
+
+QFrame#investigationCard:focus {{
+    border-color: {colours.accent};
+}}
+
 QLabel[tone="heading"] {{
     font-size: {font_sizes.title}px;
     font-weight: {font_weights.bold};

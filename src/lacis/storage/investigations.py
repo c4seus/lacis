@@ -11,6 +11,7 @@ from PySide6.QtCore import QFile
 from lacis.storage.errors import (
     InvalidInvestigationQuestionError,
     InvestigationAlreadyExistsError,
+    InvestigationError,
     InvestigationNotFoundError,
     InvestigationNotTrashedError,
     NewerInvestigationError,
@@ -20,6 +21,7 @@ from lacis.storage.schema import MIGRATIONS, Migration, NewerSchemaError, migrat
 
 DATABASE_FILE_NAME = "investigation.sqlite3"
 MAXIMUM_QUESTION_LENGTH = 500
+UNREADABLE_DATABASE_MESSAGE = "La base de données de cette enquête est illisible."
 TOO_LONG_QUESTION_MESSAGE = (
     f"La question de départ ne doit pas dépasser {MAXIMUM_QUESTION_LENGTH} caractères."
 )
@@ -35,6 +37,16 @@ class Investigation:
     @property
     def database_path(self) -> Path:
         return self.directory / DATABASE_FILE_NAME
+
+
+@dataclass(frozen=True)
+class InvestigationSummary:
+    name: str
+    question: str
+    entity_count: int
+    link_count: int
+    modified_at: datetime
+    problem: str = ""
 
 
 class OpenInvestigation:
@@ -106,6 +118,27 @@ class InvestigationLibrary:
             directory.name
             for directory in self.root.iterdir()
             if (directory / DATABASE_FILE_NAME).is_file()
+        )
+
+    def summary(self, name: str) -> InvestigationSummary:
+        database_path = self.existing_directory_of(name) / DATABASE_FILE_NAME
+        modified_at = datetime.fromtimestamp(database_path.stat().st_mtime, UTC)
+        try:
+            with self.open(name) as opened:
+                connection = opened.connection
+                entity_count = connection.execute("SELECT COUNT(*) FROM entity").fetchone()[0]
+                link_count = connection.execute("SELECT COUNT(*) FROM link").fetchone()[0]
+                question = opened.investigation.question
+        except InvestigationError as problem:
+            return InvestigationSummary(name, "", 0, 0, modified_at, str(problem))
+        except sqlite3.DatabaseError:
+            return InvestigationSummary(name, "", 0, 0, modified_at, UNREADABLE_DATABASE_MESSAGE)
+        return InvestigationSummary(name, question, entity_count, link_count, modified_at)
+
+    def summaries(self) -> list[InvestigationSummary]:
+        summaries = [self.summary(name) for name in self.names()]
+        return sorted(
+            summaries, key=lambda summary: (-summary.modified_at.timestamp(), summary.name)
         )
 
     def open(self, name: str) -> OpenInvestigation:

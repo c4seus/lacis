@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import sys
 from datetime import UTC, datetime
@@ -5,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from lacis.storage.entities import CollectedEntity, mandate_link
 from lacis.storage.errors import (
     InvalidInvestigationNameError,
     InvalidInvestigationQuestionError,
@@ -12,11 +14,14 @@ from lacis.storage.errors import (
     InvestigationNotFoundError,
     InvestigationNotTrashedError,
 )
+from lacis.storage.graph_store import GraphStore
 from lacis.storage.investigations import (
     DATABASE_FILE_NAME,
     MAXIMUM_QUESTION_LENGTH,
     InvestigationLibrary,
+    InvestigationSummary,
 )
+from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 
 QUESTION = "Qui se cache derrière les plombiers du 12 rue des Lilas ?"
 
@@ -183,3 +188,74 @@ def test_the_default_trash_is_the_trash_of_the_system(
     assert library.names() == []
     trash_files = user_data_directory / "Trash" / "files"
     assert (trash_files / "faux-plombiers-31" / DATABASE_FILE_NAME).is_file()
+
+
+def touch(library: InvestigationLibrary, name: str, modified_at: datetime) -> None:
+    database_path = library.directory_of(name) / DATABASE_FILE_NAME
+    os.utime(database_path, (modified_at.timestamp(), modified_at.timestamp()))
+
+
+def test_a_summary_gives_the_question_counts_and_last_change(
+    library: InvestigationLibrary,
+) -> None:
+    library.create("faux-plombiers-31", QUESTION)
+    with library.open("faux-plombiers-31") as investigation:
+        response = ResponseStore(investigation.connection).save(
+            CollectedResponse(
+                ResponseSource.COMPANY_REGISTER,
+                "https://recherche-entreprises.api.gouv.fr/search",
+                b"{}",
+                datetime(2026, 11, 2, tzinfo=UTC),
+            )
+        )
+        graph_store = GraphStore(investigation.connection)
+        graph_store.save_entity(CollectedEntity("company:111111111", "ACME PLOMBERIE"), response)
+        graph_store.save_entity(CollectedEntity("company:333333333", "HOLDING DUPONT"), response)
+        graph_store.save_link(
+            mandate_link("company:333333333", "company:111111111", "Président"), response
+        )
+    modified_at = datetime(2026, 11, 2, 9, 30, tzinfo=UTC)
+    touch(library, "faux-plombiers-31", modified_at)
+    assert library.summary("faux-plombiers-31") == InvestigationSummary(
+        "faux-plombiers-31", QUESTION, 2, 1, modified_at
+    )
+
+
+def test_summaries_list_the_most_recently_changed_investigation_first(
+    library: InvestigationLibrary,
+) -> None:
+    for name, day in (("fournisseur-acme", 28), ("serie-montpellier", 1), ("ancienne", 1)):
+        library.create(name, "")
+        month = 10 if day == 28 else 11
+        touch(library, name, datetime(2026, month, day, tzinfo=UTC))
+    assert [summary.name for summary in library.summaries()] == [
+        "ancienne",
+        "serie-montpellier",
+        "fournisseur-acme",
+    ]
+
+
+def test_an_empty_library_has_no_summary(library: InvestigationLibrary) -> None:
+    assert library.summaries() == []
+
+
+def test_an_investigation_of_a_newer_version_is_summarised_with_its_problem(
+    library: InvestigationLibrary,
+) -> None:
+    investigation = library.create("future", QUESTION)
+    connection = sqlite3.connect(investigation.database_path)
+    connection.execute("PRAGMA user_version = 999")
+    connection.close()
+    summary = library.summary("future")
+    assert summary.problem.startswith("L'enquête « future » a été enregistrée")
+    assert (summary.question, summary.entity_count, summary.link_count) == ("", 0, 0)
+
+
+def test_an_unreadable_database_is_summarised_with_its_problem(
+    library: InvestigationLibrary,
+) -> None:
+    investigation = library.create("abimee", QUESTION)
+    investigation.database_path.write_bytes(b"pas une base SQLite")
+    assert library.summary("abimee").problem == (
+        "La base de données de cette enquête est illisible."
+    )
