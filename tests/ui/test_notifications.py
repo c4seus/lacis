@@ -1,11 +1,13 @@
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QAccessible
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLineEdit, QVBoxLayout, QWidget
 from pytestqt.qtbot import QtBot
 
 from accessibility_checks import interactive_widgets_without_accessible_name, tab_order
 from lacis.design.icons import IconFactory
+from lacis.ui import announcements
 from lacis.ui.notifications import (
     MAXIMUM_NOTIFICATIONS,
     MAXIMUM_WIDTH,
@@ -17,6 +19,23 @@ from lacis.ui.notifications import (
 SHORT_DURATION_MILLISECONDS = 50
 ADDED = "ACME PLOMBERIE a été ajoutée à l'enquête."
 FAILED = "Le service Recherche d'entreprises est indisponible. Réessayez plus tard."
+
+Announcement = tuple[QWidget, str, QAccessible.AnnouncementPoliteness]
+
+
+@pytest.fixture
+def heard(monkeypatch: pytest.MonkeyPatch) -> list[Announcement]:
+    messages: list[Announcement] = []
+
+    def record(
+        widget: QWidget,
+        message: str,
+        politeness: QAccessible.AnnouncementPoliteness = announcements.ASSERTIVE,
+    ) -> None:
+        messages.append((widget, message, politeness))
+
+    monkeypatch.setattr(announcements, "announce", record)
+    return messages
 
 
 class Host(QWidget):
@@ -112,6 +131,18 @@ def test_notifications_pile_up_and_the_oldest_goes_first(host: Host) -> None:
     assert host.area.notifications == shown[1:]
     first, second, _ = host.area.notifications
     assert first.y() < second.y()
+
+
+def test_each_notification_is_announced_and_errors_first(
+    host: Host, heard: list[Announcement]
+) -> None:
+    success = host.area.notify(ADDED, NotificationKind.SUCCESS)
+    error = host.area.notify(FAILED, NotificationKind.ERROR)
+    assert heard == [
+        (success, ADDED, announcements.POLITE),
+        (error, FAILED, announcements.ASSERTIVE),
+    ]
+    assert success.accessibleName() == ADDED
 
 
 def test_notifications_follow_the_size_of_the_window(host: Host) -> None:

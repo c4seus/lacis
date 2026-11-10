@@ -385,7 +385,6 @@ class RegisterSearch(QObject):
         if row is None:
             return
         row.show_result(row.result.added())
-        announcements.announce(self.field, added_message(row.result.title), announcements.POLITE)
         self.company_added.emit(row.result.identifier, added_message(row.result.title))
 
     def show_adding_failure(self, message: str) -> None:
@@ -393,7 +392,6 @@ class RegisterSearch(QObject):
         if row is None:
             return
         row.show_result(row.result)
-        announcements.announce(self.field, message)
         self.adding_failed.emit(message)
 
     def move(self, step: int) -> None:
