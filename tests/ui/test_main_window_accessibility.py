@@ -46,6 +46,7 @@ def test_tab_goes_through_the_header_bar_in_visual_order(
         header_bar.help_button,
         header_bar.theme_button,
         main_window.home_screen.new_investigation_button,
+        main_window.home_screen.create_first_button,
     ]
 
 
@@ -58,4 +59,5 @@ def test_tab_skips_the_inactive_search(
         header_bar.help_button,
         header_bar.theme_button,
         main_window.home_screen.new_investigation_button,
+        main_window.home_screen.create_first_button,
     ]

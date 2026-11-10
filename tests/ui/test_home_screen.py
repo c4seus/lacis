@@ -118,3 +118,40 @@ def test_the_main_window_opens_on_the_home_screen(
     assert main_window.home_screen.isVisible()
     assert main_window.home_screen.title_label.text() == "Enquêtes"
     assert len(main_window.home_screen.cards) == 3
+
+
+def test_an_empty_library_shows_an_invitation_to_create_an_investigation(
+    qtbot: QtBot, tmp_path: Path, icon_factory: IconFactory
+) -> None:
+    home_screen = open_home_screen(qtbot, InvestigationLibrary(tmp_path / "vide"), icon_factory)
+    assert home_screen.cards == []
+    assert home_screen.empty_state.isVisible()
+    assert home_screen.create_first_button.text() == "Créer une première enquête"
+    with qtbot.waitSignal(home_screen.creation_requested):
+        home_screen.create_first_button.click()
+
+
+def test_the_invitation_disappears_once_an_investigation_exists(
+    qtbot: QtBot, tmp_path: Path, icon_factory: IconFactory
+) -> None:
+    library = InvestigationLibrary(tmp_path / "vide")
+    home_screen = open_home_screen(qtbot, library, icon_factory)
+    library.create("faux-plombiers-31", "")
+    home_screen.refresh()
+    assert not home_screen.empty_state.isVisible()
+    assert len(home_screen.cards) == 1
+
+
+def test_investigations_hide_the_invitation(
+    qtbot: QtBot, library: InvestigationLibrary, icon_factory: IconFactory
+) -> None:
+    home_screen = open_home_screen(qtbot, library, icon_factory)
+    assert not home_screen.empty_state.isVisible()
+
+
+def test_the_new_investigation_button_asks_for_a_creation(
+    qtbot: QtBot, library: InvestigationLibrary, icon_factory: IconFactory
+) -> None:
+    home_screen = open_home_screen(qtbot, library, icon_factory)
+    with qtbot.waitSignal(home_screen.creation_requested):
+        home_screen.new_investigation_button.click()
