@@ -221,6 +221,41 @@ QPushButton[variant="subtle"]:hover, QToolButton[variant="subtle"]:hover {{
     color: {colours.text};
 }}
 
+QPushButton[variant="link"] {{
+    min-height: 0;
+    padding: 0 2px;
+    border: 1px solid transparent;
+    background-color: transparent;
+    color: {colours.accent};
+}}
+
+QPushButton[variant="link"]:hover {{
+    text-decoration: underline;
+}}
+
+QPushButton[variant="link"]:focus {{
+    border-color: {colours.accent};
+}}
+
+QFrame#investigationHeader {{
+    border-bottom: 1px solid {colours.border};
+    background-color: {colours.surface};
+}}
+
+QLabel[tone="investigation-title"] {{
+    font-size: {font_sizes.large}px;
+    font-weight: {font_weights.bold};
+}}
+
+QLabel[tone="counter"] {{
+    font-weight: {font_weights.bold};
+}}
+
+QLabel[tone="counter-alert"] {{
+    color: {colours.high_severity};
+    font-weight: {font_weights.bold};
+}}
+
 QToolButton[variant="icon"] {{
     min-height: 0;
     padding: 0;

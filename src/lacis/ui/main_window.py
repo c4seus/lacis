@@ -9,6 +9,7 @@ from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, Collection
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.graph.background import CollectionSettings
+from lacis.overview import read_overview
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE as UNREADABLE
 from lacis.storage.investigations import InvestigationLibrary
@@ -52,6 +53,8 @@ class MainWindow(QMainWindow):
         )
         self.main_menu_bar.quit_action.triggered.connect(self.close)
         self.main_menu_bar.new_investigation_action.triggered.connect(self.start_new_investigation)
+        self.main_menu_bar.close_investigation_action.triggered.connect(self.show_home)
+        self.header_bar.breadcrumb.step_activated.connect(self.follow_breadcrumb)
         self.header_bar.help_menu.about_action.triggered.connect(self.show_about_dialog)
         self.about_dialog: AboutDialog | None = None
         self.setMenuBar(self.main_menu_bar)
@@ -64,7 +67,6 @@ class MainWindow(QMainWindow):
         self.home_screen = HomeScreen(self.library, self.icon_factory)
         self.home_screen.investigation_opened.connect(self.open_investigation)
         self.investigation_page = InvestigationPage()
-        self.investigation_page.home_requested.connect(self.show_home)
         self.pages.addWidget(self.home_screen)
         self.pages.addWidget(self.investigation_page)
         content_layout.addWidget(self.pages)
@@ -101,7 +103,7 @@ class MainWindow(QMainWindow):
             return
         self.current_investigation = name
         self.investigation_page.show_investigation(investigation)
-        self.show_investigation_counts()
+        self.refresh_overview()
         self.register_search.start(
             CollectionSettings(
                 self.library,
@@ -112,25 +114,38 @@ class MainWindow(QMainWindow):
         )
         self.header_bar.set_search_enabled(True)
         self.header_bar.breadcrumb.set_trail((*HOME_TRAIL, name))
+        self.main_menu_bar.close_investigation_action.setEnabled(True)
         self.pages.setCurrentWidget(self.investigation_page)
-        self.investigation_page.back_button.setFocus()
+        self.header_bar.search_field.setFocus()
 
     def show_added_company(self, identifier: str, message: str) -> None:
-        self.show_investigation_counts()
+        self.refresh_overview()
         self.notification_area.notify(message, NotificationKind.SUCCESS)
 
     def show_failure(self, message: str) -> None:
         self.notification_area.notify(message, NotificationKind.ERROR)
 
-    def show_investigation_counts(self) -> None:
-        if self.current_investigation is not None:
-            self.investigation_page.show_summary(self.library.summary(self.current_investigation))
+    def refresh_overview(self) -> None:
+        if self.current_investigation is None:
+            return
+        try:
+            overview = read_overview(self.library, self.current_investigation)
+        except (InvestigationError, sqlite3.DatabaseError) as problem:
+            message = str(problem) if isinstance(problem, InvestigationError) else UNREADABLE
+            self.show_failure(message)
+            return
+        self.investigation_page.show_overview(overview)
+
+    def follow_breadcrumb(self, position: int) -> None:
+        if position == 0:
+            self.show_home()
 
     def show_home(self) -> None:
         self.register_search.stop()
         self.header_bar.search_field.clear()
         self.header_bar.set_search_enabled(False)
         self.current_investigation = None
+        self.main_menu_bar.close_investigation_action.setEnabled(False)
         self.header_bar.breadcrumb.set_trail(HOME_TRAIL)
         self.home_screen.refresh()
         self.pages.setCurrentWidget(self.home_screen)

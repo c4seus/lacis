@@ -67,10 +67,25 @@ def test_the_breadcrumb_shows_the_trail_with_the_current_step_last(
         "Enquêtes",
         "faux-plombiers-31",
     ]
-    assert [label.property("tone") for label in breadcrumb.step_labels] == ["muted", "current"]
+    assert breadcrumb.links == [breadcrumb.step_labels[0]]
+    assert breadcrumb.links[0].property("variant") == "link"
+    assert breadcrumb.step_labels[1].property("tone") == "current"
     assert breadcrumb.accessibleName() == "Fil d'Ariane"
     assert breadcrumb.accessibleDescription() == "Enquêtes / faux-plombiers-31"
     assert breadcrumb.trail_layout.count() == 3
+
+
+def test_a_step_before_the_current_one_is_a_link(
+    qtbot: QtBot, icon_factory: IconFactory, theme_controller: ThemeController
+) -> None:
+    header_bar = open_header_bar(qtbot, icon_factory, theme_controller)
+    breadcrumb = header_bar.breadcrumb
+    breadcrumb.set_trail(["Enquêtes", "faux-plombiers-31"])
+    with qtbot.waitSignal(breadcrumb.step_activated) as activated:
+        breadcrumb.links[0].click()
+    assert activated.args == [0]
+    breadcrumb.set_trail(["Enquêtes"])
+    assert breadcrumb.links == []
 
 
 def test_the_version_is_shown_without_its_local_part(

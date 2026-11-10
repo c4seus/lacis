@@ -224,7 +224,7 @@ def test_a_created_investigation_is_opened(
     fields.fill("rafale-marseille", "Qui a créé quatre sociétés en trois semaines ?")
     main_window.home_screen.new_investigation_panel.create_button.click()
     assert main_window.current_investigation == "rafale-marseille"
-    assert main_window.investigation_page.question_label.text() == (
+    assert main_window.investigation_page.header.question_label.text() == (
         "Qui a créé quatre sociétés en trois semaines ?"
     )
     assert card_named(main_window, "rafale-marseille") is main_window.home_screen.cards[0]
@@ -256,8 +256,8 @@ def test_clicking_a_card_opens_its_investigation(
     QTest.mouseClick(card_named(main_window, "faux-plombiers-31"), Qt.MouseButton.LeftButton)
     assert main_window.current_investigation == "faux-plombiers-31"
     assert main_window.pages.currentWidget() is main_window.investigation_page
-    assert main_window.investigation_page.name_label.text() == "faux-plombiers-31"
-    assert main_window.investigation_page.question_label.text() == (
+    assert main_window.investigation_page.header.name_label.text() == "faux-plombiers-31"
+    assert main_window.investigation_page.header.question_label.text() == (
         "Qui se cache derrière les plombiers du 12 rue des Lilas ?"
     )
     assert [label.text() for label in main_window.header_bar.breadcrumb.step_labels] == [
@@ -316,7 +316,7 @@ def test_going_back_shows_the_home_screen_again(
 ) -> None:
     main_window = open_main_window(qtbot, settings, theme_controller, library)
     main_window.open_investigation("fournisseur-acme")
-    main_window.investigation_page.back_button.click()
+    main_window.header_bar.breadcrumb.links[0].click()
     assert main_window.current_investigation is None
     assert main_window.pages.currentWidget() is main_window.home_screen
     assert [label.text() for label in main_window.header_bar.breadcrumb.step_labels] == [
