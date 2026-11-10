@@ -2,14 +2,14 @@ import pytest
 from PySide6.QtCore import QSize, Qt, QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QImage
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QAbstractButton, QApplication, QWidget
+from PySide6.QtWidgets import QAbstractButton, QApplication, QLineEdit, QVBoxLayout, QWidget
 from pytestqt.qtbot import QtBot
 
 from lacis import __version__
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController, ThemePreference
 from lacis.design.tokens import DARK_THEME, LIGHT_THEME, Theme
-from lacis.ui.header_bar import HEADER_BAR_HEIGHT, HeaderBar, displayed_version
+from lacis.ui.header_bar import HEADER_BAR_HEIGHT, HeaderBar, SearchField, displayed_version
 
 ICON_PREVIEW_SIZE = QSize(32, 32)
 
@@ -276,3 +276,36 @@ def test_the_focused_button_shows_a_visible_accent_border(
     help_button.setFocus(Qt.FocusReason.TabFocusReason)
     qtbot.waitUntil(help_button.hasFocus)
     assert accent in opaque_colours(help_button.grab().toImage())
+
+
+def test_the_search_field_turns_combobox_keys_into_signals(qtbot: QtBot) -> None:
+    field = SearchField()
+    qtbot.addWidget(field)
+    field.show()
+    moves: list[int] = []
+    field.moved.connect(moves.append)
+    QTest.keyClick(field, Qt.Key.Key_Down)
+    QTest.keyClick(field, Qt.Key.Key_Up)
+    assert moves == [1, -1]
+    with qtbot.waitSignal(field.chosen):
+        QTest.keyClick(field, Qt.Key.Key_Enter)
+    with qtbot.waitSignal(field.closed):
+        QTest.keyClick(field, Qt.Key.Key_Escape)
+    QTest.keyClicks(field, "acme")
+    assert field.text() == "acme"
+
+
+def test_the_search_field_says_when_it_loses_the_focus(qtbot: QtBot) -> None:
+    window = QWidget()
+    field = SearchField(window)
+    other = QLineEdit(window)
+    layout = QVBoxLayout(window)
+    layout.addWidget(field)
+    layout.addWidget(other)
+    qtbot.addWidget(window)
+    window.show()
+    window.activateWindow()
+    qtbot.waitUntil(window.isActiveWindow)
+    field.setFocus()
+    with qtbot.waitSignal(field.left):
+        other.setFocus()

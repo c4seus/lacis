@@ -2,7 +2,7 @@ import sqlite3
 from typing import override
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtGui import QAccessible, QAccessibleAnnouncementEvent, QKeyEvent
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -21,6 +21,7 @@ from lacis.storage.investigations import (
     InvestigationLibrary,
     question_problem,
 )
+from lacis.ui.announcements import announce
 
 NAME_LABEL = "Nom"
 NAME_HINT = "Minuscules sans accent, chiffres et tirets"
@@ -41,12 +42,6 @@ QUESTION_STRETCH = 16
 def writing_failure_message(problem: OSError) -> str:
     reason = problem.strerror or str(problem)
     return f"Lacis n'a pas pu écrire dans le dossier des enquêtes ({reason})."
-
-
-def announce(widget: QWidget, message: str) -> None:
-    announcement = QAccessibleAnnouncementEvent(widget, message)
-    announcement.setPoliteness(QAccessible.AnnouncementPoliteness.Assertive)
-    QAccessible.updateAccessibility(announcement)
 
 
 class ValidatedField(QWidget):

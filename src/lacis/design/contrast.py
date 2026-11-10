@@ -102,7 +102,7 @@ CONTRAST_REQUIREMENTS = (
     *text_requirements(("text", "muted_text", "faint_text"), SURFACES),
     *text_requirements(("text_on_accent",), ("accent",)),
     *text_requirements(("accent",), ("surface", "soft_accent")),
-    *text_requirements(("text",), ("soft_accent",)),
+    *text_requirements(("text", "muted_text"), ("soft_accent",)),
     *text_requirements(STATUS_COLOURS, ("surface",)),
     *text_requirements(("high_severity",), ("background",)),
     *[
