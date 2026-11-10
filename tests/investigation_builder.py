@@ -11,6 +11,10 @@ from lacis.storage.entities import (
     CollectedEntity,
     address_identifier,
     company_identifier,
+    establishment_identifier,
+    establishment_of_link,
+    foreign_company_identifier,
+    located_at_link,
     mandate_link,
     person_identifier,
     registered_office_link,
@@ -34,6 +38,15 @@ from lacis.storage.responses import (
 COLLECTED_AT = datetime(2026, 11, 2, 23, 11, tzinfo=UTC)
 TODAY = date(2026, 11, 10)
 COURT = "GREFFE DU TRIBUNAL DE COMMERCE DE TOULOUSE"
+
+
+def fictional_siret(company: str) -> str:
+    siren = company.removeprefix("company:")
+    return next(
+        siret
+        for siret in (f"{siren}{number:05d}" for number in count(15))
+        if not passes_luhn_check(siret)
+    )
 
 
 def fictional_sirens() -> Iterator[str]:
@@ -76,6 +89,31 @@ class InvestigationBuilder:
         if activity is not None:
             attributes["activity"] = activity
         self.graph_store.save_entity(CollectedEntity(identifier, label, attributes), self.response)
+        return identifier
+
+    def establishment(
+        self,
+        company: str,
+        address: str,
+        label: str = "Siège — TOULOUSE",
+        *,
+        closing_date: date | None = None,
+    ) -> str:
+        identifier = establishment_identifier(fictional_siret(company))
+        attributes: Attributes = {
+            "is_head_office": True,
+            "closing_date": None if closing_date is None else closing_date.isoformat(),
+        }
+        self.graph_store.save_entity(CollectedEntity(identifier, label, attributes), self.response)
+        self.graph_store.save_link(establishment_of_link(identifier, company), self.response)
+        self.graph_store.save_link(located_at_link(identifier, address), self.response)
+        return identifier
+
+    def foreign_company(self, label: str, country: str = "Royaume-Uni") -> str:
+        identifier = foreign_company_identifier(label, country)
+        self.graph_store.save_entity(
+            CollectedEntity(identifier, label, {"country": country}), self.response
+        )
         return identifier
 
     def address(self, text: str, *, expanded: bool = False, postcode: str | None = None) -> str:

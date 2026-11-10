@@ -36,11 +36,14 @@ def test_the_queue_summary_counts_signals_homonyms_and_leads() -> None:
     )
 
 
-def test_the_graph_area_waits_for_the_graph(qtbot: QtBot) -> None:
-    area = GraphArea()
+def test_the_graph_area_waits_for_the_graph(qtbot: QtBot, icon_factory: IconFactory) -> None:
+    area = GraphArea(icon_factory.colours_provider)
     qtbot.addWidget(area)
+    area.show()
     assert area.minimumWidth() == GRAPH_MINIMUM_WIDTH
     assert area.empty_label.text() == "Le graphe de l'enquête s'affichera ici."
+    assert area.empty_label.isVisible()
+    assert not area.legend.isVisible()
 
 
 def test_the_details_panel_has_its_four_tabs(qtbot: QtBot) -> None:

@@ -1,4 +1,7 @@
+from typing import override
+
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -8,9 +11,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from lacis.design.icons import IconFactory
+from lacis.design.icons import ColoursProvider, IconFactory
+from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
 from lacis.signals.facts import counted
+from lacis.ui.graph_view import LEGEND_MARGIN, GraphLegend, GraphView
 from lacis.ui.header_bar import create_icon_button
 
 QUEUE_TITLE = "À examiner"
@@ -119,15 +124,42 @@ class QueueRail(QFrame):
 
 
 class GraphArea(QFrame):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("graphArea")
         self.setMinimumWidth(GRAPH_MINIMUM_WIDTH)
+        self.graph_view = GraphView(colours_provider, self)
         self.empty_label = placeholder(GRAPH_EMPTY_TEXT, self)
         self.empty_label.setWordWrap(False)
+        self.legend = GraphLegend(colours_provider, self)
+        self.legend.hide()
         self.graph_layout = QVBoxLayout(self)
-        self.graph_layout.addStretch(1)
-        self.graph_layout.addWidget(self.empty_label, 0, Qt.AlignmentFlag.AlignCenter)
+        self.graph_layout.setContentsMargins(0, 0, 0, 0)
+        self.graph_layout.setSpacing(0)
+        self.graph_layout.addWidget(self.graph_view, 1)
+        self.place_overlays()
+
+    def show_drawing(self, drawing: GraphDrawing) -> None:
+        self.graph_view.show_drawing(drawing)
+        self.empty_label.setVisible(not drawing.nodes)
+        self.legend.setVisible(bool(drawing.nodes))
+        self.place_overlays()
+
+    def place_overlays(self) -> None:
+        self.empty_label.adjustSize()
+        self.empty_label.move(
+            (self.width() - self.empty_label.width()) // 2,
+            (self.height() - self.empty_label.height()) // 2,
+        )
+        self.legend.adjustSize()
+        self.legend.move(LEGEND_MARGIN, self.height() - self.legend.height() - LEGEND_MARGIN)
+        self.empty_label.raise_()
+        self.legend.raise_()
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.place_overlays()
 
 
 class DetailsPanel(QFrame):

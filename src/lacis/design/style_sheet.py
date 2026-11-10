@@ -439,7 +439,18 @@ QFrame#columnHead {{
 }}
 
 QFrame#graphArea {{
-    background-color: {colours.background};
+    background-color: {colours.graph_background};
+}}
+
+QFrame#graphLegend {{
+    border: 1px solid {colours.border};
+    border-radius: {radii.medium}px;
+    background-color: {colours.surface};
+}}
+
+QLabel[tone="legend"] {{
+    color: {colours.muted_text};
+    font-size: {font_sizes.caption}px;
 }}
 
 QLabel[tone="column-title"] {{
