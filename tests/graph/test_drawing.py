@@ -156,7 +156,11 @@ def test_entities_sit_near_their_neighbours_without_overlapping(
 def test_unknown_identifiers_have_no_node(
     builder: InvestigationBuilder, scenario: PlumbersScenario
 ) -> None:
-    assert graph_drawing(builder.connection).node("company:000000000") is None
+    drawing = graph_drawing(builder.connection)
+    assert drawing.node("company:000000000") is None
+    assert drawing.require_node(scenario.acme).label == "ACME PLOMBERIE"
+    with pytest.raises(KeyError):
+        drawing.require_node("company:000000000")
 
 
 def test_crowded_positions_spread_around_their_centre() -> None:

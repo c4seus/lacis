@@ -1,13 +1,14 @@
 import sqlite3
-from datetime import UTC, date, datetime
 
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QColor, QFont, QImage
+from PySide6.QtGui import QAccessible, QColor, QFont, QImage
 from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
-from graph_scenario import PlumbersScenario, plumbers_scenario
+from accessibility_checks import accessible_name
+from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController, ThemePreference
@@ -19,9 +20,9 @@ from lacis.graph.drawing import (
     NodeShape,
     graph_drawing,
 )
-from lacis.signals.signal import Severity, Signal
-from lacis.signals.store import SignalReport
+from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
+from lacis.ui import announcements
 from lacis.ui.graph_view import (
     ARROW_LENGTH,
     CLOSED_FILL_OPACITY,
@@ -335,17 +336,7 @@ def test_the_view_draws_the_links_under_the_entities(
 
 
 def flagged_drawing(connection: sqlite3.Connection, scenario: PlumbersScenario) -> GraphDrawing:
-    signal = Signal(
-        "phoenix_scheme",
-        "Schéma phénix",
-        scenario.dupont_services,
-        Severity.HIGH,
-        0.85,
-        "",
-        (scenario.acme, scenario.jean),
-    )
-    report = SignalReport((signal,), 1, date(2026, 11, 10), "", datetime(2026, 11, 10, tzinfo=UTC))
-    return graph_drawing(connection, report)
+    return graph_drawing(connection, phoenix_report(scenario))
 
 
 @pytest.mark.parametrize("colours", [LIGHT_THEME.colours, DARK_THEME.colours])
@@ -436,3 +427,60 @@ def test_the_selection_is_painted_and_survives_a_new_drawing(
     with qtbot.waitSignal(view.selection_changed) as lost:
         view.show_drawing(GraphDrawing())
     assert lost.args == [""]
+
+
+Announcement = tuple[str, QAccessible.AnnouncementPoliteness]
+
+
+@pytest.fixture
+def heard(monkeypatch: pytest.MonkeyPatch) -> list[Announcement]:
+    messages: list[Announcement] = []
+
+    def record(
+        widget: QWidget,
+        message: str,
+        politeness: QAccessible.AnnouncementPoliteness = announcements.ASSERTIVE,
+    ) -> None:
+        messages.append((message, politeness))
+
+    monkeypatch.setattr(announcements, "announce", record)
+    return messages
+
+
+def spoken_description(view: GraphView) -> str:
+    interface = QAccessible.queryAccessibleInterface(view)
+    assert interface is not None
+    return interface.text(QAccessible.Text.Description)
+
+
+def test_screen_readers_hear_the_selected_entity_its_kind_and_its_links(
+    qtbot: QtBot,
+    icon_factory: IconFactory,
+    investigation_connection: sqlite3.Connection,
+    scenario: PlumbersScenario,
+    heard: list[Announcement],
+) -> None:
+    view = shown_view(qtbot, icon_factory, flagged_drawing(investigation_connection, scenario))
+    assert accessible_name(view) == "Graphe de l'enquête"
+    assert spoken_description(view) == "9 entités, 9 liens, 4 entités signalées"
+    company = view.graph_scene.node_items[scenario.dupont_services]
+    QTest.mouseClick(
+        view.viewport(), Qt.MouseButton.LeftButton, pos=view.mapFromScene(company.pos())
+    )
+    assert heard == [
+        (
+            "DUPONT SERVICES, entreprise, fermée, 2 liens, signal de sévérité forte",
+            announcements.POLITE,
+        )
+    ]
+    assert spoken_description(view) == (
+        "DUPONT SERVICES, entreprise, fermée, 2 liens, signal de sévérité forte. "
+        "Liens : Président : Jean DUPONT (1980-05) ; établissement Siège — TOULOUSE."
+    )
+    view.select(scenario.dupont_services)
+    assert len(heard) == 1
+    view.graph_scene.clearSelection()
+    assert spoken_description(view) == "9 entités, 9 liens, 4 entités signalées"
+    view.show_drawing(GraphDrawing())
+    assert spoken_description(view) == "Graphe vide"
+    assert len(heard) == 1

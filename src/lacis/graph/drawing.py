@@ -111,6 +111,12 @@ class GraphDrawing:
     def node(self, identifier: str) -> GraphNode | None:
         return next((node for node in self.nodes if node.identifier == identifier), None)
 
+    def require_node(self, identifier: str) -> GraphNode:
+        node = self.node(identifier)
+        if node is None:
+            raise KeyError(identifier)
+        return node
+
 
 @dataclass
 class Block:

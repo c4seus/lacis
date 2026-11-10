@@ -1,7 +1,9 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 
 from investigation_builder import InvestigationBuilder
+from lacis.signals.signal import Severity, Signal
+from lacis.signals.store import SignalReport
 
 
 @dataclass(frozen=True)
@@ -47,3 +49,16 @@ def plumbers_scenario(builder: InvestigationBuilder) -> PlumbersScenario:
         dupont_office,
         address,
     )
+
+
+def phoenix_report(scenario: PlumbersScenario) -> SignalReport:
+    signal = Signal(
+        "phoenix_scheme",
+        "Schéma phénix",
+        scenario.dupont_services,
+        Severity.HIGH,
+        0.85,
+        "",
+        (scenario.acme, scenario.jean, scenario.jean_pierre),
+    )
+    return SignalReport((signal,), 1, date(2026, 11, 10), "", datetime(2026, 11, 10, tzinfo=UTC))

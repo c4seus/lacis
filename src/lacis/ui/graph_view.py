@@ -27,9 +27,11 @@ from PySide6.QtWidgets import (
 
 from lacis.design.icons import ColoursProvider
 from lacis.design.tokens import FONT_FAMILIES, Colours
+from lacis.graph.descriptions import entity_description, entity_summary, graph_summary
 from lacis.graph.drawing import SHAPES, EdgeKind, GraphDrawing, GraphEdge, GraphNode, NodeShape
 from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
+from lacis.ui import announcements
 
 GRAPH_ACCESSIBLE_NAME = "Graphe de l'enquête"
 LEGEND_ACCESSIBLE_NAME = "Légende du graphe"
@@ -259,11 +261,14 @@ class GraphScene(QGraphicsScene):
 
     def select(self, identifier: str | None) -> bool:
         item = self.node_items.get(identifier or "")
+        was_blocked = self.blockSignals(True)
         self.clearSelection()
-        if item is None:
-            return False
-        item.setSelected(True)
-        return True
+        if item is not None:
+            item.setSelected(True)
+        self.blockSignals(was_blocked)
+        if not was_blocked:
+            self.selectionChanged.emit()
+        return item is not None
 
 
 class NodeItem(QGraphicsItem):
@@ -424,6 +429,7 @@ class GraphView(QGraphicsView):
         self.graph_scene.select(kept)
         self.graph_scene.blockSignals(False)
         self.follow_selection()
+        self.describe()
         self.fit()
 
     def select(self, identifier: str) -> bool:
@@ -437,7 +443,19 @@ class GraphView(QGraphicsView):
         if identifier == self.selected_identifier:
             return
         self.selected_identifier = identifier
+        self.describe()
+        if identifier is not None:
+            summary = entity_summary(self.drawing, self.drawing.require_node(identifier))
+            announcements.announce(self, summary, announcements.POLITE)
         self.selection_changed.emit(identifier or "")
+
+    def describe(self) -> None:
+        if self.selected_identifier is None:
+            self.setAccessibleDescription(graph_summary(self.drawing))
+        else:
+            self.setAccessibleDescription(
+                entity_description(self.drawing, self.selected_identifier)
+            )
 
     def fit(self) -> None:
         self.resetTransform()
