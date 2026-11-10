@@ -197,7 +197,7 @@ Established acronyms of the domain stay as they are: `siren`, `siret`, `naf`, `b
 
 ## Tests
 
-- **Every pull request that changes `src/` also changes `tests/`.** The `Tests required` job of the CI enforces it. A maintainer can add the `no-tests-needed` label when a change really cannot be tested, for example a pure resource update, and explains why in the review.
+- **Every pull request that changes `src/` also changes `tests/`.** The `Tests required` workflow enforces it, and runs again when a label changes. A maintainer can add the `no-tests-needed` label when a change really cannot be tested, for example a pure resource update, and explains why in the review.
 - **Tests mirror the source tree.** The tests of `src/lacis/graph/layout.py` live in `tests/graph/test_layout.py`.
 - **Test names are sentences.** `test_a_closed_company_keeps_its_directors` says what is checked.
 - **Interface tests use pytest-qt.** They run on the offscreen platform, on Linux and Windows. Interact with widgets through `qtbot`, never with sleeps.
@@ -215,7 +215,7 @@ Established acronyms of the domain stay as they are: `siren`, `siret`, `naf`, `b
 
 1. Push the branch and open a pull request against `develop`.
 2. Fill in the template: summary, changes, how to test, checklist, and `Closes #N`.
-3. Wait for every check to be green. `CI passed` and `Analyze Python` are required.
+3. Wait for every check to be green. `CI passed`, `Tests required` and `Analyze Python` are required.
 4. The pull request is merged with **Rebase and merge**, so every commit lands on `develop` as written.
 
 ## Releases
