@@ -7,6 +7,7 @@ SHARE_DIRECTORY = Path("usr/share")
 DESKTOP_ENTRY = Path("packaging/linux") / f"{APPLICATION_ID}.desktop"
 METAINFO = Path("packaging/linux") / f"{APPLICATION_ID}.metainfo.xml"
 HICOLOR_DIRECTORY = Path("packaging/icons/hicolor")
+MANUAL_PAGE = Path("packaging/linux/lacis.1")
 USAGE = "usage: python scripts/stage_desktop_files.py DESTINATION"
 
 
@@ -14,6 +15,7 @@ def staged_files(root: Path) -> dict[Path, Path]:
     files = {
         DESKTOP_ENTRY: SHARE_DIRECTORY / "applications" / DESKTOP_ENTRY.name,
         METAINFO: SHARE_DIRECTORY / "metainfo" / METAINFO.name,
+        MANUAL_PAGE: SHARE_DIRECTORY / "man" / "man1" / MANUAL_PAGE.name,
     }
     for icon in sorted((root / HICOLOR_DIRECTORY).rglob(f"{APPLICATION_ID}.*")):
         source = icon.relative_to(root)

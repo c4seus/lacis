@@ -1,0 +1,66 @@
+.TH LACIS 1 "2026-11-12" "Lacis" "User Commands"
+.SH NAME
+lacis \- map French companies, their directors and addresses into a sourced link graph
+.SH SYNOPSIS
+.B lacis
+.RB [ \-\-demo ]
+.br
+.B lacis
+.B \-\-version
+.br
+.B lacis
+.B \-\-help
+.SH DESCRIPTION
+.B lacis
+starts Lacis, a desktop OSINT tool for French company data.
+Starting from one company, it pulls the threads: who runs it, which other
+companies those people run, who else is registered at the same address, and what
+the BODACC published about each of them.
+Explainable rules then flag the patterns worth a closer look.
+.PP
+Every fact in the graph links back to the public response it came from, with its
+date and its SHA\-256 fingerprint.
+Each investigation is a local SQLite database.
+Nothing leaves the computer except the public requests the user triggers.
+The interface is in French.
+.SH OPTIONS
+.TP
+.B \-\-demo
+Start Lacis on a fake API of fictional companies, with a temporary data
+directory.
+Nothing is read from or written to the real data directory.
+.TP
+.B \-\-version
+Print the version of Lacis and exit.
+.TP
+.BR \-h ", " \-\-help
+Print a short help and exit.
+.SH ENVIRONMENT
+.TP
+.B LACIS_DATA_DIRECTORY
+Directory of the investigations, instead of the default one.
+.TP
+.B LACIS_CONFIGURATION_DIRECTORY
+Directory of the signal rules configuration, instead of the default one.
+.TP
+.B LACIS_LOG_DIRECTORY
+Directory of the log files, instead of the default one.
+.SH FILES
+.TP
+.I ~/.local/share/Lacis/Lacis/investigations/
+One directory per investigation, with its database, its raw responses and its
+collection log.
+.TP
+.I ~/.config/Lacis/Lacis.ini
+Settings: window size, theme and column widths.
+.TP
+.I ~/.local/state/Lacis/Lacis/logs/
+Log files, which give the details of unexpected errors.
+.SH BUGS
+Report problems at
+.UR https://github.com/c4seus/lacis/issues
+.UE .
+.SH AUTHOR
+Written by c4seus.
+Lacis is free software, released under the GNU General Public License,
+version 3 or later.

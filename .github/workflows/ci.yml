@@ -98,6 +98,10 @@ jobs:
       - name: Validate the desktop entry, the metainfo and the installed tree
         run: make desktop-metadata
 
+  debian-package:
+    name: Debian package
+    uses: ./.github/workflows/debian-package.yml
+
   commits:
     name: Commit convention
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
@@ -118,7 +122,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: always()
-    needs: [lint, types, tests, desktop-metadata, commits]
+    needs: [lint, types, tests, desktop-metadata, debian-package, commits]
     runs-on: ubuntu-latest
     steps:
       - name: Fail when a required job failed or was cancelled

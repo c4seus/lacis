@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+
+export PYBUILD_NAME = lacis
+export PYBUILD_DISABLE = test
+
+%:
+	dh $@ --buildsystem=pybuild
+
+override_dh_auto_install:
+	dh_auto_install
+	python3 scripts/stage_desktop_files.py debian/lacis

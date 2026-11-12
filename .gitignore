@@ -13,3 +13,5 @@ dist/
 *.build/
 *.dist/
 *.onefile-build/
+/debian/
+.pybuild/

@@ -31,7 +31,7 @@ The application is written in Python with PySide6 (see [0001](0001-technology.md
 
 | Package | Distribution | PySide6 dependency |
 |---|---|---|
-| `.deb` | Debian 13 "trixie" and later, and derivatives that ship PySide6 6.8 or later | `python3-pyside6.qtcore`, `python3-pyside6.qtgui`, `python3-pyside6.qtwidgets` |
+| `.deb` | Debian 13 "trixie" and later, and derivatives that ship PySide6 6.8 or later | `python3-pyside6.qtcore`, `python3-pyside6.qtgui`, `python3-pyside6.qtsvg`, `python3-pyside6.qtwidgets` |
 | `.rpm` | Fedora 41 and later | `python3-pyside6` |
 | `.pkg.tar.zst` | Arch Linux | `pyside6` |
 
