@@ -22,6 +22,7 @@ from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
 from lacis.signals.facts import counted
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.graph_legend import KindSwatch
+from lacis.ui.notice_timeline import NoticeTimeline
 
 EMPTY_TEXT = "La fiche de l'entité sélectionnée s'affichera ici."
 SHEET_ACCESSIBLE_NAME = "Fiche de l'entité"
@@ -32,6 +33,7 @@ DEPTH_MENU_ACCESSIBLE_NAME = "Choisir la profondeur d'extension"
 DIRECTORY_TEXT = "Annuaire"
 DIRECTORY_TOOLTIP = "Ouvrir la fiche dans l'Annuaire des entreprises"
 SIGNALS_TITLE = "Signaux d'alerte"
+NOTICES_TITLE = "Annonces BODACC"
 LINKS_TITLE = "Liens"
 SOURCES_TITLE = "Provenance"
 RAW_RESPONSE_TEXT = "Réponse brute"
@@ -219,6 +221,7 @@ class EntitySheet(QScrollArea):
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.details: EntityDetails | None = None
+        self.timeline: NoticeTimeline | None = None
         self.content = QWidget()
         self.content_layout = QVBoxLayout(self.content)
         self.chips: list[ReferenceChip] = []
@@ -250,12 +253,14 @@ class EntitySheet(QScrollArea):
         self.link_rows = []
         self.source_rows = []
         self.section_titles = []
+        self.timeline = None
         if details is None:
             self.empty_label = wrapped_label(EMPTY_TEXT, "faint", self.content)
             self.content_layout.addWidget(self.empty_label)
         else:
             self.add_head(details)
             self.add_signals(details)
+            self.add_notices(details)
             self.add_links(details)
             self.add_sources(details)
         self.content_layout.addStretch(1)
@@ -348,6 +353,17 @@ class EntitySheet(QScrollArea):
             view = SignalCardView(card, self)
             self.signal_cards.append(view)
             self.content_layout.addWidget(view)
+
+    def add_notices(self, details: EntityDetails) -> None:
+        if not details.has_notices:
+            return
+        section_title = SectionTitle(NOTICES_TITLE, str(len(details.notices)), self.content)
+        self.section_titles.append(section_title)
+        self.content_layout.addWidget(section_title)
+        self.timeline = NoticeTimeline(
+            details.notices, self.icon_factory.colours_provider, self.content
+        )
+        self.content_layout.addWidget(self.timeline)
 
     def add_links(self, details: EntityDetails) -> None:
         if not details.links:

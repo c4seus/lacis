@@ -5,6 +5,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from urllib.parse import quote
 
+from lacis.collectors.bodacc import NOTICE_URL
 from lacis.collectors.http_client import SOURCE_NAMES
 from lacis.graph.drawing import KIND_LABELS, is_closed
 from lacis.graph.expansion import EXPANDED_AT_ATTRIBUTE, PIVOT_KINDS
@@ -14,6 +15,7 @@ from lacis.signals.signal import Severity, Signal
 from lacis.signals.store import SignalReport
 from lacis.storage.entities import Attributes, Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore
 from lacis.storage.responses import ResponseStore, ResponseSummary
 
 DIRECTORY_ROOT = "https://annuaire-entreprises.data.gouv.fr"
@@ -84,6 +86,78 @@ class SourceLine:
         return f"{start}…{end}"
 
 
+FAMILY_LABELS = {
+    NoticeFamily.CREATION: "Création",
+    NoticeFamily.REGISTRATION: "Immatriculation",
+    NoticeFamily.AMENDMENT: "Modification",
+    NoticeFamily.INSOLVENCY: "Procédure collective",
+    NoticeFamily.CONCILIATION: "Conciliation",
+    NoticeFamily.PROFESSIONAL_RECOVERY: "Rétablissement professionnel",
+    NoticeFamily.SALE: "Vente et cession",
+    NoticeFamily.ACCOUNTS: "Dépôt des comptes",
+    NoticeFamily.REMOVAL: "Radiation",
+    NoticeFamily.MISCELLANEOUS: "Divers",
+}
+ALERT_FAMILIES = frozenset(
+    {NoticeFamily.INSOLVENCY, NoticeFamily.PROFESSIONAL_RECOVERY, NoticeFamily.REMOVAL}
+)
+ROLE_NOTES = {
+    NoticeRole.SUBJECT: "",
+    NoticeRole.PREVIOUS_OPERATOR: "En tant qu'ancien exploitant",
+    NoticeRole.PREVIOUS_OWNER: "En tant qu'ancien propriétaire",
+    NoticeRole.MENTIONED: "Mentionnée dans l'annonce",
+}
+
+
+@dataclass(frozen=True)
+class NoticeLine:
+    identifier: str
+    family: NoticeFamily
+    published_on: date
+    summary: str
+    court: str
+    judgment: str
+    response_identifier: int
+    role: NoticeRole
+    withdrawn_at: datetime | None = None
+
+    @property
+    def written_date(self) -> str:
+        return self.published_on.strftime("%d/%m/%Y")
+
+    @property
+    def family_label(self) -> str:
+        return FAMILY_LABELS[self.family]
+
+    @property
+    def is_alert(self) -> bool:
+        return self.family in ALERT_FAMILIES
+
+    @property
+    def is_withdrawn(self) -> bool:
+        return self.withdrawn_at is not None
+
+    @property
+    def withdrawn_text(self) -> str:
+        if self.withdrawn_at is None:
+            return ""
+        moment = self.withdrawn_at.astimezone()
+        return f"Absente du BODACC au rafraîchissement du {moment:%d/%m/%Y}"
+
+    @property
+    def role_note(self) -> str:
+        return ROLE_NOTES[self.role]
+
+    @property
+    def shown_judgment(self) -> str:
+        repeated = self.judgment.casefold() in self.summary.casefold()
+        return "" if repeated or not self.judgment else self.judgment
+
+    @property
+    def url(self) -> str:
+        return NOTICE_URL.format(identifier=self.identifier)
+
+
 @dataclass(frozen=True)
 class EntityDetails:
     identifier: str
@@ -98,6 +172,7 @@ class EntityDetails:
     signals: tuple[SignalCard, ...]
     links: tuple[LinkLine, ...]
     sources: tuple[SourceLine, ...]
+    notices: tuple[NoticeLine, ...] = ()
 
     @property
     def kind_label(self) -> str:
@@ -106,6 +181,10 @@ class EntityDetails:
     @property
     def expandable(self) -> bool:
         return self.kind in PIVOT_KINDS
+
+    @property
+    def has_notices(self) -> bool:
+        return self.kind is EntityKind.COMPANY
 
     @property
     def expanded(self) -> bool:
@@ -316,6 +395,26 @@ def source_line(summary: ResponseSummary) -> SourceLine:
     )
 
 
+def notice_lines(connection: sqlite3.Connection, identifier: str) -> list[NoticeLine]:
+    by_family = NoticeStore(connection).notices_of_company(identifier)
+    lines = [
+        NoticeLine(
+            company_notice.notice.identifier,
+            company_notice.notice.family,
+            company_notice.notice.published_on,
+            company_notice.notice.summary,
+            company_notice.notice.court,
+            company_notice.notice.judgment,
+            company_notice.notice.response_identifier,
+            company_notice.role,
+            company_notice.notice.withdrawn_at,
+        )
+        for notices in by_family.values()
+        for company_notice in notices
+    ]
+    return sorted(lines, key=lambda line: (line.published_on, line.identifier), reverse=True)
+
+
 def entity_details(
     connection: sqlite3.Connection, identifier: str, report: SignalReport | None
 ) -> EntityDetails | None:
@@ -344,6 +443,7 @@ def entity_details(
         signals=tuple(signal_cards(report, identifier, References(graph_store))),
         links=tuple(link_lines(graph_store, identifier)),
         sources=tuple(reversed(sources)),
+        notices=tuple(notice_lines(connection, identifier)),
     )
 
 

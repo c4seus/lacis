@@ -1,14 +1,16 @@
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, date, datetime
 
 import pytest
 
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
-from investigation_builder import COLLECTED_AT, InvestigationBuilder
+from investigation_builder import COLLECTED_AT, COURT, InvestigationBuilder
 from lacis.details import (
     Badge,
     BadgeTone,
     EntityDetails,
+    NoticeLine,
     Reference,
     entity_details,
     raw_response,
@@ -19,6 +21,7 @@ from lacis.signals.signal import Severity
 from lacis.storage.entities import CollectedEntity, EntityKind
 from lacis.storage.errors import TamperedResponseError
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.notices import NoticeFamily, NoticeRole
 from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 
 
@@ -311,3 +314,84 @@ def test_a_secondary_establishment_has_no_head_office_badge(
         ('{"is_open": true}', scenario.acme_office),
     )
     assert details_of(builder, scenario.acme_office).badges == (Badge("Ouvert", BadgeTone.ACTIVE),)
+
+
+def test_the_notices_of_a_company_come_newest_first(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    removal = builder.notice(
+        scenario.dupont_services, NoticeFamily.REMOVAL, date(2023, 1, 20), "Radiation du RCS"
+    )
+    opening = builder.notice(
+        scenario.dupont_services,
+        NoticeFamily.INSOLVENCY,
+        date(2022, 6, 14),
+        "Ouverture de liquidation judiciaire",
+    )
+    creation = builder.notice(scenario.dupont_services, NoticeFamily.CREATION, date(2019, 6, 3))
+    notices = details_of(builder, scenario.dupont_services).notices
+    assert [notice.identifier for notice in notices] == [removal, opening, creation]
+    first = notices[0]
+    assert (first.written_date, first.family_label, first.summary, first.court) == (
+        "20/01/2023",
+        "Radiation",
+        "Radiation du RCS",
+        COURT,
+    )
+    assert first.is_alert
+    assert not notices[2].is_alert
+    assert (
+        first.url == f"https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:{removal}"
+    )
+    assert first.response_identifier == builder.bodacc_response.identifier
+    assert (first.role, first.role_note, first.is_withdrawn, first.withdrawn_text) == (
+        NoticeRole.SUBJECT,
+        "",
+        False,
+        "",
+    )
+    assert details_of(builder, scenario.dupont_services).has_notices
+    assert not details_of(builder, scenario.jean).has_notices
+    assert details_of(builder, scenario.acme).notices == ()
+
+
+def test_a_withdrawn_notice_says_since_when(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    identifier = builder.notice(scenario.acme, NoticeFamily.SALE, date(2024, 3, 1), "Vente")
+    builder.connection.execute(
+        "UPDATE notice SET withdrawn_at = ? WHERE identifier = ?",
+        (datetime(2026, 11, 12, 10, 0, tzinfo=UTC).isoformat(), identifier),
+    )
+    [notice] = details_of(builder, scenario.acme).notices
+    assert notice.is_withdrawn
+    assert notice.withdrawn_text == "Absente du BODACC au rafraîchissement du 12/11/2026"
+
+
+def test_a_notice_shows_its_judgment_and_role_when_they_add_something() -> None:
+    notice = NoticeLine(
+        "A202500000001",
+        NoticeFamily.INSOLVENCY,
+        date(2022, 12, 5),
+        "Clôture pour insuffisance d'actif",
+        COURT,
+        "Jugement de clôture pour insuffisance d'actif",
+        1,
+        NoticeRole.PREVIOUS_OPERATOR,
+    )
+    assert notice.shown_judgment == "Jugement de clôture pour insuffisance d'actif"
+    assert notice.role_note == "En tant qu'ancien exploitant"
+    assert replace(notice, judgment="clôture pour insuffisance").shown_judgment == ""
+    assert replace(notice, judgment="").shown_judgment == ""
+    assert {replace(notice, family=family).family_label for family in NoticeFamily} == {
+        "Création",
+        "Immatriculation",
+        "Modification",
+        "Procédure collective",
+        "Conciliation",
+        "Rétablissement professionnel",
+        "Vente et cession",
+        "Dépôt des comptes",
+        "Radiation",
+        "Divers",
+    }
