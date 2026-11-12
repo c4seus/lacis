@@ -1,0 +1,23 @@
+pkgname=lacis
+pkgver=@PKGVER@
+pkgrel=1
+pkgdesc='Map French companies, their directors and addresses into a sourced link graph'
+arch=('any')
+url='https://github.com/c4seus/lacis'
+license=('GPL-3.0-or-later' 'OFL-1.1')
+depends=('hicolor-icon-theme' 'pyside6' 'python' 'python-httpx' 'qt6-svg')
+makedepends=('python-build' 'python-hatch-vcs' 'python-hatchling' 'python-installer')
+source=("lacis-$pkgver.tar.gz")
+sha256sums=('@SHA256@')
+
+build() {
+  cd "lacis-$pkgver"
+  SETUPTOOLS_SCM_PRETEND_VERSION="$pkgver" python -m build --wheel --no-isolation
+}
+
+package() {
+  cd "lacis-$pkgver"
+  python -m installer --destdir="$pkgdir" dist/*.whl
+  python scripts/stage_desktop_files.py "$pkgdir"
+  install -Dm644 src/lacis/resources/fonts/OFL.txt "$pkgdir/usr/share/licenses/$pkgname/OFL.txt"
+}

@@ -2,7 +2,7 @@ PYTHON ?= python
 SYSTEM_PYTHON ?= /usr/bin/python3
 SYSTEM_PATH := $(if $(VIRTUAL_ENV),$(subst $(VIRTUAL_ENV)/bin:,,$(PATH)),$(PATH))
 
-.PHONY: install lint format types test coverage check icons desktop-metadata deb rpm
+.PHONY: install lint format types test coverage check icons desktop-metadata deb rpm arch
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -56,3 +56,16 @@ rpm:
 	rpmlint build/rpm/RPMS/noarch/lacis-*.rpm build/rpm/lacis.spec
 	mkdir -p dist
 	cp build/rpm/RPMS/noarch/lacis-*.rpm dist/
+
+arch:
+	@test -f /etc/arch-release || { \
+		echo "make arch needs makepkg and namcap: run it on Arch Linux, or in an Arch Linux" \
+			"container"; \
+		exit 1; \
+	}
+	$(SYSTEM_PYTHON) scripts/prepare_arch_package.py "$$($(SYSTEM_PYTHON) -m hatchling version)"
+	cd build/arch && env -u VIRTUAL_ENV PATH="$(SYSTEM_PATH)" makepkg --cleanbuild --force
+	namcap build/arch/PKGBUILD build/arch/lacis-*.pkg.tar.zst | tee build/arch/namcap.txt
+	! grep -q " E: " build/arch/namcap.txt
+	mkdir -p dist
+	cp build/arch/lacis-*.pkg.tar.zst dist/
