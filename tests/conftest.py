@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtWidgets import QApplication
 
 from lacis.design.icons import IconFactory
@@ -27,6 +27,13 @@ def offscreen_platform_with_full_hd_screen() -> str:
 @pytest.fixture(scope="session")
 def qapp_args() -> list[str]:
     return ["lacis-tests", "-platform", offscreen_platform_with_full_hd_screen()]
+
+
+@pytest.fixture(autouse=True)
+def deferred_deletions_flushed() -> Iterator[None]:
+    yield
+    if QCoreApplication.instance() is not None:
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
 @pytest.fixture(autouse=True)

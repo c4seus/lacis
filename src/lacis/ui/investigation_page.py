@@ -135,6 +135,9 @@ class InvestigationPage(QWidget):
         sheet.entity_chosen.connect(lambda identifier: self.show_entity(identifier, ""))
         sheet.expansion_requested.connect(self.expansion_requested)
         sheet.notices_refresh_requested.connect(self.notices_refresh_requested)
+        self.details_panel.entities_tab.entity_chosen.connect(
+            lambda identifier: self.show_entity(identifier, "")
+        )
         self.columns = QSplitter(Qt.Orientation.Horizontal, self)
         self.columns.setObjectName("investigationColumns")
         self.columns.setChildrenCollapsible(False)
@@ -203,6 +206,8 @@ class InvestigationPage(QWidget):
         self.queue_column.show_overview(overview)
         self.queue_rail.show_overview(overview)
         self.graph_area.show_drawing(overview.drawing)
+        self.details_panel.show_overview(overview)
+        self.details_panel.entities_tab.mark_selected(self.selected_entity)
 
     def show_entity(self, identifier: str, label: str) -> None:
         self.graph_area.reveal(identifier)
@@ -210,4 +215,5 @@ class InvestigationPage(QWidget):
     def follow_selection(self, identifier: str) -> None:
         self.selected_entity = identifier or None
         self.queue_column.review_list.mark_selected(self.selected_entity)
+        self.details_panel.entities_tab.mark_selected(self.selected_entity)
         self.entity_selected.emit(identifier)
