@@ -30,3 +30,34 @@ jobs:
           name: debian-package
           path: dist/lacis_*.deb
           if-no-files-found: error
+
+  install:
+    name: Install and launch
+    needs: build
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: debian-package
+          path: dist
+      - name: Check that apt only knows the Debian archive
+        run: |
+          sources=$(grep -rhE '^(URIs:|deb )' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null)
+          echo "$sources"
+          test -z "$(echo "$sources" | grep -v 'deb.debian.org')"
+      - name: Install the package with apt
+        run: |
+          apt-get update
+          apt-get install --yes ./dist/lacis_*.deb
+      - name: Launch Lacis
+        run: lacis --version | grep -E '^Lacis [0-9]'
+      - name: Install the test tools from Debian
+        run: apt-get install --yes --no-install-recommends ca-certificates git python3-pytest python3-pytestqt
+      - uses: actions/checkout@v4
+      - name: Run the tests against the installed package and the PySide6 of Debian
+        run: |
+          python3 -c "import lacis, sys; sys.exit(not lacis.__file__.startswith('/usr/lib/python3/'))"
+          python3 -m pytest -p no:cacheprovider
