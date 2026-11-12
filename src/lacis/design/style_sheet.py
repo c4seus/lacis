@@ -490,6 +490,12 @@ QLabel[tone="queue-empty"] {{
     font-size: {font_sizes.caption}px;
 }}
 
+QPushButton[compact="true"] {{
+    min-height: 24px;
+    padding: 0 {spacing.step_2}px;
+    font-size: {font_sizes.caption}px;
+}}
+
 QFrame#graphArea {{
     background-color: {colours.graph_background};
 }}

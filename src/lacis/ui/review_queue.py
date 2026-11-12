@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -15,14 +16,20 @@ from PySide6.QtWidgets import (
 from lacis.design.icons import ColoursProvider
 from lacis.graph.drawing import KIND_LABELS
 from lacis.review import (
+    NO_HOMONYM_TEXT,
     NO_SIGNAL_TEXT,
     UNAVAILABLE_SIGNALS_PREFIX,
+    HomonymEntry,
     QueueEntity,
     ReviewQueue,
 )
+from lacis.storage.homonym_decisions import HomonymDecision
 from lacis.ui.graph_legend import KindSwatch
 
 QUEUE_LIST_ACCESSIBLE_NAME = "Éléments à examiner"
+HOMONYMS_TITLE = "Homonymes à vérifier"
+SAME_PERSON_TEXT = "Même personne"
+DIFFERENT_PERSON_TEXT = "Personne différente"
 SCORE_PREFIX = "score "
 ACTIVATING_KEYS = {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}
 
@@ -92,6 +99,15 @@ class QueueRow(QFrame):
         self.setAccessibleName(", ".join(parts))
         self.setAccessibleDescription(self.entity.explanation)
 
+    def add_actions(self, buttons: list[QPushButton]) -> None:
+        actions = QHBoxLayout()
+        actions.setContentsMargins(0, 4, 0, 0)
+        actions.setSpacing(6)
+        for button in buttons:
+            actions.addWidget(button)
+        actions.addStretch(1)
+        self.row_layout.addLayout(actions)
+
     def set_selected(self, selected: bool) -> None:
         if self.property("selected") == selected:
             return
@@ -115,8 +131,16 @@ class QueueRow(QFrame):
         super().keyPressEvent(event)
 
 
+def action_button(text: str, accessible_name: str, parent: QWidget) -> QPushButton:
+    button = QPushButton(text, parent)
+    button.setProperty("compact", True)
+    button.setAccessibleName(accessible_name)
+    return button
+
+
 class ReviewQueueList(QScrollArea):
     entity_chosen = Signal(str)
+    decision_requested = Signal(object, object, object)
 
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -128,6 +152,7 @@ class ReviewQueueList(QScrollArea):
         self.colours_provider = colours_provider
         self.queue = ReviewQueue((), (), ())
         self.rows: list[QueueRow] = []
+        self.decision_buttons: list[QPushButton] = []
         self.group_labels: list[QLabel] = []
         self.empty_labels: list[QLabel] = []
         self.selected_identifier: str | None = None
@@ -146,9 +171,11 @@ class ReviewQueueList(QScrollArea):
         self.content_layout.setContentsMargins(8, 4, 8, 8)
         self.content_layout.setSpacing(4)
         self.rows = []
+        self.decision_buttons = []
         self.group_labels = []
         self.empty_labels = []
         self.add_signals(queue)
+        self.add_homonyms(queue)
         self.content_layout.addStretch(1)
         self.setWidget(self.content)
         self.mark_selected(self.selected_identifier)
@@ -183,6 +210,36 @@ class ReviewQueueList(QScrollArea):
             self.add_group_title(group.title)
             for entity in group.entities:
                 self.add_row(entity)
+
+    def add_homonyms(self, queue: ReviewQueue) -> None:
+        self.add_group_title(HOMONYMS_TITLE)
+        if not queue.homonyms:
+            self.add_empty_text(NO_HOMONYM_TEXT)
+        for entry in queue.homonyms:
+            self.add_homonym(entry)
+
+    def add_homonym(self, entry: HomonymEntry) -> None:
+        row = self.add_row(entry.first, entry.title)
+        badge = QLabel(entry.confidence_label, row)
+        badge.setProperty("tone", "badge-outline")
+        row.score_label.hide()
+        row.first_line.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+        row.setAccessibleName(f"{entry.title}, confiance {entry.confidence_label.lower()}")
+        people = (entry.first.identifier, entry.second.identifier)
+        labels = (entry.first.label, entry.second.label)
+        same = action_button(SAME_PERSON_TEXT, f"{SAME_PERSON_TEXT} : {entry.title}", row)
+        different = action_button(
+            DIFFERENT_PERSON_TEXT, f"{DIFFERENT_PERSON_TEXT} : {entry.title}", row
+        )
+        same.setProperty("variant", "primary")
+        same.clicked.connect(
+            lambda: self.decision_requested.emit(people, labels, HomonymDecision.SAME_PERSON)
+        )
+        different.clicked.connect(
+            lambda: self.decision_requested.emit(people, labels, HomonymDecision.DIFFERENT_PERSON)
+        )
+        self.decision_buttons.extend([same, different])
+        row.add_actions([same, different])
 
     def mark_selected(self, identifier: str | None) -> None:
         self.selected_identifier = identifier

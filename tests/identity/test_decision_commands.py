@@ -2,11 +2,16 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from PySide6.QtGui import QUndoCommand
 from pytestqt.qtbot import QtBot
 
 from fake_time import FakeWallClock
 from lacis.history import InvestigationHistory
-from lacis.identity.decision_commands import RecordDecisionCommand, WithdrawDecisionCommand
+from lacis.identity.decision_commands import (
+    RecordDecisionCommand,
+    ReportedCommand,
+    WithdrawDecisionCommand,
+)
 from lacis.storage.entities import CollectedEntity, LinkKind, person_identifier
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.homonym_decisions import (
@@ -155,3 +160,37 @@ def test_collected_facts_are_never_undone(
     history.undo()
     assert graph_store.entities() == entities_before
     assert not history.canUndo()
+
+
+class FailingCommand(QUndoCommand):
+    def redo(self) -> None:
+        raise HomonymDecisionNotFoundError
+
+    def undo(self) -> None:
+        raise HomonymDecisionNotFoundError
+
+
+def test_a_reported_command_runs_the_wrapped_command(
+    decision_store: HomonymDecisionStore,
+) -> None:
+    failures: list[Exception] = []
+    recorded = RecordDecisionCommand(
+        decision_store, JEAN, JEAN_PIERRE, HomonymDecision.SAME_PERSON
+    )
+    reported = ReportedCommand(recorded, (HomonymDecisionNotFoundError,), failures.append)
+    assert reported.text() == "la décision d'homonyme"
+    reported.redo()
+    assert decision_store.decision_between(JEAN, JEAN_PIERRE) is not None
+    reported.undo()
+    assert decision_store.decision_between(JEAN, JEAN_PIERRE) is None
+    assert failures == []
+
+
+def test_a_reported_command_reports_its_expected_failures() -> None:
+    failures: list[Exception] = []
+    reported = ReportedCommand(
+        FailingCommand("échec"), (HomonymDecisionNotFoundError,), failures.append
+    )
+    reported.redo()
+    reported.undo()
+    assert [type(failure) for failure in failures] == [HomonymDecisionNotFoundError] * 2

@@ -62,6 +62,7 @@ class InvestigationSignals:
         computed_at = self.now()
         today = local_day(computed_at)
         signals = self.engine.signals(InvestigationContext(self.connection, today))
+        self.connection.commit()
         return self.store.save(
             SignalReport(tuple(signals), revision, today, self.configuration, computed_at)
         )

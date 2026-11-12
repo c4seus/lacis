@@ -104,6 +104,7 @@ class InvestigationHeader(QFrame):
 class InvestigationPage(QWidget):
     queue_toggled = Signal(bool)
     entities_moved = Signal(dict)
+    decision_requested = Signal(object, object, object)
 
     def __init__(
         self, settings: QSettings, icon_factory: IconFactory, parent: QWidget | None = None
@@ -124,6 +125,7 @@ class InvestigationPage(QWidget):
         self.graph_view.entities_moved.connect(self.entities_moved)
         review_list = self.queue_column.review_list
         review_list.entity_chosen.connect(lambda identifier: self.show_entity(identifier, ""))
+        review_list.decision_requested.connect(self.decision_requested)
         self.columns = QSplitter(Qt.Orientation.Horizontal, self)
         self.columns.setObjectName("investigationColumns")
         self.columns.setChildrenCollapsible(False)

@@ -11,6 +11,7 @@ from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.overview import overview_of
 from lacis.review import ReviewQueue, review_queue
+from lacis.storage.homonym_decisions import HomonymDecision
 from lacis.ui.review_queue import ReviewQueueList
 
 
@@ -43,13 +44,16 @@ def review_list(qtbot: QtBot, icon_factory: IconFactory, queue: ReviewQueue) -> 
     return review_list
 
 
-def test_the_queue_shows_the_signals_grouped_by_rule(
+def test_the_queue_shows_the_signals_and_the_homonyms(
     review_list: ReviewQueueList, queue: ReviewQueue
 ) -> None:
-    assert review_list.group_titles == ["Schéma phénix · forte"]
-    assert [label.text() for label in review_list.group_labels] == ["SCHÉMA PHÉNIX · FORTE"]
-    assert [row.entity.identifier for row in review_list.rows] == [
-        entity.identifier for entity in queue.signal_groups[0].entities
+    assert review_list.group_titles == ["Schéma phénix · forte", "Homonymes à vérifier"]
+    assert [label.text() for label in review_list.group_labels] == [
+        "SCHÉMA PHÉNIX · FORTE",
+        "HOMONYMES À VÉRIFIER",
+    ]
+    assert [row.entity.identifier for row in review_list.rows] == queue.entity_identifiers()[
+        : -len(queue.leads)
     ]
 
 
@@ -62,6 +66,26 @@ def test_a_signal_row_shows_the_entity_its_score_and_explanation(
     assert row.detail_label.text() == "Indice du signal sur DUPONT SERVICES"
     assert row.accessibleName() == "ACME PLOMBERIE, entreprise, score 0,85"
     assert row.accessibleDescription() == "Indice du signal sur DUPONT SERVICES"
+
+
+def test_a_homonym_row_offers_both_decisions(
+    qtbot: QtBot, review_list: ReviewQueueList, queue: ReviewQueue
+) -> None:
+    [entry] = queue.homonyms
+    same, different = review_list.decision_buttons
+    assert (same.text(), different.text()) == ("Même personne", "Personne différente")
+    assert same.accessibleName() == f"Même personne : {entry.title}"
+    people = (entry.first.identifier, entry.second.identifier)
+    labels = (entry.first.label, entry.second.label)
+    with qtbot.waitSignal(review_list.decision_requested) as decided:
+        same.click()
+    assert decided.args == [people, labels, HomonymDecision.SAME_PERSON]
+    with qtbot.waitSignal(review_list.decision_requested) as decided:
+        different.click()
+    assert decided.args == [people, labels, HomonymDecision.DIFFERENT_PERSON]
+    row = next(row for row in review_list.rows if row.title_label.text() == entry.title)
+    assert row.accessibleName() == f"{entry.title}, confiance probable"
+    assert not row.score_label.isVisible()
 
 
 def test_choosing_a_row_with_the_mouse_or_the_keyboard_tells_who_listens(
@@ -96,9 +120,12 @@ def test_the_selected_entity_is_highlighted_in_the_queue(
     assert not any(row.property("selected") for row in review_list.rows)
 
 
-def test_an_empty_queue_says_there_is_no_signal(review_list: ReviewQueueList) -> None:
+def test_an_empty_queue_says_there_is_nothing_to_examine(review_list: ReviewQueueList) -> None:
     review_list.show_queue(ReviewQueue((), (), ()))
-    assert review_list.group_titles == ["Aucun signal"]
+    assert review_list.group_titles == ["Aucun signal", "Homonymes à vérifier"]
+    assert [label.text() for label in review_list.empty_labels] == [
+        "Aucun rapprochement en attente"
+    ]
     assert review_list.rows == []
 
 
