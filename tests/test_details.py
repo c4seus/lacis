@@ -3,17 +3,19 @@ from datetime import date
 
 import pytest
 
-from graph_scenario import PlumbersScenario, plumbers_scenario
+from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import COLLECTED_AT, InvestigationBuilder
 from lacis.details import (
     Badge,
     BadgeTone,
     EntityDetails,
+    Reference,
     entity_details,
     written_day,
     written_month,
 )
-from lacis.storage.entities import CollectedEntity
+from lacis.signals.signal import Severity
+from lacis.storage.entities import CollectedEntity, EntityKind
 from lacis.storage.graph_store import GraphStore
 
 
@@ -27,8 +29,11 @@ def scenario(builder: InvestigationBuilder) -> PlumbersScenario:
     return plumbers_scenario(builder)
 
 
-def details_of(builder: InvestigationBuilder, identifier: str) -> EntityDetails:
-    details = entity_details(builder.connection, identifier)
+def details_of(
+    builder: InvestigationBuilder, identifier: str, scenario: PlumbersScenario | None = None
+) -> EntityDetails:
+    report = phoenix_report(scenario) if scenario is not None else None
+    details = entity_details(builder.connection, identifier, report)
     assert details is not None
     return details
 
@@ -44,7 +49,7 @@ def spaced(siren: str) -> str:
 def test_a_closed_company_shows_its_status_identifiers_and_dates(
     builder: InvestigationBuilder, scenario: PlumbersScenario
 ) -> None:
-    details = details_of(builder, scenario.dupont_services)
+    details = details_of(builder, scenario.dupont_services, scenario)
     siren = siren_of(scenario.dupont_services)
     assert (details.kind_label, details.name) == ("Entreprise", "DUPONT SERVICES")
     assert details.badges == (Badge("Fermée", BadgeTone.CLOSED),)
@@ -121,7 +126,7 @@ def test_a_person_shows_birth_and_nationality(
         CollectedEntity(scenario.jean, "Jean DUPONT", {"nationality": "Française"}),
         builder.response,
     )
-    details = details_of(builder, scenario.jean)
+    details = details_of(builder, scenario.jean, scenario)
     assert (details.kind_label, details.badges) == ("Personne", ())
     assert details.facts == ("Né en 05/1980", "Nationalité Française")
     assert (details.copy_label, details.copy_value) == ("Copier le nom", "Jean DUPONT")
@@ -175,8 +180,56 @@ def test_an_expanded_entity_tells_when(builder: InvestigationBuilder) -> None:
     assert details.expanded_on == f"Étendue le {moment}"
 
 
+def test_the_signals_of_an_entity_name_the_other_entities(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    [card] = details_of(builder, scenario.dupont_services, scenario).signals
+    assert (card.title, card.severity, card.written_score) == (
+        "Schéma phénix",
+        Severity.HIGH,
+        "score 0,85",
+    )
+    assert card.references == (
+        Reference(scenario.acme, EntityKind.COMPANY, "ACME PLOMBERIE"),
+        Reference(scenario.jean, EntityKind.PERSON, "Jean DUPONT"),
+        Reference(scenario.jean_pierre, EntityKind.PERSON, "Jean Pierre DUPONT"),
+    )
+    [evidence] = details_of(builder, scenario.jean, scenario).signals
+    assert [reference.identifier for reference in evidence.references] == [
+        scenario.dupont_services,
+        scenario.acme,
+        scenario.jean_pierre,
+    ]
+    assert details_of(builder, scenario.holding, scenario).signals == ()
+    assert details_of(builder, scenario.jean).signals == ()
+
+
+def test_links_name_the_role_seen_from_the_entity(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    company = details_of(builder, scenario.dupont_services)
+    assert [(line.role, line.reference.label, line.closed) for line in company.links] == [
+        ("Président", "Jean DUPONT", False),
+        ("Siège social", "12 RUE DES LILAS 31000 TOULOUSE", False),
+        ("Établissement", "Siège — TOULOUSE", True),
+    ]
+    person = details_of(builder, scenario.jean)
+    assert [(line.role, line.reference.label) for line in person.links] == [
+        ("Même personne", "Jean Pierre DUPONT"),
+        ("Président de", "DUPONT SERVICES"),
+    ]
+    office = details_of(builder, scenario.acme_office)
+    assert [line.role for line in office.links] == ["Adresse", "Entreprise"]
+    address = details_of(builder, scenario.address)
+    assert {line.role for line in address.links} == {"Siège de", "Établissement"}
+    other = details_of(builder, scenario.jean_pierre)
+    assert ("Même personne", "Jean DUPONT") in [
+        (line.role, line.reference.label) for line in other.links
+    ]
+
+
 def test_an_unknown_entity_has_no_details(builder: InvestigationBuilder) -> None:
-    assert entity_details(builder.connection, "company:100000000") is None
+    assert entity_details(builder.connection, "company:100000000", None) is None
 
 
 def test_dates_are_written_the_french_way() -> None:

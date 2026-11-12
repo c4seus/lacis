@@ -131,6 +131,7 @@ class InvestigationPage(QWidget):
             lambda identifier, label: self.expansion_requested.emit(identifier, label, 1, False)
         )
         sheet = self.details_panel.entity_sheet
+        sheet.entity_chosen.connect(lambda identifier: self.show_entity(identifier, ""))
         sheet.expansion_requested.connect(self.expansion_requested)
         self.columns = QSplitter(Qt.Orientation.Horizontal, self)
         self.columns.setObjectName("investigationColumns")

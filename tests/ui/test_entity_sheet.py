@@ -1,15 +1,18 @@
 import sqlite3
+from dataclasses import replace
 
 import pytest
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QGuiApplication
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QLabel, QWidget
 from pytestqt.qtbot import QtBot
 
-from graph_scenario import PlumbersScenario, plumbers_scenario
+from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.details import EntityDetails, entity_details
+from lacis.signals.signal import Severity
 from lacis.ui.entity_sheet import EntitySheet
 from lacis.ui.flow_layout import FlowLayout
 
@@ -41,7 +44,7 @@ def sheet(qtbot: QtBot, icon_factory: IconFactory, opened_urls: list[QUrl]) -> E
 def details_of(
     builder: InvestigationBuilder, scenario: PlumbersScenario, identifier: str
 ) -> EntityDetails:
-    details = entity_details(builder.connection, identifier)
+    details = entity_details(builder.connection, identifier, phoenix_report(scenario))
     assert details is not None
     return details
 
@@ -170,13 +173,77 @@ def test_actions_without_an_entity_do_nothing(
     assert opened_urls == []
 
 
-def test_an_entity_without_facts_hides_them(
+def test_the_signals_name_the_entities_that_justify_them(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    [card] = sheet.signal_cards
+    assert card.property("severity") == "high"
+    assert card.severity_badge.text() == "Forte"
+    assert card.severity_badge.property("tone") == "badge-high"
+    assert card.title_label.text() == "Schéma phénix"
+    assert card.score_label.text() == "score 0,85"
+    assert [chip.label.text() for chip in card.chips] == [
+        "ACME PLOMBERIE",
+        "Jean DUPONT",
+        "Jean Pierre DUPONT",
+    ]
+    assert card.chips[0].accessibleName() == "Sélectionner ACME PLOMBERIE"
+    assert sheet.section_titles[0].accessibleName() == "Signaux d'alerte, 1"
+
+
+def test_clicking_a_justifying_entity_selects_it(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    chip = sheet.signal_cards[0].chips[0]
+    with qtbot.waitSignal(sheet.entity_chosen) as chosen:
+        QTest.mouseClick(chip, Qt.MouseButton.LeftButton)
+    assert chosen.args == [scenario.acme]
+    for key in (Qt.Key.Key_Return, Qt.Key.Key_Space):
+        with qtbot.waitSignal(sheet.entity_chosen) as chosen:
+            QTest.keyClick(chip, key)
+        assert chosen.args == [scenario.acme]
+    with qtbot.assertNotEmitted(sheet.entity_chosen, wait=10):
+        QTest.keyClick(chip, Qt.Key.Key_A)
+        QTest.mouseClick(chip, Qt.MouseButton.RightButton)
+    assert chip.focusPolicy() & Qt.FocusPolicy.TabFocus
+
+
+def test_the_links_of_the_entity_are_listed(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    assert [(row.role_label.text(), row.chip.label.text()) for row in sheet.link_rows] == [
+        ("Président", "Jean DUPONT"),
+        ("Siège social", "12 RUE DES LILAS 31000 TOULOUSE"),
+        ("Établissement", "Siège — TOULOUSE"),
+    ]
+    closed = sheet.link_rows[2]
+    assert [label.text() for label in closed.findChildren(QLabel)].count("Fermé") == 1
+    with qtbot.waitSignal(sheet.entity_chosen) as chosen:
+        QTest.mouseClick(sheet.link_rows[0].chip, Qt.MouseButton.LeftButton)
+    assert chosen.args == [scenario.jean]
+
+
+def test_medium_and_low_signals_have_their_own_colour(
+    sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    details = details_of(builder, scenario, scenario.dupont_services)
+    for severity in (Severity.MEDIUM, Severity.LOW):
+        card = replace(details.signals[0], severity=severity)
+        sheet.show_details(replace(details, signals=(card,)))
+        assert sheet.signal_cards[0].property("severity") == severity.value
+
+
+def test_an_entity_without_signals_or_links_shows_only_its_head(
     sheet: EntitySheet, builder: InvestigationBuilder
 ) -> None:
     lonely = builder.address("1 PLACE DU CAPITOLE 31000 TOULOUSE")
-    details = entity_details(builder.connection, lonely)
+    details = entity_details(builder.connection, lonely, None)
     assert details is not None
     sheet.show_details(details)
+    assert sheet.section_titles == []
     assert not sheet.facts.isVisible()
 
 

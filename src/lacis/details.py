@@ -8,7 +8,9 @@ from lacis.graph.drawing import KIND_LABELS, is_closed
 from lacis.graph.expansion import EXPANDED_AT_ATTRIBUTE, PIVOT_KINDS
 from lacis.graph.leads import is_known_as_director_only
 from lacis.graph.mapping import spaced_siren
-from lacis.storage.entities import Attributes, Entity, EntityKind
+from lacis.signals.signal import Severity, Signal
+from lacis.signals.store import SignalReport
+from lacis.storage.entities import Attributes, Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
 
 DIRECTORY_ROOT = "https://annuaire-entreprises.data.gouv.fr"
@@ -33,6 +35,33 @@ class Badge:
 
 
 @dataclass(frozen=True)
+class Reference:
+    identifier: str
+    kind: EntityKind
+    label: str
+
+
+@dataclass(frozen=True)
+class SignalCard:
+    title: str
+    severity: Severity
+    score: float
+    explanation: str
+    references: tuple[Reference, ...]
+
+    @property
+    def written_score(self) -> str:
+        return f"score {self.score:.2f}".replace(".", ",")
+
+
+@dataclass(frozen=True)
+class LinkLine:
+    role: str
+    reference: Reference
+    closed: bool
+
+
+@dataclass(frozen=True)
 class EntityDetails:
     identifier: str
     kind: EntityKind
@@ -43,6 +72,8 @@ class EntityDetails:
     copy_label: str
     copy_value: str
     directory_url: str
+    signals: tuple[SignalCard, ...]
+    links: tuple[LinkLine, ...]
 
     @property
     def kind_label(self) -> str:
@@ -182,7 +213,78 @@ def directory_url(entity: Entity) -> str:
     return ""
 
 
-def entity_details(connection: sqlite3.Connection, identifier: str) -> EntityDetails | None:
+class References:
+    def __init__(self, graph_store: GraphStore) -> None:
+        self.graph_store = graph_store
+
+    def of(self, identifier: str) -> Reference:
+        entity = self.graph_store.require_entity(identifier)
+        return Reference(identifier, entity.kind, entity.label)
+
+
+def signal_cards(
+    report: SignalReport | None, identifier: str, references: References
+) -> list[SignalCard]:
+    if report is None:
+        return []
+    concerned: list[Signal] = [
+        signal
+        for signal in report.signals
+        if identifier == signal.subject or identifier in signal.justifying_entities
+    ]
+    ordered = sorted(concerned, key=lambda signal: (-signal.severity.rank, -signal.score))
+    cards = []
+    for signal in ordered:
+        others = [
+            other
+            for other in dict.fromkeys((signal.subject, *signal.justifying_entities))
+            if other != identifier
+        ]
+        cards.append(
+            SignalCard(
+                signal.title,
+                signal.severity,
+                signal.score,
+                signal.explanation,
+                tuple(references.of(other) for other in others),
+            )
+        )
+    return cards
+
+
+def link_role(link: Link, identifier: str) -> str:
+    seen_from_source = link.source == identifier
+    roles = {
+        LinkKind.ESTABLISHMENT_OF: ("Entreprise", "Établissement"),
+        LinkKind.LOCATED_AT: ("Adresse", "Établissement"),
+        LinkKind.REGISTERED_OFFICE: ("Siège social", "Siège de"),
+        LinkKind.SAME_PERSON: ("Même personne", "Même personne"),
+    }
+    if link.kind is LinkKind.MANDATE:
+        return f"{link.role} de" if seen_from_source else link.role
+    from_source, from_target = roles[link.kind]
+    return from_source if seen_from_source else from_target
+
+
+def link_lines(graph_store: GraphStore, identifier: str) -> list[LinkLine]:
+    lines = []
+    for link in graph_store.links_of(identifier):
+        other = graph_store.require_entity(
+            link.target if link.source == identifier else link.source
+        )
+        lines.append(
+            LinkLine(
+                link_role(link, identifier),
+                Reference(other.identifier, other.kind, other.label),
+                is_closed(other),
+            )
+        )
+    return sorted(lines, key=lambda line: (line.role, line.reference.label))
+
+
+def entity_details(
+    connection: sqlite3.Connection, identifier: str, report: SignalReport | None
+) -> EntityDetails | None:
     graph_store = GraphStore(connection)
     entity = graph_store.entity(identifier)
     if entity is None:
@@ -204,4 +306,6 @@ def entity_details(connection: sqlite3.Connection, identifier: str) -> EntityDet
         copy_label=copy_label,
         copy_value=copy_value,
         directory_url=directory_url(entity),
+        signals=tuple(signal_cards(report, identifier, References(graph_store))),
+        links=tuple(link_lines(graph_store, identifier)),
     )

@@ -11,6 +11,7 @@ from lacis.design.theme_controller import ThemeController
 from lacis.details import entity_details
 from lacis.graph.background import BackgroundJob, CollectionSettings, layout_job, move_job
 from lacis.overview import read_overview
+from lacis.signals.store import SignalReport
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE as UNREADABLE
 from lacis.storage.investigations import InvestigationLibrary
@@ -71,6 +72,7 @@ class MainWindow(QMainWindow):
         self.investigation_page = InvestigationPage(settings, self.icon_factory)
         self.connect_investigation_page()
         self.layout_job: BackgroundJob | None = None
+        self.report: SignalReport | None = None
         self.move_jobs: list[BackgroundJob] = []
         self.pages.addWidget(self.home_screen)
         self.pages.addWidget(self.investigation_page)
@@ -232,6 +234,7 @@ class MainWindow(QMainWindow):
             message = str(problem) if isinstance(problem, InvestigationError) else UNREADABLE
             self.show_failure(message)
             return
+        self.report = overview.report
         self.investigation_page.show_overview(overview)
         self.show_details(self.investigation_page.selected_entity or "")
         if overview.drawing.needs_layout:
@@ -243,7 +246,7 @@ class MainWindow(QMainWindow):
             return
         try:
             with self.library.open(self.current_investigation) as opened:
-                details = entity_details(opened.connection, identifier)
+                details = entity_details(opened.connection, identifier, self.report)
         except (InvestigationError, sqlite3.DatabaseError) as problem:
             message = str(problem) if isinstance(problem, InvestigationError) else UNREADABLE
             self.show_failure(message)
