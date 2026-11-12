@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 
 from prepare_debian_source import RECIPE_DIRECTORY, changelog, main, prepare
+from qt_imports import imported_qt_modules
 
 REPOSITORY = Path(__file__).resolve().parent.parent
 RELEASED_AT = datetime(2026, 11, 12, 16, 0, tzinfo=UTC)
-QT_MODULE = re.compile(r"^(?:from|import) PySide6\.Qt(\w+)", re.MULTILINE)
 
 
 def test_the_changelog_names_the_version_and_the_date() -> None:
@@ -66,15 +66,6 @@ def test_every_version_hatchling_gives_is_accepted(
     (tmp_path / RECIPE_DIRECTORY).mkdir(parents=True)
     assert main(tmp_path, [version], {"SOURCE_DATE_EPOCH": "0"}) == 0
     assert (tmp_path / "debian" / "changelog").is_file()
-
-
-def imported_qt_modules(*directories: str) -> set[str]:
-    return {
-        module.lower()
-        for directory in directories
-        for path in (REPOSITORY / directory).rglob("*.py")
-        for module in QT_MODULE.findall(path.read_text(encoding="utf-8"))
-    }
 
 
 def test_the_package_depends_on_every_qt_module_that_lacis_imports() -> None:

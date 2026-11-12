@@ -1,0 +1,33 @@
+name: Arch Linux package
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build on Arch Linux
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install the build tools and the dependencies of the package
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel git make namcap \
+            python-build python-hatch-vcs python-hatchling python-installer \
+            hicolor-icon-theme pyside6 python python-httpx qt6-svg
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build the package as an unprivileged user and check it with namcap
+        run: |
+          useradd --create-home builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          su builder --command "make arch"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: arch-package
+          path: dist/lacis-*.pkg.tar.zst
+          if-no-files-found: error
