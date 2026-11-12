@@ -30,3 +30,6 @@ icons:
 
 desktop-metadata:
 	desktop-file-validate packaging/linux/io.github.c4seus.lacis.desktop
+	appstreamcli validate --no-net --pedantic --strict packaging/linux/io.github.c4seus.lacis.metainfo.xml
+	$(PYTHON) scripts/stage_desktop_files.py build/desktop-tree
+	appstreamcli validate-tree --no-net --pedantic --strict build/desktop-tree
