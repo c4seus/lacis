@@ -55,7 +55,9 @@ jobs:
       - name: Launch Lacis
         run: lacis --version | grep -E '^Lacis [0-9]'
       - name: Install the test tools from Debian
-        run: apt-get install --yes --no-install-recommends ca-certificates git python3-pytest python3-pytestqt
+        run: |
+          apt-get install --yes --no-install-recommends \
+            ca-certificates git python3-pyside6.qttest python3-pytest python3-pytestqt
       - uses: actions/checkout@v4
       - name: Run the tests against the installed package and the PySide6 of Debian
         run: |

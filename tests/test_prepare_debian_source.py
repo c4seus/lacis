@@ -92,13 +92,28 @@ def test_every_version_hatchling_gives_is_accepted(
     assert (tmp_path / "debian" / "changelog").is_file()
 
 
-def test_the_package_depends_on_every_qt_module_that_lacis_imports() -> None:
-    imported = {
+def imported_qt_modules(*directories: str) -> set[str]:
+    return {
         module.lower()
-        for path in (REPOSITORY / "src").rglob("*.py")
+        for directory in directories
+        for path in (REPOSITORY / directory).rglob("*.py")
         for module in QT_MODULE.findall(path.read_text(encoding="utf-8"))
     }
+
+
+def test_the_package_depends_on_every_qt_module_that_lacis_imports() -> None:
+    imported = imported_qt_modules("src")
     control = (REPOSITORY / RECIPE_DIRECTORY / "control").read_text(encoding="utf-8")
     declared = set(re.findall(r"python3-pyside6\.qt(\w+) \(>= 6\.8\)", control))
     assert imported == declared == {"core", "gui", "svg", "widgets"}
     assert "python3-httpx" in control
+
+
+def test_the_debian_tests_install_every_qt_module_that_the_tests_import() -> None:
+    control = (REPOSITORY / RECIPE_DIRECTORY / "control").read_text(encoding="utf-8")
+    workflow = (REPOSITORY / ".github" / "workflows" / "debian-package.yml").read_text(
+        encoding="utf-8"
+    )
+    installed = set(re.findall(r"python3-pyside6\.qt(\w+)", control + workflow))
+    assert imported_qt_modules("tests", "scripts") <= installed
+    assert "test" in installed
