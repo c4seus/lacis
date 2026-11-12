@@ -44,17 +44,20 @@ def review_list(qtbot: QtBot, icon_factory: IconFactory, queue: ReviewQueue) -> 
     return review_list
 
 
-def test_the_queue_shows_the_signals_and_the_homonyms(
+def test_the_queue_shows_its_three_sections(
     review_list: ReviewQueueList, queue: ReviewQueue
 ) -> None:
-    assert review_list.group_titles == ["Schéma phénix · forte", "Homonymes à vérifier"]
+    assert review_list.group_titles == [
+        "Schéma phénix · forte",
+        "Homonymes à vérifier",
+        "Pistes non étendues",
+    ]
     assert [label.text() for label in review_list.group_labels] == [
         "SCHÉMA PHÉNIX · FORTE",
         "HOMONYMES À VÉRIFIER",
+        "PISTES NON ÉTENDUES",
     ]
-    assert [row.entity.identifier for row in review_list.rows] == queue.entity_identifiers()[
-        : -len(queue.leads)
-    ]
+    assert [row.entity.identifier for row in review_list.rows] == queue.entity_identifiers()
 
 
 def test_a_signal_row_shows_the_entity_its_score_and_explanation(
@@ -88,6 +91,29 @@ def test_a_homonym_row_offers_both_decisions(
     assert not row.score_label.isVisible()
 
 
+def test_a_lead_row_offers_to_expand_it(
+    qtbot: QtBot, review_list: ReviewQueueList, scenario: PlumbersScenario
+) -> None:
+    button = review_list.expand_buttons[scenario.holding]
+    assert button.text() == "Étendre"
+    assert button.accessibleName() == "Étendre HOLDING DUPONT"
+    with qtbot.waitSignal(review_list.expansion_requested) as requested:
+        button.click()
+    assert requested.args == [scenario.holding, "HOLDING DUPONT"]
+
+
+def test_a_running_expansion_disables_its_button_until_it_ends(
+    review_list: ReviewQueueList, queue: ReviewQueue, scenario: PlumbersScenario
+) -> None:
+    review_list.show_expanding({scenario.holding})
+    button = review_list.expand_buttons[scenario.holding]
+    assert (button.isEnabled(), button.text()) == (False, "Extension…")
+    review_list.show_queue(queue)
+    assert not review_list.expand_buttons[scenario.holding].isEnabled()
+    review_list.show_expanding(set())
+    assert review_list.expand_buttons[scenario.holding].isEnabled()
+
+
 def test_choosing_a_row_with_the_mouse_or_the_keyboard_tells_who_listens(
     qtbot: QtBot, review_list: ReviewQueueList, scenario: PlumbersScenario
 ) -> None:
@@ -110,11 +136,12 @@ def test_the_selected_entity_is_highlighted_in_the_queue(
 ) -> None:
     review_list.mark_selected(scenario.jean)
     selected = [row.entity.identifier for row in review_list.rows if row.property("selected")]
-    assert selected == [scenario.jean]
+    assert selected == [scenario.jean, scenario.jean]
     review_list.mark_selected(scenario.jean)
     review_list.show_queue(queue)
     assert [row.entity.identifier for row in review_list.rows if row.property("selected")] == [
-        scenario.jean
+        scenario.jean,
+        scenario.jean,
     ]
     review_list.mark_selected(None)
     assert not any(row.property("selected") for row in review_list.rows)
@@ -122,9 +149,14 @@ def test_the_selected_entity_is_highlighted_in_the_queue(
 
 def test_an_empty_queue_says_there_is_nothing_to_examine(review_list: ReviewQueueList) -> None:
     review_list.show_queue(ReviewQueue((), (), ()))
-    assert review_list.group_titles == ["Aucun signal", "Homonymes à vérifier"]
+    assert review_list.group_titles == [
+        "Aucun signal",
+        "Homonymes à vérifier",
+        "Pistes non étendues",
+    ]
     assert [label.text() for label in review_list.empty_labels] == [
-        "Aucun rapprochement en attente"
+        "Aucun rapprochement en attente",
+        "Aucune piste à étendre",
     ]
     assert review_list.rows == []
 

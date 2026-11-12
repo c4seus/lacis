@@ -8,6 +8,7 @@ from PySide6.QtTest import QTest
 from pytestqt.qtbot import QtBot
 
 from investigation_builder import InvestigationBuilder
+from lacis.collectors.environment import demo_collection_environment
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.storage.entities import EntityKind
@@ -437,12 +438,17 @@ def queue_rows(main_window: MainWindow) -> list[QueueRow]:
     return main_window.investigation_page.queue_column.review_list.rows
 
 
-def test_the_queue_shows_signals_and_homonyms(main_window: MainWindow) -> None:
+def test_the_queue_shows_signals_homonyms_and_leads(main_window: MainWindow) -> None:
     review_list = main_window.investigation_page.queue_column.review_list
-    assert review_list.group_titles == ["Rafale de créations · moyenne", "Homonymes à vérifier"]
+    assert review_list.group_titles == [
+        "Rafale de créations · moyenne",
+        "Homonymes à vérifier",
+        "Pistes non étendues",
+    ]
     assert [label.text() for label in review_list.empty_labels] == [
         "Aucun rapprochement en attente"
     ]
+    assert len(review_list.expand_buttons) == 5
 
 
 def test_choosing_an_entity_in_the_queue_selects_it_everywhere(
@@ -495,3 +501,25 @@ def test_a_homonym_decided_in_the_queue_can_be_undone(
     assert len(review_list.decision_buttons) == 2
     main_window.show_home()
     assert not menu_bar.undo_action.isEnabled()
+
+
+def test_a_lead_is_expanded_from_the_queue(
+    qtbot: QtBot,
+    settings: QSettings,
+    theme_controller: ThemeController,
+    library: InvestigationLibrary,
+) -> None:
+    window = MainWindow(settings, theme_controller, demo_collection_environment(), library)
+    qtbot.addWidget(window)
+    window.open_investigation(INVESTIGATION_NAME)
+    qtbot.waitUntil(lambda: window.layout_job is None)
+    review_list = window.investigation_page.queue_column.review_list
+    identifier, button = next(iter(review_list.expand_buttons.items()))
+    button.click()
+    assert identifier in window.review_actions.expansions
+    assert not review_list.expand_buttons[identifier].isEnabled()
+    qtbot.waitUntil(lambda: not window.review_actions.expansions, timeout=10_000)
+    assert len(window.notification_area.notifications) == 2
+    assert review_list.expand_buttons[identifier].isEnabled() or identifier not in (
+        review_list.expand_buttons
+    )

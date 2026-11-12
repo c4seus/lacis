@@ -114,8 +114,11 @@ class MainWindow(QMainWindow):
         self.main_menu_bar.layout_action.triggered.connect(self.lay_out_again)
 
     def connect_review_actions(self) -> None:
+        review_list = self.investigation_page.queue_column.review_list
         self.review_actions.changed.connect(self.refresh_overview)
+        self.review_actions.expanding_changed.connect(review_list.show_expanding)
         self.investigation_page.decision_requested.connect(self.review_actions.decide)
+        self.investigation_page.expansion_requested.connect(self.review_actions.expand)
 
     def open_investigation(self, name: str) -> None:
         try:

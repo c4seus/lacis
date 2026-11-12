@@ -7,11 +7,13 @@ from pytestqt.qtbot import QtBot
 
 from fake_time import FakeTime
 from investigation_builder import InvestigationBuilder
+from lacis.collectors.company_register import CompanySearchPage
 from lacis.collectors.environment import demo_collection_environment
 from lacis.collectors.http_client import CollectorTiming
 from lacis.collectors.rate_limiting import RateLimiters
 from lacis.design.theme_controller import ThemeController
-from lacis.graph.background import CollectionSettings
+from lacis.graph.background import CollectionSettings, add_company_job, search_job
+from lacis.storage.graph_store import GraphStore
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
 from lacis.storage.investigations import InvestigationLibrary
 from lacis.ui.help_menu import HelpMenu
@@ -141,13 +143,74 @@ def test_an_undo_that_fails_is_reported(
     )
 
 
-def test_nothing_is_decided_once_stopped(
+def test_nothing_is_decided_or_expanded_once_stopped(
     menu_bar: MainMenuBar, people: tuple[str, str], library: InvestigationLibrary
 ) -> None:
     actions = ReviewActions(menu_bar, lambda message, kind: None)
     actions.decide(people, ("Jean", "Jean Pierre"), HomonymDecision.SAME_PERSON)
+    actions.expand("company:111111111", "ACME PLOMBERIE")
     assert decision_of(library, people) is None
+    assert actions.expansions == {}
     actions.stop()
+
+
+def add_acme(qtbot: QtBot, collection_settings: CollectionSettings) -> None:
+    search = search_job(collection_settings, "111111111")
+    with qtbot.waitSignal(search.succeeded, timeout=WAIT_MILLISECONDS) as found:
+        search.start()
+    search.wait()
+    [page] = found.args
+    assert isinstance(page, CompanySearchPage)
+    adding = add_company_job(collection_settings, page.companies[0], page.response)
+    with qtbot.waitSignal(adding.succeeded, timeout=WAIT_MILLISECONDS):
+        adding.start()
+    adding.wait()
+
+
+def test_an_expansion_runs_in_the_background_and_reports_what_it_found(
+    qtbot: QtBot,
+    actions: ReviewActions,
+    collection_settings: CollectionSettings,
+    library: InvestigationLibrary,
+    notified: Notified,
+) -> None:
+    add_acme(qtbot, collection_settings)
+    expanding: list[set[str]] = []
+    actions.expanding_changed.connect(expanding.append)
+    with qtbot.waitSignal(actions.changed, timeout=WAIT_MILLISECONDS):
+        actions.expand("company:111111111", "ACME PLOMBERIE")
+        actions.expand("company:111111111", "ACME PLOMBERIE")
+    assert expanding == [{"company:111111111"}, set()]
+    assert notified[0] == ("Extension de ACME PLOMBERIE en cours…", NotificationKind.INFORMATION)
+    message, kind = notified[1]
+    assert kind is NotificationKind.SUCCESS
+    assert message.startswith("Extension de ACME PLOMBERIE terminée : ")
+    with library.open(INVESTIGATION_NAME) as opened:
+        assert len(GraphStore(opened.connection).entities()) > 1
+
+
+def test_a_failed_expansion_is_reported(
+    qtbot: QtBot, actions: ReviewActions, notified: Notified
+) -> None:
+    with qtbot.waitSignal(actions.changed, timeout=WAIT_MILLISECONDS):
+        actions.expand("company:999999999", "INCONNUE")
+    assert notified[-1] == (
+        "Cette entité n'est pas dans l'enquête ou ne peut pas être étendue.",
+        NotificationKind.ERROR,
+    )
+
+
+def test_leaving_cancels_the_running_expansions(
+    qtbot: QtBot, actions: ReviewActions, collection_settings: CollectionSettings
+) -> None:
+    add_acme(qtbot, collection_settings)
+    actions.expand("company:111111111", "ACME PLOMBERIE")
+    job = actions.expansions["company:111111111"]
+    actions.stop()
+    assert actions.expansions == {}
+    assert not job.is_running()
+    actions.finish_expansion("company:111111111", "ACME PLOMBERIE", None)
+    actions.fail_expansion("company:111111111", "Problème")
 
 
 def test_messages_name_the_decision_and_the_failure() -> None:
