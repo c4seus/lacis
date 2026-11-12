@@ -363,6 +363,8 @@ class EntitySheet(QScrollArea):
         self.timeline = NoticeTimeline(
             details.notices, self.icon_factory.colours_provider, self.content
         )
+        self.timeline.link_requested.connect(lambda url: self.open_url(QUrl(url)))
+        self.timeline.raw_requested.connect(self.raw_requested)
         self.content_layout.addWidget(self.timeline)
 
     def add_links(self, details: EntityDetails) -> None:

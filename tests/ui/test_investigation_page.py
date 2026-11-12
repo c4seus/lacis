@@ -13,6 +13,7 @@ from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.storage.entities import EntityKind
 from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
+from lacis.storage.notices import NoticeFamily
 from lacis.storage.positions import Position, PositionStore
 from lacis.ui.entity_sheet import EntitySheet
 from lacis.ui.investigation_page import (
@@ -610,3 +611,20 @@ def test_an_entity_is_expanded_again_from_its_sheet(
     sheet_of(window).depth_menu.actions()[1].trigger()
     assert company in window.review_actions.expansions
     qtbot.waitUntil(lambda: not window.review_actions.expansions, timeout=10_000)
+
+
+def test_the_raw_response_of_a_notice_opens_in_a_dialog(
+    main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    with library.open(INVESTIGATION_NAME) as opened:
+        builder = InvestigationBuilder(opened.connection)
+        company = builder.company("SOCIETE ANNONCEE", date(2024, 5, 2))
+        builder.notice(company, NoticeFamily.REMOVAL, date(2025, 6, 1), "Radiation")
+        opened.connection.commit()
+    main_window.refresh_overview()
+    main_window.investigation_page.show_entity(company, "")
+    sheet = sheet_of(main_window)
+    assert sheet.timeline is not None
+    sheet.timeline.items[0].raw_button.click()
+    [dialog] = main_window.findChildren(RawResponseDialog)
+    assert dialog.isVisible()

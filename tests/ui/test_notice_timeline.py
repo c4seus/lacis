@@ -3,6 +3,7 @@ from dataclasses import replace
 from datetime import UTC, date, datetime
 
 import pytest
+from PySide6.QtCore import QUrl
 from pytestqt.qtbot import QtBot
 
 from graph_scenario import PlumbersScenario, plumbers_scenario
@@ -85,6 +86,22 @@ def test_a_withdrawn_notice_is_shown_as_such(timeline: NoticeTimeline) -> None:
     assert sale.property("withdrawn") is True
 
 
+def test_each_notice_links_to_bodacc_and_to_its_raw_response(
+    qtbot: QtBot, timeline: NoticeTimeline
+) -> None:
+    removal = timeline.items[0]
+    assert removal.bodacc_button.text() == "bodacc.fr ↗"
+    assert removal.bodacc_button.accessibleName() == (
+        "Ouvrir l'annonce du 20/01/2023 sur bodacc.fr"
+    )
+    with qtbot.waitSignal(timeline.link_requested) as linked:
+        removal.bodacc_button.click()
+    assert linked.args == [REMOVAL.url]
+    with qtbot.waitSignal(timeline.raw_requested) as raw:
+        removal.raw_button.click()
+    assert raw.args == [4]
+
+
 def test_the_dots_follow_the_notices(timeline: NoticeTimeline) -> None:
     centres = timeline.dot_centres()
     assert [centre.y() for centre in centres] == sorted(centre.y() for centre in centres)
@@ -126,12 +143,18 @@ def test_the_sheet_of_a_company_shows_its_notices(
     scenario: PlumbersScenario,
 ) -> None:
     builder.notice(scenario.dupont_services, NoticeFamily.REMOVAL, date(2023, 1, 20), "Radiation")
-    sheet = EntitySheet(icon_factory)
+    opened: list[QUrl] = []
+    sheet = EntitySheet(icon_factory, open_url=opened.append)
     qtbot.addWidget(sheet)
     details = entity_details(builder.connection, scenario.dupont_services, None)
     sheet.show_details(details)
     assert sheet.timeline is not None
     assert sheet.section_titles[0].accessibleName() == "Annonces BODACC, 1"
+    item = sheet.timeline.items[0]
+    item.bodacc_button.click()
+    assert opened == [QUrl(item.notice.url)]
+    with qtbot.waitSignal(sheet.raw_requested):
+        item.raw_button.click()
 
 
 def test_only_companies_have_notices_in_their_sheet(
