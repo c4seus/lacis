@@ -75,8 +75,8 @@ def test_the_graph_area_waits_for_the_graph(qtbot: QtBot, icon_factory: IconFact
     assert not area.legend.isVisible()
 
 
-def test_the_details_panel_has_its_four_tabs(qtbot: QtBot) -> None:
-    panel = DetailsPanel()
+def test_the_details_panel_has_its_four_tabs(qtbot: QtBot, icon_factory: IconFactory) -> None:
+    panel = DetailsPanel(icon_factory)
     qtbot.addWidget(panel)
     assert panel.minimumWidth() == DETAILS_MINIMUM_WIDTH
     assert [panel.tabs.tabText(index) for index in range(panel.tabs.count())] == [

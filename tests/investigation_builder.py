@@ -81,7 +81,10 @@ class InvestigationBuilder:
         identifier: str | None = None,
     ) -> str:
         identifier = identifier or company_identifier(next(self.sirens))
-        attributes: Attributes = {"is_active": closing_date is None}
+        attributes: Attributes = {
+            "siren": identifier.removeprefix("company:"),
+            "is_active": closing_date is None,
+        }
         if closing_date is not None:
             attributes["closing_date"] = closing_date.isoformat()
         if creation_date is not None:
@@ -101,6 +104,7 @@ class InvestigationBuilder:
     ) -> str:
         identifier = establishment_identifier(fictional_siret(company))
         attributes: Attributes = {
+            "siret": identifier.removeprefix("establishment:"),
             "is_head_office": True,
             "closing_date": None if closing_date is None else closing_date.isoformat(),
         }

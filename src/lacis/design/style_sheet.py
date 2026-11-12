@@ -490,6 +490,21 @@ QLabel[tone="queue-empty"] {{
     font-size: {font_sizes.caption}px;
 }}
 
+QFrame#kindBadge {{
+    border: 1px solid {colours.strong_border};
+    border-radius: {radii.small}px;
+}}
+
+QLabel[tone="badge-text"] {{
+    color: {colours.muted_text};
+    font-size: {font_sizes.caption}px;
+    font-weight: {font_weights.medium};
+}}
+
+QScrollArea#entitySheet, QWidget#entitySheetContent {{
+    background-color: {colours.surface};
+}}
+
 QPushButton[compact="true"] {{
     min-height: 24px;
     padding: 0 {spacing.step_2}px;

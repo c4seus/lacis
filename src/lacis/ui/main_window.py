@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLay
 from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
+from lacis.details import entity_details
 from lacis.graph.background import BackgroundJob, CollectionSettings, layout_job, move_job
 from lacis.overview import read_overview
 from lacis.storage.errors import InvestigationError
@@ -75,13 +76,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.investigation_page)
         content_layout.addWidget(self.pages)
         self.current_investigation: str | None = None
-        central_widget = QWidget(self)
-        central_layout = QVBoxLayout(central_widget)
-        central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(0)
-        central_layout.addWidget(self.header_bar)
-        central_layout.addWidget(self.content_area, 1)
-        self.setCentralWidget(central_widget)
+        self.setCentralWidget(self.central_widget())
 
         self.search_popup = RegisterSearchPopup(self.header_bar.search_field, self)
         self.register_search = RegisterSearch(
@@ -99,6 +94,15 @@ class MainWindow(QMainWindow):
 
         self.content_area.setFocus()
         self.restore_saved_geometry()
+
+    def central_widget(self) -> QWidget:
+        central_widget = QWidget(self)
+        central_layout = QVBoxLayout(central_widget)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(self.header_bar)
+        central_layout.addWidget(self.content_area, 1)
+        return central_widget
 
     def connect_investigation_page(self) -> None:
         queue_action = self.main_menu_bar.queue_action
@@ -119,6 +123,7 @@ class MainWindow(QMainWindow):
         self.review_actions.expanding_changed.connect(review_list.show_expanding)
         self.investigation_page.decision_requested.connect(self.review_actions.decide)
         self.investigation_page.expansion_requested.connect(self.review_actions.expand)
+        self.investigation_page.entity_selected.connect(self.show_details)
 
     def open_investigation(self, name: str) -> None:
         try:
@@ -224,8 +229,22 @@ class MainWindow(QMainWindow):
             self.show_failure(message)
             return
         self.investigation_page.show_overview(overview)
+        self.show_details(self.investigation_page.selected_entity or "")
         if overview.drawing.needs_layout:
             self.start_layout()
+
+    def show_details(self, identifier: str) -> None:
+        if self.current_investigation is None or not identifier:
+            self.investigation_page.details_panel.show_details(None)
+            return
+        try:
+            with self.library.open(self.current_investigation) as opened:
+                details = entity_details(opened.connection, identifier)
+        except (InvestigationError, sqlite3.DatabaseError) as problem:
+            message = str(problem) if isinstance(problem, InvestigationError) else UNREADABLE
+            self.show_failure(message)
+            return
+        self.investigation_page.details_panel.show_details(details)
 
     def follow_breadcrumb(self, position: int) -> None:
         if position == 0:
