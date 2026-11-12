@@ -1,0 +1,63 @@
+%global __requires_exclude ^python3\\.[0-9]+dist\\(pyside6-essentials\\)
+
+Name:           lacis
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        Map French companies, their directors and addresses
+License:        GPL-3.0-or-later AND OFL-1.1
+URL:            https://github.com/c4seus/lacis
+BuildArch:      noarch
+
+BuildRequires:  appstream
+BuildRequires:  desktop-file-utils
+BuildRequires:  python3-build
+BuildRequires:  python3-devel
+BuildRequires:  python3-hatch-vcs
+BuildRequires:  python3-hatchling
+BuildRequires:  python3-installer
+
+Requires:       hicolor-icon-theme
+Requires:       python3dist(pyside6) >= 6.8
+
+%description
+Lacis is a desktop OSINT tool that maps French companies, their directors
+and their addresses into a link graph, in which every fact links back to the
+public response it came from.
+
+Starting from one company, Lacis pulls the threads: who runs it, which other
+companies those people run, who else is registered at the same address, and
+what the BODACC published about each of them. Explainable rules then flag the
+patterns worth a closer look, such as dozens of companies registered at the
+same address, or phoenix schemes.
+
+Each investigation is a local SQLite database. The interface is in French.
+
+%prep
+
+%build
+export SETUPTOOLS_SCM_PRETEND_VERSION=@PYTHON_VERSION@
+%{python3} -m build --wheel --no-isolation --outdir %{_topdir}/wheel
+
+%install
+%{python3} -m installer --destdir=%{buildroot} --prefix=%{_prefix} --no-compile-bytecode \
+    %{_topdir}/wheel/lacis-*.whl
+%{python3} scripts/stage_desktop_files.py %{buildroot}
+
+%check
+desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.c4seus.lacis.desktop
+appstreamcli validate --no-net \
+    %{buildroot}%{_metainfodir}/io.github.c4seus.lacis.metainfo.xml
+
+%files
+%license LICENSE
+%doc README.md
+%{_bindir}/lacis
+%{python3_sitelib}/lacis/
+%{python3_sitelib}/lacis-*.dist-info/
+%{_datadir}/applications/io.github.c4seus.lacis.desktop
+%{_metainfodir}/io.github.c4seus.lacis.metainfo.xml
+%{_datadir}/icons/hicolor/*/apps/io.github.c4seus.lacis.*
+%{_mandir}/man1/lacis.1*
+
+%changelog
+@CHANGELOG@

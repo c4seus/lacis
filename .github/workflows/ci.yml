@@ -102,6 +102,10 @@ jobs:
     name: Debian package
     uses: ./.github/workflows/debian-package.yml
 
+  fedora-package:
+    name: Fedora package
+    uses: ./.github/workflows/fedora-package.yml
+
   commits:
     name: Commit convention
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
@@ -122,7 +126,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: always()
-    needs: [lint, types, tests, desktop-metadata, debian-package, commits]
+    needs: [lint, types, tests, desktop-metadata, debian-package, fedora-package, commits]
     runs-on: ubuntu-latest
     steps:
       - name: Fail when a required job failed or was cancelled

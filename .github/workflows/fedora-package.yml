@@ -1,0 +1,35 @@
+name: Fedora package
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build on Fedora ${{ matrix.release }}
+    runs-on: ubuntu-latest
+    container: fedora:${{ matrix.release }}
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["44", "45"]
+    steps:
+      - name: Install the build tools
+        run: |
+          dnf install --assumeyes --setopt=install_weak_deps=False \
+            appstream desktop-file-utils git make rpm-build rpmlint \
+            python3-build python3-devel python3-hatch-vcs python3-hatchling python3-installer
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build the package and check it with rpmlint
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          make rpm
+      - uses: actions/upload-artifact@v7
+        with:
+          name: fedora-${{ matrix.release }}-package
+          path: dist/lacis-*.rpm
+          if-no-files-found: error
