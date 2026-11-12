@@ -10,6 +10,7 @@ from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.details import entity_details, raw_response
 from lacis.graph.background import BackgroundJob, CollectionSettings, layout_job, move_job
+from lacis.graph.expansion import MINIMUM_DEPTH
 from lacis.overview import read_overview
 from lacis.signals.store import SignalReport
 from lacis.storage.errors import InvestigationError
@@ -119,6 +120,15 @@ class MainWindow(QMainWindow):
         self.main_menu_bar.zoom_out_action.triggered.connect(graph_view.zoom_out)
         self.main_menu_bar.fit_action.triggered.connect(graph_view.fit)
         self.main_menu_bar.layout_action.triggered.connect(self.lay_out_again)
+        self.main_menu_bar.search_action.triggered.connect(self.focus_search)
+        details_panel = self.investigation_page.details_panel
+        sheet = details_panel.entity_sheet
+        self.main_menu_bar.expand_action.triggered.connect(lambda: sheet.expand(MINIMUM_DEPTH))
+        sheet.expandable_changed.connect(self.follow_expandable)
+        self.main_menu_bar.next_tab_action.triggered.connect(details_panel.show_next_tab)
+        self.main_menu_bar.previous_tab_action.triggered.connect(details_panel.show_previous_tab)
+        for index, action in enumerate(self.main_menu_bar.tab_actions):
+            action.triggered.connect(lambda _checked, index=index: details_panel.show_tab(index))
 
     def connect_review_actions(self) -> None:
         review_list = self.investigation_page.queue_column.review_list
@@ -160,9 +170,8 @@ class MainWindow(QMainWindow):
         self.header_bar.set_search_enabled(True)
         self.header_bar.breadcrumb.set_trail((*HOME_TRAIL, name))
         self.main_menu_bar.close_investigation_action.setEnabled(True)
-        self.main_menu_bar.queue_action.setEnabled(True)
-        for action in self.main_menu_bar.graph_actions:
-            action.setEnabled(True)
+        self.main_menu_bar.show_investigation_actions(True)
+        self.follow_expandable(self.investigation_page.details_panel.entity_sheet.can_expand())
         self.pages.setCurrentWidget(self.investigation_page)
         self.header_bar.search_field.setFocus()
 
@@ -277,6 +286,16 @@ class MainWindow(QMainWindow):
         dialog = RawResponseDialog(response_identifier, text, self)
         dialog.open()
 
+    def focus_search(self) -> None:
+        field = self.header_bar.search_field
+        if field.isEnabled():
+            field.setFocus(Qt.FocusReason.ShortcutFocusReason)
+            field.selectAll()
+
+    def follow_expandable(self, expandable: bool) -> None:
+        shown = self.current_investigation is not None
+        self.main_menu_bar.expand_action.setEnabled(shown and expandable)
+
     def follow_breadcrumb(self, position: int) -> None:
         if position == 0:
             self.show_home()
@@ -290,9 +309,7 @@ class MainWindow(QMainWindow):
         self.header_bar.set_search_enabled(False)
         self.current_investigation = None
         self.main_menu_bar.close_investigation_action.setEnabled(False)
-        self.main_menu_bar.queue_action.setEnabled(False)
-        for action in self.main_menu_bar.graph_actions:
-            action.setEnabled(False)
+        self.main_menu_bar.show_investigation_actions(False)
         self.header_bar.breadcrumb.set_trail(HOME_TRAIL)
         self.home_screen.refresh()
         self.pages.setCurrentWidget(self.home_screen)

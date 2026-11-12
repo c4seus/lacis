@@ -230,6 +230,16 @@ class DetailsPanel(QFrame):
     def show_details(self, details: EntityDetails | None) -> None:
         self.entity_sheet.show_details(details)
 
+    def show_tab(self, index: int) -> None:
+        self.tabs.setCurrentIndex(index % self.tabs.count())
+        self.tabs.tabBar().setFocus(Qt.FocusReason.ShortcutFocusReason)
+
+    def show_next_tab(self) -> None:
+        self.show_tab(self.tabs.currentIndex() + 1)
+
+    def show_previous_tab(self) -> None:
+        self.show_tab(self.tabs.currentIndex() - 1)
+
     def show_overview(self, overview: InvestigationOverview) -> None:
         self.entities_tab.show_rows(overview.entity_rows)
         self.journal_tab.show_rows(overview.log_rows)

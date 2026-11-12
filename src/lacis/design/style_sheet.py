@@ -42,6 +42,15 @@ QLabel[tone="caption"] {{
     font-size: {font_sizes.caption}px;
 }}
 
+QLabel[tone="kbd"] {{
+    color: {colours.muted_text};
+    font-size: {font_sizes.caption}px;
+    padding: 0px 5px;
+    border: 1px solid {colours.strong_border};
+    border-radius: {radii.small}px;
+    background-color: {colours.surface};
+}}
+
 QLabel[tone="current"] {{
     font-size: {font_sizes.small}px;
     font-weight: {font_weights.bold};
