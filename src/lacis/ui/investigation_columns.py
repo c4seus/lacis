@@ -23,6 +23,7 @@ from lacis.ui.graph_controls import FilterChip, ZoomToolbar
 from lacis.ui.graph_legend import GraphLegend
 from lacis.ui.graph_view import GraphView
 from lacis.ui.header_bar import create_icon_button
+from lacis.ui.journal_table import JournalTab
 from lacis.ui.review_queue import ReviewQueueList
 
 QUEUE_TITLE = "À examiner"
@@ -40,11 +41,9 @@ RAIL_COUNT_HEIGHT = 18
 GRAPH_MINIMUM_WIDTH = 320
 DETAILS_MINIMUM_WIDTH = 340
 SHEET_TAB_TITLE = "Fiche"
-DETAILS_TABS = (
-    ("Signaux", "Les signaux d'alerte de l'enquête s'afficheront ici."),
-    ("Journal", "Le journal de collecte de l'enquête s'affichera ici."),
-)
+DETAILS_TABS = (("Signaux", "Les signaux d'alerte de l'enquête s'afficheront ici."),)
 ENTITIES_TAB_TITLE = "Entités"
+JOURNAL_TAB_TITLE = "Journal"
 
 
 def counted_title(title: str, count: int) -> str:
@@ -221,7 +220,9 @@ class DetailsPanel(QFrame):
             page_layout.addStretch(1)
             self.tabs.addTab(page, title)
         self.entities_tab = EntitiesTab(icon_factory.colours_provider, self.tabs)
-        self.entities_index = self.tabs.insertTab(2, self.entities_tab, ENTITIES_TAB_TITLE)
+        self.entities_index = self.tabs.addTab(self.entities_tab, ENTITIES_TAB_TITLE)
+        self.journal_tab = JournalTab(icon_factory.colours_provider, self.tabs)
+        self.journal_index = self.tabs.addTab(self.journal_tab, JOURNAL_TAB_TITLE)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.tabs)
@@ -231,6 +232,10 @@ class DetailsPanel(QFrame):
 
     def show_overview(self, overview: InvestigationOverview) -> None:
         self.entities_tab.show_rows(overview.entity_rows)
+        self.journal_tab.show_rows(overview.log_rows)
         self.tabs.setTabText(
             self.entities_index, counted_title(ENTITIES_TAB_TITLE, len(overview.entity_rows))
+        )
+        self.tabs.setTabText(
+            self.journal_index, counted_title(JOURNAL_TAB_TITLE, len(overview.log_rows))
         )

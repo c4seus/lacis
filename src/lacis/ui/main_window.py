@@ -135,6 +135,9 @@ class MainWindow(QMainWindow):
         )
         sheet = self.investigation_page.details_panel.entity_sheet
         sheet.raw_requested.connect(self.show_raw_response)
+        self.investigation_page.details_panel.journal_tab.raw_requested.connect(
+            self.show_raw_response
+        )
         sheet.copied.connect(
             lambda message: self.notification_area.notify(message, NotificationKind.SUCCESS)
         )
