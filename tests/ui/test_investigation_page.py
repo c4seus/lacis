@@ -2,13 +2,15 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QKeySequence
+from PySide6.QtTest import QTest
 from pytestqt.qtbot import QtBot
 
 from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
+from lacis.storage.entities import EntityKind
 from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
 from lacis.storage.positions import Position, PositionStore
 from lacis.ui.investigation_page import (
@@ -18,6 +20,7 @@ from lacis.ui.investigation_page import (
     noun_for,
 )
 from lacis.ui.main_window import MainWindow
+from lacis.ui.review_queue import QueueRow
 
 INVESTIGATION_NAME = "faux-plombiers-31"
 QUESTION = "Qui se cache derrière les plombiers du 12 rue des Lilas ?"
@@ -428,3 +431,43 @@ def test_the_layout_button_lays_out_again(qtbot: QtBot, main_window: MainWindow)
     area.zoom_toolbar.layout_button.click()
     assert main_window.layout_job is not None
     qtbot.waitUntil(lambda: main_window.layout_job is None)
+
+
+def queue_rows(main_window: MainWindow) -> list[QueueRow]:
+    return main_window.investigation_page.queue_column.review_list.rows
+
+
+def test_the_queue_shows_the_signals_of_the_investigation(main_window: MainWindow) -> None:
+    review_list = main_window.investigation_page.queue_column.review_list
+    assert review_list.group_titles == ["Rafale de créations · moyenne"]
+    assert len(review_list.rows) == 4
+
+
+def test_choosing_an_entity_in_the_queue_selects_it_everywhere(
+    main_window: MainWindow,
+) -> None:
+    page = main_window.investigation_page
+    row = queue_rows(main_window)[0]
+    QTest.mouseClick(row, Qt.MouseButton.LeftButton)
+    identifier = row.entity.identifier
+    assert page.selected_entity == identifier
+    assert page.graph_view.selected_identifier == identifier
+    assert row.property("selected")
+    assert page.details_panel.entity_label.text().startswith(row.entity.label)
+    page.graph_view.graph_scene.select(None)
+    assert not row.property("selected")
+    assert page.details_panel.entity_label.text() == (
+        "La fiche de l'entité sélectionnée s'affichera ici."
+    )
+
+
+def test_choosing_an_entity_hidden_by_a_filter_shows_it_again(
+    main_window: MainWindow,
+) -> None:
+    page = main_window.investigation_page
+    chip = page.graph_area.filter_chip
+    chip.kind_actions[EntityKind.COMPANY].setChecked(False)
+    lead = next(row for row in queue_rows(main_window) if row.entity.kind is EntityKind.COMPANY)
+    QTest.mouseClick(lead, Qt.MouseButton.LeftButton)
+    assert not chip.graph_filter.is_active
+    assert page.graph_view.selected_identifier == lead.entity.identifier

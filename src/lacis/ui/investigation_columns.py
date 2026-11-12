@@ -14,14 +14,15 @@ from PySide6.QtWidgets import (
 from lacis.design.icons import IconFactory
 from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
+from lacis.review import review_queue
 from lacis.signals.facts import counted
 from lacis.ui.graph_controls import FilterChip, ZoomToolbar
 from lacis.ui.graph_legend import GraphLegend
 from lacis.ui.graph_view import GraphView
 from lacis.ui.header_bar import create_icon_button
+from lacis.ui.review_queue import ReviewQueueList
 
 QUEUE_TITLE = "À examiner"
-QUEUE_EMPTY_TEXT = "Les signaux, les homonymes et les pistes à examiner s'afficheront ici."
 GRAPH_EMPTY_TEXT = "Le graphe de l'enquête s'affichera ici."
 DETAILS_ACCESSIBLE_NAME = "Panneau de détails"
 COLLAPSE_TEXT = "Replier la colonne À examiner"
@@ -84,19 +85,16 @@ class QueueColumn(QFrame):
             icon_factory.icon("collapse"), COLLAPSE_TEXT, COLLAPSE_TOOLTIP, self.head
         )
         self.head_layout.addWidget(self.collapse_button, 0, Qt.AlignmentFlag.AlignTop)
-        self.empty_label = placeholder(QUEUE_EMPTY_TEXT, self)
-        body = QVBoxLayout()
-        body.setContentsMargins(14, 14, 14, 14)
-        body.addWidget(self.empty_label)
-        body.addStretch(1)
+        self.review_list = ReviewQueueList(icon_factory.colours_provider, self)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.head)
-        layout.addLayout(body, 1)
+        layout.addWidget(self.review_list, 1)
 
     def show_overview(self, overview: InvestigationOverview) -> None:
         self.summary_label.setText(queue_summary(overview))
+        self.review_list.show_queue(review_queue(overview))
 
 
 class QueueRail(QFrame):
@@ -151,6 +149,12 @@ class GraphArea(QFrame):
         self.show_controls(False)
         self.place_overlays()
 
+    def reveal(self, identifier: str) -> bool:
+        node = self.graph_view.drawing.node(identifier)
+        if node is not None and not self.filter_chip.graph_filter.shows(node):
+            self.filter_chip.show_everything()
+        return self.graph_view.select(identifier)
+
     def overlays(self) -> list[QWidget]:
         return [self.empty_label, self.filter_chip, self.zoom_toolbar, self.legend]
 
@@ -197,13 +201,26 @@ class DetailsPanel(QFrame):
         self.tabs.setAccessibleName(DETAILS_ACCESSIBLE_NAME)
         self.tabs.setDocumentMode(True)
         self.tabs.tabBar().setDrawBase(False)
+        self.placeholders: list[QLabel] = []
         for title, empty_text in DETAILS_TABS:
             page = QWidget(self.tabs)
             page_layout = QVBoxLayout(page)
             page_layout.setContentsMargins(16, 16, 16, 16)
-            page_layout.addWidget(placeholder(empty_text, page))
+            label = placeholder(empty_text, page)
+            self.placeholders.append(label)
+            page_layout.addWidget(label)
             page_layout.addStretch(1)
             self.tabs.addTab(page, title)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.tabs)
+
+    @property
+    def entity_label(self) -> QLabel:
+        return self.placeholders[0]
+
+    def show_entity(self, description: str) -> None:
+        self.entity_label.setText(description or DETAILS_TABS[0][1])
+        self.entity_label.setProperty("tone", "body" if description else "faint")
+        self.entity_label.style().unpolish(self.entity_label)
+        self.entity_label.style().polish(self.entity_label)
