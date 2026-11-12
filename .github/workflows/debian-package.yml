@@ -16,7 +16,7 @@ jobs:
         run: |
           apt-get update
           apt-get install --yes --no-install-recommends \
-            ca-certificates git make dpkg-dev debhelper dh-python pybuild-plugin-pyproject \
+            build-essential ca-certificates git debhelper dh-python pybuild-plugin-pyproject \
             python3-all python3-hatchling python3-hatch-vcs lintian
       - uses: actions/checkout@v4
         with:
