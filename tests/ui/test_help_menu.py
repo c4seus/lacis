@@ -13,17 +13,21 @@ def opened_urls(monkeypatch: pytest.MonkeyPatch) -> list[QUrl]:
     return urls
 
 
-def test_the_help_menu_lists_documentation_problem_reporting_and_about(qtbot: QtBot) -> None:
+def test_the_help_menu_lists_documentation_shortcuts_problem_reporting_and_about(
+    qtbot: QtBot,
+) -> None:
     help_menu = HelpMenu()
     qtbot.addWidget(help_menu)
     assert help_menu.title() == "Ai&de"
     assert [action.text() for action in help_menu.actions()] == [
         "&Documentation",
+        "&Raccourcis clavier",
         "&Signaler un problème…",
         "",
         "À &propos de Lacis",
     ]
-    assert help_menu.actions()[2].isSeparator()
+    assert help_menu.actions()[3].isSeparator()
+    assert help_menu.shortcuts_action.shortcut() == QKeySequence("Ctrl+/")
 
 
 def test_f1_opens_the_documentation(qtbot: QtBot, opened_urls: list[QUrl]) -> None:

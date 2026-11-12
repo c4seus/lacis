@@ -680,6 +680,10 @@ QToolButton#filterChip::menu-indicator {{
     width: 0;
 }}
 
+QTreeWidget#shortcutsTree::item {{
+    padding: 3px 4px;
+}}
+
 QFrame#graphLegend {{
     border: 1px solid {colours.border};
     border-radius: {radii.medium}px;
