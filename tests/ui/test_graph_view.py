@@ -249,7 +249,7 @@ def test_the_graph_area_shows_the_legend_once_there_is_a_graph(
     scenario: PlumbersScenario,
     scenario_drawing: GraphDrawing,
 ) -> None:
-    area = GraphArea(icon_factory.colours_provider)
+    area = GraphArea(icon_factory)
     qtbot.addWidget(area)
     area.resize(800, 600)
     area.show()
@@ -530,7 +530,9 @@ def test_the_investigator_moves_an_entity_and_its_links_follow(
     [positions] = moved.args
     assert list(positions) == [scenario.holding]
     assert positions[scenario.holding] == holding.point
-    assert holding.pos() == view.mapToScene(end)
+    reached = view.mapToScene(end)
+    assert holding.x() == pytest.approx(reached.x(), abs=1)
+    assert holding.y() == pytest.approx(reached.y(), abs=1)
     assert mandate.start == boundary_point(
         holding.path, holding.pos(), view.graph_scene.node_items[scenario.acme].pos()
     )

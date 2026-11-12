@@ -507,3 +507,16 @@ def test_moved_positions_are_saved_in_the_background(
         assert PositionStore(investigation.connection).positions() == {
             scenario.acme: Position(5.0, 6.0, moved_by_investigator=True)
         }
+
+
+def test_a_layout_can_start_again_from_the_moved_positions(
+    qtbot: QtBot,
+    library: InvestigationLibrary,
+    settings: CollectionSettings,
+    started_jobs: list[BackgroundJob],
+) -> None:
+    with library.open(INVESTIGATION_NAME) as investigation:
+        scenario = plumbers_scenario(InvestigationBuilder(investigation.connection))
+    run(qtbot, layout_job(settings), started_jobs)
+    run(qtbot, move_job(settings, {scenario.acme: (1.0, 1.0)}), started_jobs)
+    assert run(qtbot, layout_job(settings, again=True), started_jobs) == 8

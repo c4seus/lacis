@@ -155,7 +155,23 @@ def test_the_view_menu_offers_the_theme_choice(
     theme_menu = ThemeMenu(theme_controller)
     menu_bar = MainMenuBar(theme_menu, HelpMenu())
     qtbot.addWidget(menu_bar)
-    assert menu_bar.view_menu.actions() == [menu_bar.queue_action, theme_menu.menuAction()]
+    actions = [action for action in menu_bar.view_menu.actions() if not action.isSeparator()]
+    assert actions == [
+        menu_bar.queue_action,
+        menu_bar.zoom_in_action,
+        menu_bar.zoom_out_action,
+        menu_bar.fit_action,
+        menu_bar.layout_action,
+        theme_menu.menuAction(),
+    ]
+    assert [action.shortcut().toString() for action in menu_bar.graph_actions] == [
+        "Ctrl++",
+        "Ctrl+-",
+        "Ctrl+0",
+        "Ctrl+Shift+R",
+    ]
+    assert menu_bar.zoom_in_action.shortcuts()[1].toString() == "Ctrl+="
+    assert not any(action.isEnabled() for action in menu_bar.graph_actions)
     assert menu_bar.queue_action.isCheckable()
     assert not menu_bar.queue_action.isEnabled()
     assert menu_bar.view_menu.menuAction().isEnabled()

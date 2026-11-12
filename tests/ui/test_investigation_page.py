@@ -386,3 +386,45 @@ def test_a_move_is_saved_before_leaving_the_investigation(
     main_window.show_home()
     assert main_window.move_jobs == []
     assert stored_positions(library)[identifier] == Position(12.0, 34.0, True)
+
+
+def test_the_view_menu_zooms_and_fits_the_graph(main_window: MainWindow) -> None:
+    menu_bar = main_window.main_menu_bar
+    view = main_window.investigation_page.graph_view
+    assert all(action.isEnabled() for action in menu_bar.graph_actions)
+    fitted = view.zoom
+    menu_bar.zoom_in_action.trigger()
+    assert view.zoom > fitted
+    menu_bar.zoom_out_action.trigger()
+    menu_bar.zoom_out_action.trigger()
+    assert view.zoom < fitted
+    menu_bar.fit_action.trigger()
+    assert view.zoom == pytest.approx(fitted)
+    main_window.show_home()
+    assert not any(action.isEnabled() for action in menu_bar.graph_actions)
+
+
+def test_laying_out_again_keeps_the_moved_entities(
+    qtbot: QtBot, main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    page = main_window.investigation_page
+    moved, other = list(page.graph_view.graph_scene.node_items)[:2]
+    page.graph_view.entities_moved.emit({moved: (-999.0, -999.0)})
+    qtbot.waitUntil(lambda: not main_window.move_jobs)
+    with library.open(INVESTIGATION_NAME) as opened:
+        PositionStore(opened.connection).save({other: Position(4321.0, 4321.0)})
+    page.graph_view.zoom_in()
+    main_window.main_menu_bar.layout_action.trigger()
+    assert main_window.layout_job is not None
+    qtbot.waitUntil(lambda: main_window.layout_job is None)
+    positions = stored_positions(library)
+    assert positions[moved] == Position(-999.0, -999.0, True)
+    assert (positions[other].x, positions[other].y) != (4321.0, 4321.0)
+    assert page.graph_view.follows_fit
+
+
+def test_the_layout_button_lays_out_again(qtbot: QtBot, main_window: MainWindow) -> None:
+    area = main_window.investigation_page.graph_area
+    area.zoom_toolbar.layout_button.click()
+    assert main_window.layout_job is not None
+    qtbot.waitUntil(lambda: main_window.layout_job is None)

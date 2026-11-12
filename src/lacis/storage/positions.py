@@ -41,3 +41,7 @@ class PositionStore:
 
     def move(self, moved: dict[str, tuple[float, float]]) -> None:
         self.save({identifier: Position(x, y, True) for identifier, (x, y) in moved.items()})
+
+    def forget_computed(self) -> None:
+        with self.connection:
+            self.connection.execute("DELETE FROM entity_position WHERE moved_by_investigator = 0")

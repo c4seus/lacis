@@ -37,7 +37,7 @@ def test_the_queue_summary_counts_signals_homonyms_and_leads() -> None:
 
 
 def test_the_graph_area_waits_for_the_graph(qtbot: QtBot, icon_factory: IconFactory) -> None:
-    area = GraphArea(icon_factory.colours_provider)
+    area = GraphArea(icon_factory)
     qtbot.addWidget(area)
     area.show()
     assert area.minimumWidth() == GRAPH_MINIMUM_WIDTH

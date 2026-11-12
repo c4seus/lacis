@@ -17,6 +17,14 @@ CLOSE_INVESTIGATION_SHORTCUT = QKeySequence("Ctrl+W")
 QUEUE_ACTION_TEXT = "&Colonne À examiner"
 QUEUE_SHORTCUT = QKeySequence("Ctrl+1")
 QUIT_SHORTCUT = QKeySequence("Ctrl+Q")
+ZOOM_IN_ACTION_TEXT = "Zoom &avant"
+ZOOM_IN_SHORTCUTS = [QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")]
+ZOOM_OUT_ACTION_TEXT = "Zoom a&rrière"
+ZOOM_OUT_SHORTCUT = QKeySequence("Ctrl+-")
+FIT_ACTION_TEXT = "A&juster le graphe à la fenêtre"
+FIT_SHORTCUT = QKeySequence("Ctrl+0")
+LAYOUT_ACTION_TEXT = "Réor&ganiser le graphe"
+LAYOUT_SHORTCUT = QKeySequence("Ctrl+Shift+R")
 UNDO_PREFIX = "&Annuler"
 REDO_PREFIX = "&Rétablir"
 UNDO_SHORTCUT = QKeySequence("Ctrl+Z")
@@ -59,8 +67,25 @@ class MainMenuBar(QMenuBar):
         self.queue_action.setShortcut(QUEUE_SHORTCUT)
         self.queue_action.setEnabled(False)
         self.view_menu.addAction(self.queue_action)
+        self.view_menu.addSeparator()
+        self.zoom_in_action = QAction(ZOOM_IN_ACTION_TEXT, self)
+        self.zoom_in_action.setShortcuts(ZOOM_IN_SHORTCUTS)
+        self.zoom_out_action = QAction(ZOOM_OUT_ACTION_TEXT, self)
+        self.zoom_out_action.setShortcut(ZOOM_OUT_SHORTCUT)
+        self.fit_action = QAction(FIT_ACTION_TEXT, self)
+        self.fit_action.setShortcut(FIT_SHORTCUT)
+        self.layout_action = QAction(LAYOUT_ACTION_TEXT, self)
+        self.layout_action.setShortcut(LAYOUT_SHORTCUT)
+        self.view_menu.addActions(self.graph_actions)
+        self.view_menu.addSeparator()
+        for action in self.graph_actions:
+            action.setEnabled(False)
         self.view_menu.addMenu(theme_menu)
         self.update_menu_availability()
+
+    @property
+    def graph_actions(self) -> list[QAction]:
+        return [self.zoom_in_action, self.zoom_out_action, self.fit_action, self.layout_action]
 
     def menus(self) -> list[QMenu]:
         return [

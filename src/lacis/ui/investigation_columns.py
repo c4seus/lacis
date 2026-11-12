@@ -1,6 +1,6 @@
 from typing import override
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
@@ -11,10 +11,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from lacis.design.icons import ColoursProvider, IconFactory
+from lacis.design.icons import IconFactory
 from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
 from lacis.signals.facts import counted
+from lacis.ui.graph_controls import ZoomToolbar
 from lacis.ui.graph_legend import GraphLegend
 from lacis.ui.graph_view import GraphView
 from lacis.ui.header_bar import create_icon_button
@@ -126,37 +127,55 @@ class QueueRail(QFrame):
 
 
 class GraphArea(QFrame):
-    def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
+    layout_requested = Signal()
+
+    def __init__(self, icon_factory: IconFactory, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("graphArea")
         self.setMinimumWidth(GRAPH_MINIMUM_WIDTH)
-        self.graph_view = GraphView(colours_provider, self)
+        self.graph_view = GraphView(icon_factory.colours_provider, self)
+        self.zoom_toolbar = ZoomToolbar(icon_factory, self)
         self.empty_label = placeholder(GRAPH_EMPTY_TEXT, self)
         self.empty_label.setWordWrap(False)
-        self.legend = GraphLegend(colours_provider, self)
-        self.legend.hide()
+        self.legend = GraphLegend(icon_factory.colours_provider, self)
         self.graph_layout = QVBoxLayout(self)
         self.graph_layout.setContentsMargins(0, 0, 0, 0)
         self.graph_layout.setSpacing(0)
         self.graph_layout.addWidget(self.graph_view, 1)
+        self.zoom_toolbar.zoom_in_button.clicked.connect(self.graph_view.zoom_in)
+        self.zoom_toolbar.zoom_out_button.clicked.connect(self.graph_view.zoom_out)
+        self.zoom_toolbar.fit_button.clicked.connect(self.graph_view.fit)
+        self.zoom_toolbar.layout_button.clicked.connect(self.layout_requested)
+        self.show_controls(False)
         self.place_overlays()
+
+    def overlays(self) -> list[QWidget]:
+        return [self.empty_label, self.zoom_toolbar, self.legend]
+
+    def show_controls(self, shown: bool) -> None:
+        self.empty_label.setVisible(not shown)
+        for control in (self.zoom_toolbar, self.legend):
+            control.setVisible(shown)
 
     def show_drawing(self, drawing: GraphDrawing) -> None:
         self.graph_view.show_drawing(drawing)
-        self.empty_label.setVisible(not drawing.nodes)
-        self.legend.setVisible(bool(drawing.nodes))
+        self.show_controls(bool(drawing.nodes))
         self.place_overlays()
 
     def place_overlays(self) -> None:
-        self.empty_label.adjustSize()
+        for overlay in self.overlays():
+            overlay.adjustSize()
         self.empty_label.move(
             (self.width() - self.empty_label.width()) // 2,
             (self.height() - self.empty_label.height()) // 2,
         )
-        self.legend.adjustSize()
         self.legend.move(OVERLAY_MARGIN, self.height() - self.legend.height() - OVERLAY_MARGIN)
-        self.empty_label.raise_()
-        self.legend.raise_()
+        self.zoom_toolbar.move(
+            self.width() - self.zoom_toolbar.width() - OVERLAY_MARGIN,
+            self.height() - self.zoom_toolbar.height() - OVERLAY_MARGIN,
+        )
+        for overlay in self.overlays():
+            overlay.raise_()
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:

@@ -6,12 +6,14 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QFontMetricsF,
+    QKeyEvent,
     QMouseEvent,
     QPainter,
     QPainterPath,
     QPen,
     QPolygonF,
     QResizeEvent,
+    QWheelEvent,
 )
 from PySide6.QtWidgets import (
     QFrame,
@@ -26,6 +28,7 @@ from lacis.design.icons import ColoursProvider
 from lacis.design.tokens import FONT_FAMILIES, Colours
 from lacis.graph.descriptions import entity_description, entity_summary, graph_summary
 from lacis.graph.drawing import EdgeKind, GraphDrawing, GraphEdge, GraphNode, NodeShape
+from lacis.graph.navigation import Direction
 from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
 from lacis.ui import announcements
@@ -35,6 +38,20 @@ GRID_STEP = 18.0
 GRID_DOT_RADIUS = 1.0
 FIT_PADDING = 60.0
 MAXIMUM_FIT_SCALE = 1.0
+ZOOM_STEP = 1.25
+MINIMUM_SCALE = 0.1
+MAXIMUM_SCALE = 4.0
+PAN_STEP = 60
+PANNING_MARGIN = 3000.0
+ARROW_DIRECTIONS = {
+    Qt.Key.Key_Left: Direction.LEFT,
+    Qt.Key.Key_Right: Direction.RIGHT,
+    Qt.Key.Key_Up: Direction.UP,
+    Qt.Key.Key_Down: Direction.DOWN,
+}
+ZOOM_IN_KEYS = {Qt.Key.Key_Plus, Qt.Key.Key_Equal}
+ZOOM_OUT_KEYS = {Qt.Key.Key_Minus}
+FIT_KEYS = {Qt.Key.Key_0}
 BORDER_WIDTH = 2.0
 CLOSED_FILL_OPACITY = 0.35
 DASH_PATTERN = (3.0, 2.0)
@@ -433,9 +450,14 @@ class GraphView(QGraphicsView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.follows_fit = True
 
     def show_drawing(self, drawing: GraphDrawing) -> None:
         kept = self.selected_identifier
+        first_drawing = not self.drawing.nodes
         self.drawing = drawing
         self.graph_scene.blockSignals(True)
         self.graph_scene.show_drawing(drawing)
@@ -443,7 +465,10 @@ class GraphView(QGraphicsView):
         self.graph_scene.blockSignals(False)
         self.follow_selection()
         self.describe()
-        self.fit()
+        if first_drawing or self.follows_fit or not drawing.nodes:
+            self.fit()
+        else:
+            self.widen_scene()
 
     def select(self, identifier: str) -> bool:
         found = self.graph_scene.select(identifier)
@@ -471,6 +496,7 @@ class GraphView(QGraphicsView):
             )
 
     def fit(self) -> None:
+        self.follows_fit = True
         self.resetTransform()
         if not self.drawing.nodes:
             self.setSceneRect(QRectF())
@@ -478,15 +504,69 @@ class GraphView(QGraphicsView):
         area = self.graph_scene.itemsBoundingRect().adjusted(
             -FIT_PADDING, -FIT_PADDING, FIT_PADDING, FIT_PADDING
         )
-        self.setSceneRect(
-            area.adjusted(-area.width(), -area.height(), area.width(), area.height())
-        )
+        self.widen_scene()
         viewport = self.viewport().rect()
         scale = min(
             viewport.width() / area.width(), viewport.height() / area.height(), MAXIMUM_FIT_SCALE
         )
         self.scale(scale, scale)
         self.centerOn(area.center())
+
+    def widen_scene(self) -> None:
+        area = self.graph_scene.itemsBoundingRect()
+        margin = PANNING_MARGIN + max(area.width(), area.height())
+        self.setSceneRect(area.adjusted(-margin, -margin, margin, margin))
+
+    @property
+    def zoom(self) -> float:
+        return self.transform().m11()
+
+    def zoom_by(self, factor: float) -> None:
+        target = min(max(self.zoom * factor, MINIMUM_SCALE), MAXIMUM_SCALE)
+        if target == self.zoom:
+            return
+        self.follows_fit = False
+        self.scale(target / self.zoom, target / self.zoom)
+
+    def zoom_in(self) -> None:
+        self.zoom_by(ZOOM_STEP)
+
+    def zoom_out(self) -> None:
+        self.zoom_by(1 / ZOOM_STEP)
+
+    def pan(self, direction: Direction) -> None:
+        self.follows_fit = False
+        step_x, step_y = direction.value
+        horizontal = self.horizontalScrollBar()
+        vertical = self.verticalScrollBar()
+        horizontal.setValue(horizontal.value() + int(step_x * PAN_STEP))
+        vertical.setValue(vertical.value() + int(step_y * PAN_STEP))
+
+    @override
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        key = Qt.Key(event.key())
+        modifiers = event.modifiers()
+        direction = ARROW_DIRECTIONS.get(key)
+        if direction is not None and modifiers & Qt.KeyboardModifier.ShiftModifier:
+            self.pan(direction)
+        elif key in ZOOM_IN_KEYS:
+            self.zoom_in()
+        elif key in ZOOM_OUT_KEYS:
+            self.zoom_out()
+        elif key in FIT_KEYS:
+            self.fit()
+        else:
+            super().keyPressEvent(event)
+
+    @override
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        steps = event.angleDelta().y() / 120
+        if not steps:
+            return
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.zoom_by(ZOOM_STEP**steps)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        event.accept()
 
     def current_points(self) -> dict[str, tuple[float, float]]:
         return {identifier: item.point for identifier, item in self.graph_scene.node_items.items()}
@@ -495,6 +575,12 @@ class GraphView(QGraphicsView):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         self.points_before_drag = self.current_points()
         super().mousePressEvent(event)
+
+    @override
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            self.follows_fit = False
+        super().mouseMoveEvent(event)
 
     @override
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
@@ -511,7 +597,8 @@ class GraphView(QGraphicsView):
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
-        self.fit()
+        if self.follows_fit:
+            self.fit()
 
     @override
     def changeEvent(self, event: QEvent) -> None:
