@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -8,18 +8,26 @@ from investigation_builder import InvestigationBuilder
 from lacis.details import BadgeTone
 from lacis.signals.signal import Severity, Signal
 from lacis.signals.store import SignalReport
+from lacis.storage.collection_log import CollectionLog, LoggedRequest, RequestStatus
 from lacis.storage.entities import Attributes, Entity, EntityKind, Link, LinkKind
+from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 from lacis.tables import (
     NO_SCORE_TEXT,
     EntityRow,
     EntityStatus,
+    LogRow,
     entities_summary,
     entity_rows,
     entity_status,
+    log_rows,
+    log_summary,
     strongest_marks,
 )
 
+SEARCH_ENDPOINT = "https://recherche-entreprises.api.gouv.fr/search"
+BODACC_ENDPOINT = "https://bodacc-datadila.opendatasoft.com/api/records"
 REQUESTED_AT = datetime(2026, 11, 2, 8, 9, 31, tzinfo=UTC)
+FINGERPRINT = "3fe8a5f9ff318929" + "0" * 48
 
 
 @pytest.fixture
@@ -126,3 +134,95 @@ def test_a_company_known_only_as_director_is_partial() -> None:
     assert entity_status(entity(EntityKind.ESTABLISHMENT, {"is_open": True}), []) == (
         EntityStatus("Ouvert", BadgeTone.ACTIVE)
     )
+
+
+def record(builder: InvestigationBuilder, request: LoggedRequest) -> None:
+    CollectionLog(builder.connection).record(request)
+
+
+def test_the_log_lists_the_requests_from_the_most_recent(builder: InvestigationBuilder) -> None:
+    response = ResponseStore(builder.connection).save(
+        CollectedResponse(
+            ResponseSource.COMPANY_REGISTER,
+            SEARCH_ENDPOINT,
+            b'{"results": []}',
+            REQUESTED_AT,
+            {"q": "111111111", "page": "1"},
+        )
+    )
+    record(
+        builder,
+        LoggedRequest(
+            REQUESTED_AT,
+            ResponseSource.COMPANY_REGISTER,
+            SEARCH_ENDPOINT,
+            200,
+            timedelta(milliseconds=184),
+            response_identifier=response.identifier,
+        ),
+    )
+    record(
+        builder,
+        LoggedRequest(
+            REQUESTED_AT + timedelta(seconds=5),
+            ResponseSource.COMPANY_REGISTER,
+            SEARCH_ENDPOINT,
+            None,
+            timedelta(milliseconds=2),
+            served_from_cache=True,
+            response_identifier=response.identifier,
+        ),
+    )
+    record(
+        builder,
+        LoggedRequest(
+            REQUESTED_AT + timedelta(seconds=10),
+            ResponseSource.BODACC,
+            BODACC_ENDPOINT,
+            None,
+            timedelta(milliseconds=30),
+            error="Le service BODACC est injoignable.",
+        ),
+    )
+    failed, cached, fetched = log_rows(builder.connection)
+    moment = REQUESTED_AT.astimezone()
+    assert fetched.written_time == moment.strftime("%H:%M:%S")
+    assert fetched.request_text == "Recherche · 111111111"
+    assert fetched.status_text == "200"
+    assert fetched.origin_text == "réseau"
+    assert fetched.written_duration == "184 ms"
+    assert fetched.succeeded
+    assert fetched.short_fingerprint == response.fingerprint[:16]
+    assert fetched.description == "\n".join(
+        [
+            moment.strftime("%d/%m/%Y à %H:%M:%S") + " · Recherche d'entreprises · 184 ms",
+            SEARCH_ENDPOINT,
+            "page=1, q=111111111",
+            f"sha256:{response.fingerprint}",
+        ]
+    )
+    assert cached.origin_text == "cache"
+    assert cached.status_text == NO_SCORE_TEXT
+    assert failed.status is RequestStatus.FAILED
+    assert failed.status_text == "Échec"
+    assert failed.request_text == "BODACC · /api/records"
+    assert failed.fingerprint == ""
+    assert failed.description.endswith("\nLe service BODACC est injoignable.")
+    rows = (failed, cached, fetched)
+    assert log_summary(rows) == "3 requêtes · 1 servie par le cache · 1 échec"
+
+
+def test_the_log_summary_counts_the_cache_and_the_failures() -> None:
+    assert log_summary(()) == "Aucune requête pour l'instant"
+    succeeded = LogRow(
+        1,
+        REQUESTED_AT,
+        ResponseSource.BODACC,
+        "relative",
+        200,
+        timedelta(0),
+        True,
+        RequestStatus.SUCCEEDED,
+    )
+    assert succeeded.request_text == "BODACC · relative"
+    assert log_summary((succeeded, succeeded)) == "2 requêtes · 2 servies par le cache"

@@ -1,14 +1,19 @@
 import sqlite3
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from urllib.parse import urlsplit
 
+from lacis.collectors.http_client import SOURCE_NAMES
 from lacis.details import BadgeTone
 from lacis.graph.drawing import KIND_LABELS, is_closed
 from lacis.signals.facts import counted
 from lacis.signals.signal import Severity
 from lacis.signals.store import SignalReport
+from lacis.storage.collection_log import CollectionLog, CollectionLogEntry, RequestStatus
 from lacis.storage.entities import Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.responses import ResponseSource, ResponseStore
 
 ACTIVE_COMPANY_TEXT = "Active"
 CLOSED_COMPANY_TEXT = "Fermée"
@@ -18,6 +23,15 @@ OPEN_ESTABLISHMENT_TEXT = "Ouvert"
 CLOSED_ESTABLISHMENT_TEXT = "Fermé"
 NO_SCORE_TEXT = "\u2013"
 SEVERITY_NAMES = {Severity.HIGH: "forte", Severity.MEDIUM: "moyenne", Severity.LOW: "faible"}
+NETWORK_TEXT = "réseau"
+CACHE_TEXT = "cache"
+FAILED_TEXT = "Échec"
+SHORT_FINGERPRINT_LENGTH = 16
+PAGING_PARAMETERS = frozenset({"page", "per_page", "order_by", "limit", "offset"})
+SHORT_SOURCE_NAMES = {
+    ResponseSource.COMPANY_REGISTER: "Recherche",
+    ResponseSource.BODACC: "BODACC",
+}
 
 
 @dataclass(frozen=True)
@@ -151,3 +165,119 @@ def entities_summary(rows: tuple[EntityRow, ...]) -> str:
     flagged = sum(1 for row in rows if row.flagged)
     entities = counted(len(rows), "entité", "entités")
     return f"{entities} · {flagged} signalée{'s' if flagged > 1 else ''}"
+
+
+@dataclass(frozen=True)
+class LogRow:
+    identifier: int
+    requested_at: datetime
+    source: ResponseSource
+    endpoint: str
+    http_status: int | None
+    duration: timedelta
+    served_from_cache: bool
+    status: RequestStatus
+    error: str = ""
+    response_identifier: int | None = None
+    parameters: dict[str, str] = field(default_factory=dict)
+    fingerprint: str = ""
+
+    @property
+    def written_time(self) -> str:
+        return self.requested_at.astimezone().strftime("%H:%M:%S")
+
+    @property
+    def full_time(self) -> str:
+        return self.requested_at.astimezone().strftime("%d/%m/%Y à %H:%M:%S")
+
+    @property
+    def source_name(self) -> str:
+        return SHORT_SOURCE_NAMES[self.source]
+
+    @property
+    def request_text(self) -> str:
+        asked = " ".join(
+            value for name, value in self.parameters.items() if name not in PAGING_PARAMETERS
+        )
+        if not asked:
+            asked = urlsplit(self.endpoint).path or self.endpoint
+        return f"{self.source_name} · {asked}"
+
+    @property
+    def succeeded(self) -> bool:
+        return self.status is RequestStatus.SUCCEEDED
+
+    @property
+    def status_text(self) -> str:
+        if self.http_status is not None:
+            return str(self.http_status)
+        return NO_SCORE_TEXT if self.succeeded else FAILED_TEXT
+
+    @property
+    def origin_text(self) -> str:
+        return CACHE_TEXT if self.served_from_cache else NETWORK_TEXT
+
+    @property
+    def written_duration(self) -> str:
+        return f"{round(self.duration / timedelta(milliseconds=1))} ms"
+
+    @property
+    def short_fingerprint(self) -> str:
+        return self.fingerprint[:SHORT_FINGERPRINT_LENGTH]
+
+    @property
+    def description(self) -> str:
+        lines = [
+            f"{self.full_time} · {SOURCE_NAMES[self.source]} · {self.written_duration}",
+            self.endpoint,
+        ]
+        if self.parameters:
+            lines.append(", ".join(f"{name}={value}" for name, value in self.parameters.items()))
+        if self.fingerprint:
+            lines.append(f"sha256:{self.fingerprint}")
+        if self.error:
+            lines.append(self.error)
+        return "\n".join(lines)
+
+
+def log_row(entry: CollectionLogEntry, response_store: ResponseStore) -> LogRow:
+    request = entry.request
+    parameters: dict[str, str] = {}
+    fingerprint = ""
+    if request.response_identifier is not None:
+        summary = response_store.summary(request.response_identifier)
+        parameters = summary.parameters
+        fingerprint = summary.fingerprint
+    return LogRow(
+        entry.identifier,
+        request.requested_at,
+        request.source,
+        request.endpoint,
+        request.http_status,
+        request.duration,
+        request.served_from_cache,
+        request.status,
+        request.error,
+        request.response_identifier,
+        parameters,
+        fingerprint,
+    )
+
+
+def log_rows(connection: sqlite3.Connection) -> list[LogRow]:
+    response_store = ResponseStore(connection)
+    return [log_row(entry, response_store) for entry in CollectionLog(connection).entries()]
+
+
+def log_summary(rows: tuple[LogRow, ...]) -> str:
+    if not rows:
+        return "Aucune requête pour l'instant"
+    cached = sum(1 for row in rows if row.served_from_cache)
+    failed = sum(1 for row in rows if not row.succeeded)
+    parts = [
+        counted(len(rows), "requête", "requêtes"),
+        f"{cached} servie{'s' if cached > 1 else ''} par le cache",
+    ]
+    if failed:
+        parts.append(counted(failed, "échec", "échecs"))
+    return " · ".join(parts)

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -11,10 +11,12 @@ from investigation_builder import InvestigationBuilder
 from lacis.collectors.environment import demo_collection_environment
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
+from lacis.storage.collection_log import CollectionLog, LoggedRequest
 from lacis.storage.entities import EntityKind
 from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
 from lacis.storage.notices import NoticeFamily
 from lacis.storage.positions import Position, PositionStore
+from lacis.storage.responses import ResponseSource
 from lacis.ui.entity_sheet import EntitySheet
 from lacis.ui.investigation_page import (
     COLUMNS_SETTING,
@@ -675,3 +677,28 @@ def test_choosing_a_row_of_the_entities_table_selects_the_entity_in_the_graph(
     assert entities.selected_identifier() == company
     main_window.refresh_overview()
     assert entities.selected_identifier() == company
+
+
+def test_the_raw_response_of_a_logged_request_opens_in_a_dialog(
+    main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    with library.open(INVESTIGATION_NAME) as opened:
+        (response,) = opened.connection.execute("SELECT MIN(identifier) FROM response").fetchone()
+        CollectionLog(opened.connection).record(
+            LoggedRequest(
+                datetime(2026, 11, 2, 8, 9, 31, tzinfo=UTC),
+                ResponseSource.COMPANY_REGISTER,
+                "https://recherche-entreprises.api.gouv.fr/search",
+                200,
+                timedelta(milliseconds=184),
+                response_identifier=response,
+            )
+        )
+    main_window.refresh_overview()
+    panel = main_window.investigation_page.details_panel
+    assert panel.tabs.tabText(panel.journal_index) == "Journal 1"
+    journal = panel.journal_tab
+    journal.table.selectRow(0)
+    journal.raw_button.click()
+    [dialog] = main_window.findChildren(RawResponseDialog)
+    assert dialog.isVisible()
