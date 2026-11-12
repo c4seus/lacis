@@ -1,4 +1,4 @@
-from lacis.design.tokens import FONT_FAMILIES, Theme
+from lacis.design.tokens import FONT_FAMILIES, MONOSPACE_FONT_FAMILIES, Theme
 
 CONTROL_HEIGHT = 32
 SCROLL_BAR_THICKNESS = 10
@@ -565,6 +565,12 @@ QLabel[tone="card-heading"] {{
 
 QLabel[tone="body"] {{
     font-size: {font_sizes.small}px;
+}}
+
+QLabel[tone="fingerprint"] {{
+    color: {colours.faint_text};
+    font-family: {font_family_list(MONOSPACE_FONT_FAMILIES)};
+    font-size: {font_sizes.caption}px;
 }}
 
 QLabel[tone="chip"] {{

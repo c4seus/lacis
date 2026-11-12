@@ -15,6 +15,7 @@ from lacis.details import EntityDetails, entity_details
 from lacis.signals.signal import Severity
 from lacis.ui.entity_sheet import EntitySheet
 from lacis.ui.flow_layout import FlowLayout
+from lacis.ui.raw_response_dialog import RawResponseDialog
 
 
 @pytest.fixture
@@ -226,6 +227,22 @@ def test_the_links_of_the_entity_are_listed(
     assert chosen.args == [scenario.jean]
 
 
+def test_the_sources_show_their_date_and_fingerprint(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    details = shown(sheet, builder, scenario, scenario.dupont_services)
+    [row] = sheet.source_rows
+    [source] = details.sources
+    assert row.name_label.text() == "Recherche d'entreprises"
+    assert row.date_label.text() == source.written_date
+    assert row.fingerprint_label.text() == f"Empreinte SHA-256 {source.short_fingerprint}"
+    assert row.fingerprint_label.toolTip() == source.fingerprint
+    assert sheet.section_titles[-1].accessibleName() == "Provenance, 1 réponse"
+    with qtbot.waitSignal(sheet.raw_requested) as requested:
+        row.raw_button.click()
+    assert requested.args == [source.response_identifier]
+
+
 def test_medium_and_low_signals_have_their_own_colour(
     sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
 ) -> None:
@@ -236,10 +253,11 @@ def test_medium_and_low_signals_have_their_own_colour(
         assert sheet.signal_cards[0].property("severity") == severity.value
 
 
-def test_an_entity_without_signals_or_links_shows_only_its_head(
+def test_an_entity_without_signals_links_or_sources_shows_only_its_head(
     sheet: EntitySheet, builder: InvestigationBuilder
 ) -> None:
     lonely = builder.address("1 PLACE DU CAPITOLE 31000 TOULOUSE")
+    builder.connection.execute("DELETE FROM entity_source")
     details = entity_details(builder.connection, lonely, None)
     assert details is not None
     sheet.show_details(details)
@@ -271,3 +289,12 @@ def test_a_flow_layout_wraps_its_widgets(qtbot: QtBot) -> None:
     assert layout.count() == 5
     labels[1].hide()
     assert layout.heightForWidth(130) == 2 * 20 + 2
+
+
+def test_the_raw_response_dialog_shows_the_text(qtbot: QtBot) -> None:
+    dialog = RawResponseDialog(7, '{\n  "nom": "ACME"\n}')
+    qtbot.addWidget(dialog)
+    assert dialog.windowTitle() == "Réponse brute n° 7"
+    assert dialog.text_view.toPlainText() == '{\n  "nom": "ACME"\n}'
+    assert dialog.text_view.isReadOnly()
+    assert dialog.text_view.accessibleName() == "Contenu de la réponse"
