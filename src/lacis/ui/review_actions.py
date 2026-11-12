@@ -3,10 +3,12 @@ from collections.abc import Callable
 
 from PySide6.QtCore import QObject, Signal
 
-from lacis.graph.background import CollectionSettings
+from lacis.graph.background import BackgroundJob, CollectionSettings, expansion_job
+from lacis.graph.expansion import ExpansionReport
 from lacis.history import InvestigationHistory
 from lacis.identity.decision_commands import RecordDecisionCommand, ReportedCommand
 from lacis.identity.library_decisions import LibraryDecisionStore
+from lacis.review import expansion_message
 from lacis.storage.errors import InvestigationError
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionNotFoundError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE
@@ -19,6 +21,8 @@ DECISION_TEXTS = {
     HomonymDecision.DIFFERENT_PERSON: "personnes différentes",
 }
 UNDO_HINT = "Ctrl+Z pour annuler."
+EXPANSION_STARTED_PREFIX = "Extension de "
+EXPANSION_STARTED_SUFFIX = " en cours…"
 
 
 def failure_message(failure: Exception) -> str:
@@ -33,6 +37,7 @@ def decision_message(first_label: str, second_label: str, decision: HomonymDecis
 
 class ReviewActions(QObject):
     changed = Signal()
+    expanding_changed = Signal(object)
 
     def __init__(
         self,
@@ -46,6 +51,7 @@ class ReviewActions(QObject):
         self.settings: CollectionSettings | None = None
         self.history = InvestigationHistory(self)
         self.history.changed.connect(self.follow_history)
+        self.expansions: dict[str, BackgroundJob] = {}
 
     def start(self, settings: CollectionSettings) -> None:
         self.stop()
@@ -57,6 +63,12 @@ class ReviewActions(QObject):
             self.changed.emit()
 
     def stop(self) -> None:
+        for job in self.expansions.values():
+            job.cancel()
+        for job in self.expansions.values():
+            job.wait()
+        self.expansions = {}
+        self.expanding_changed.emit(set())
         self.settings = None
         self.history.clear()
         self.menu_bar.show_history(None)
@@ -81,3 +93,39 @@ class ReviewActions(QObject):
             return
         self.history.record(ReportedCommand(command, DECISION_FAILURES, self.report_failure))
         self.notify(decision_message(*labels, decision), NotificationKind.SUCCESS)
+
+    def expand(self, identifier: str, label: str) -> None:
+        if self.settings is None or identifier in self.expansions:
+            return
+        job = expansion_job(self.settings, identifier)
+        job.succeeded.connect(lambda report: self.finish_expansion(identifier, label, report))
+        job.cancelled.connect(lambda report: self.finish_expansion(identifier, label, None))
+        job.failed.connect(lambda message: self.fail_expansion(identifier, message))
+        self.expansions[identifier] = job
+        self.expanding_changed.emit(set(self.expansions))
+        self.notify(
+            f"{EXPANSION_STARTED_PREFIX}{label}{EXPANSION_STARTED_SUFFIX}",
+            NotificationKind.INFORMATION,
+        )
+        job.start()
+
+    def forget_expansion(self, identifier: str) -> bool:
+        job = self.expansions.pop(identifier, None)
+        if job is None:
+            return False
+        job.wait()
+        self.expanding_changed.emit(set(self.expansions))
+        return True
+
+    def finish_expansion(self, identifier: str, label: str, report: object) -> None:
+        if not self.forget_expansion(identifier):
+            return
+        if isinstance(report, ExpansionReport):
+            self.notify(expansion_message(label, report), NotificationKind.SUCCESS)
+        self.changed.emit()
+
+    def fail_expansion(self, identifier: str, message: str) -> None:
+        if not self.forget_expansion(identifier):
+            return
+        self.notify(message, NotificationKind.ERROR)
+        self.changed.emit()

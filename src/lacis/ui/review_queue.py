@@ -17,6 +17,7 @@ from lacis.design.icons import ColoursProvider
 from lacis.graph.drawing import KIND_LABELS
 from lacis.review import (
     NO_HOMONYM_TEXT,
+    NO_LEAD_TEXT,
     NO_SIGNAL_TEXT,
     UNAVAILABLE_SIGNALS_PREFIX,
     HomonymEntry,
@@ -28,8 +29,11 @@ from lacis.ui.graph_legend import KindSwatch
 
 QUEUE_LIST_ACCESSIBLE_NAME = "Éléments à examiner"
 HOMONYMS_TITLE = "Homonymes à vérifier"
+LEADS_TITLE = "Pistes non étendues"
 SAME_PERSON_TEXT = "Même personne"
 DIFFERENT_PERSON_TEXT = "Personne différente"
+EXPAND_TEXT = "Étendre"
+EXPANDING_TEXT = "Extension…"
 SCORE_PREFIX = "score "
 ACTIVATING_KEYS = {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}
 
@@ -141,6 +145,7 @@ def action_button(text: str, accessible_name: str, parent: QWidget) -> QPushButt
 class ReviewQueueList(QScrollArea):
     entity_chosen = Signal(str)
     decision_requested = Signal(object, object, object)
+    expansion_requested = Signal(str, str)
 
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -152,9 +157,11 @@ class ReviewQueueList(QScrollArea):
         self.colours_provider = colours_provider
         self.queue = ReviewQueue((), (), ())
         self.rows: list[QueueRow] = []
+        self.expand_buttons: dict[str, QPushButton] = {}
         self.decision_buttons: list[QPushButton] = []
         self.group_labels: list[QLabel] = []
         self.empty_labels: list[QLabel] = []
+        self.expanding: set[str] = set()
         self.selected_identifier: str | None = None
         self.content = QWidget()
         self.content_layout = QVBoxLayout(self.content)
@@ -171,11 +178,13 @@ class ReviewQueueList(QScrollArea):
         self.content_layout.setContentsMargins(8, 4, 8, 8)
         self.content_layout.setSpacing(4)
         self.rows = []
+        self.expand_buttons = {}
         self.decision_buttons = []
         self.group_labels = []
         self.empty_labels = []
         self.add_signals(queue)
         self.add_homonyms(queue)
+        self.add_leads(queue)
         self.content_layout.addStretch(1)
         self.setWidget(self.content)
         self.mark_selected(self.selected_identifier)
@@ -240,6 +249,29 @@ class ReviewQueueList(QScrollArea):
         )
         self.decision_buttons.extend([same, different])
         row.add_actions([same, different])
+
+    def add_leads(self, queue: ReviewQueue) -> None:
+        self.add_group_title(LEADS_TITLE)
+        if not queue.leads:
+            self.add_empty_text(NO_LEAD_TEXT)
+        for lead in queue.leads:
+            row = self.add_row(lead)
+            button = action_button(EXPAND_TEXT, f"{EXPAND_TEXT} {lead.label}", row)
+            button.clicked.connect(
+                lambda checked=False, chosen=lead: self.expansion_requested.emit(
+                    chosen.identifier, chosen.label
+                )
+            )
+            self.expand_buttons[lead.identifier] = button
+            row.first_line.addWidget(button, 0, Qt.AlignmentFlag.AlignTop)
+        self.show_expanding(self.expanding)
+
+    def show_expanding(self, expanding: set[str]) -> None:
+        self.expanding = set(expanding)
+        for identifier, button in self.expand_buttons.items():
+            running = identifier in self.expanding
+            button.setEnabled(not running)
+            button.setText(EXPANDING_TEXT if running else EXPAND_TEXT)
 
     def mark_selected(self, identifier: str | None) -> None:
         self.selected_identifier = identifier
