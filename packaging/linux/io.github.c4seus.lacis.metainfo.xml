@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.c4seus.lacis</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Lacis</name>
+  <summary>Map French companies and their directors</summary>
+  <summary xml:lang="fr">Cartographier les entreprises françaises et leurs dirigeants</summary>
+
+  <developer id="io.github.c4seus">
+    <name>c4seus</name>
+  </developer>
+
+  <description>
+    <p>
+      Lacis maps French companies, their directors and their addresses into a link graph,
+      in which every fact links back to the public response it came from.
+    </p>
+    <p xml:lang="fr">
+      Lacis cartographie les entreprises françaises, leurs dirigeants et leurs adresses dans
+      un graphe de liens, où chaque fait renvoie à la réponse publique dont il provient.
+    </p>
+    <p>
+      Start from one company and Lacis pulls the threads: who runs it, which other companies
+      those people run, who else is registered at the same address, and what the BODACC
+      published about each of them. Explainable rules then flag the patterns worth a closer
+      look.
+    </p>
+    <p xml:lang="fr">
+      Partez d'une entreprise et Lacis tire les fils : qui la dirige, quelles autres
+      entreprises ces personnes dirigent, qui d'autre est domicilié à la même adresse, et ce
+      que le BODACC a publié sur chacune. Des règles explicables signalent ensuite les
+      situations qui méritent un examen.
+    </p>
+    <ul>
+      <li>Search the national company register and pivot through directors and addresses</li>
+      <li xml:lang="fr">Recherche dans le registre national des entreprises et rebonds par les dirigeants et les adresses</li>
+      <li>BODACC notices of each company, as a timeline</li>
+      <li xml:lang="fr">Annonces BODACC de chaque entreprise, sous forme de frise</li>
+      <li>Warning signals such as mass domiciliation or phoenix schemes</li>
+      <li xml:lang="fr">Signaux d'alerte comme la domiciliation de masse ou le schéma phénix</li>
+      <li>Homonyms proposed with their reasons, never merged without your decision</li>
+      <li xml:lang="fr">Homonymes proposés avec leurs raisons, jamais fusionnés sans votre décision</li>
+      <li>Raw responses stored and fingerprinted, and every request logged</li>
+      <li xml:lang="fr">Réponses brutes conservées avec leur empreinte, et chaque requête journalisée</li>
+    </ul>
+    <p>
+      Each investigation is a local SQLite file. Nothing leaves your computer except the
+      public requests you trigger. The interface is in French.
+    </p>
+    <p xml:lang="fr">
+      Chaque enquête est un fichier SQLite local. Rien ne quitte votre ordinateur, à part les
+      requêtes publiques que vous déclenchez. L'interface est en français.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.c4seus.lacis.desktop</launchable>
+  <provides>
+    <binary>lacis</binary>
+  </provides>
+
+  <url type="homepage">https://github.com/c4seus/lacis</url>
+  <url type="bugtracker">https://github.com/c4seus/lacis/issues</url>
+  <url type="vcs-browser">https://github.com/c4seus/lacis</url>
+
+  <categories>
+    <category>Office</category>
+  </categories>
+  <keywords>
+    <keyword>OSINT</keyword>
+    <keyword>SIREN</keyword>
+    <keyword>BODACC</keyword>
+    <keyword>company</keyword>
+    <keyword xml:lang="fr">entreprise</keyword>
+    <keyword>investigation</keyword>
+    <keyword xml:lang="fr">enquête</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1"/>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">1024</display_length>
+  </requires>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#dfe6fb</color>
+    <color type="primary" scheme_preference="dark">#1e2a4f</color>
+  </branding>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>A fictional investigation: review queue, link graph and company details</caption>
+      <caption xml:lang="fr">Une enquête fictive : file à examiner, graphe des liens et fiche d'une entreprise</caption>
+      <image type="source" width="1440" height="900">https://raw.githubusercontent.com/c4seus/lacis/main/docs/images/screenshot-light.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The entities of the investigation, in the dark theme</caption>
+      <caption xml:lang="fr">Les entités de l'enquête, en thème sombre</caption>
+      <image type="source" width="1440" height="900">https://raw.githubusercontent.com/c4seus/lacis/main/docs/images/screenshot-dark.png</image>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="0.1.0" date="2026-11-12" type="development">
+      <description>
+        <p>First release: investigations, company search, pivots, BODACC notices, homonym review, warning signals and the investigation window.</p>
+        <p xml:lang="fr">Première version : enquêtes, recherche d'entreprises, rebonds, annonces BODACC, examen des homonymes, signaux d'alerte et fenêtre d'enquête.</p>
+      </description>
+    </release>
+  </releases>
+</component>
