@@ -577,6 +577,26 @@ QLabel[tone="chip"] {{
     font-size: {font_sizes.caption}px;
 }}
 
+QLabel[tone="notice-date"] {{
+    font-size: {font_sizes.small}px;
+    font-weight: {font_weights.bold};
+}}
+
+QLabel[tone="notice-summary"] {{
+    font-size: {font_sizes.small}px;
+}}
+
+QLabel[tone="notice-withdrawn"] {{
+    color: {colours.faint_text};
+    font-size: {font_sizes.small}px;
+    text-decoration: line-through;
+}}
+
+QLabel[tone="notice-note"] {{
+    color: {colours.faint_text};
+    font-size: {font_sizes.caption}px;
+}}
+
 QFrame#referenceChip {{
     border: 1px solid {colours.border};
     border-radius: 12px;
