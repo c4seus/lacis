@@ -214,6 +214,13 @@ def expansion_job(
     )
 
 
+def notices_refresh_job(settings: CollectionSettings, identifier: str) -> BackgroundJob:
+    return BackgroundJob(
+        settings,
+        with_signals_recomputed(lambda session: session.expander.refresh_notices(identifier)),
+    )
+
+
 def pause_unless_cancelled(cancellation: threading.Event) -> Callable[[], None]:
     def pause() -> None:
         if cancellation.is_set():

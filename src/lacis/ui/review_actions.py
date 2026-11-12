@@ -3,12 +3,17 @@ from collections.abc import Callable
 
 from PySide6.QtCore import QObject, Signal
 
-from lacis.graph.background import BackgroundJob, CollectionSettings, expansion_job
+from lacis.graph.background import (
+    BackgroundJob,
+    CollectionSettings,
+    expansion_job,
+    notices_refresh_job,
+)
 from lacis.graph.expansion import ExpansionReport
 from lacis.history import InvestigationHistory
 from lacis.identity.decision_commands import RecordDecisionCommand, ReportedCommand
 from lacis.identity.library_decisions import LibraryDecisionStore
-from lacis.review import expansion_message
+from lacis.review import expansion_message, notices_message
 from lacis.storage.errors import InvestigationError
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionNotFoundError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE
@@ -23,6 +28,7 @@ DECISION_TEXTS = {
 UNDO_HINT = "Ctrl+Z pour annuler."
 EXPANSION_STARTED_PREFIX = "Extension de "
 EXPANSION_STARTED_SUFFIX = " en cours…"
+NOTICES_REFRESH_STARTED_PREFIX = "Rafraîchissement des annonces de "
 
 
 def failure_message(failure: Exception) -> str:
@@ -95,18 +101,40 @@ class ReviewActions(QObject):
         self.notify(decision_message(*labels, decision), NotificationKind.SUCCESS)
 
     def expand(self, identifier: str, label: str, depth: int = 1, refresh: bool = False) -> None:
-        if self.settings is None or identifier in self.expansions:
+        if self.settings is None:
             return
-        job = expansion_job(self.settings, identifier, depth, refresh=refresh)
-        job.succeeded.connect(lambda report: self.finish_expansion(identifier, label, report))
-        job.cancelled.connect(lambda report: self.finish_expansion(identifier, label, None))
+        self.run_collection(
+            identifier,
+            expansion_job(self.settings, identifier, depth, refresh=refresh),
+            f"{EXPANSION_STARTED_PREFIX}{label}{EXPANSION_STARTED_SUFFIX}",
+            lambda report: expansion_message(label, report),
+        )
+
+    def refresh_notices(self, identifier: str, label: str) -> None:
+        if self.settings is None:
+            return
+        self.run_collection(
+            identifier,
+            notices_refresh_job(self.settings, identifier),
+            f"{NOTICES_REFRESH_STARTED_PREFIX}{label}{EXPANSION_STARTED_SUFFIX}",
+            lambda report: notices_message(label, report),
+        )
+
+    def run_collection(
+        self,
+        identifier: str,
+        job: BackgroundJob,
+        started_message: str,
+        describe: Callable[[ExpansionReport], str],
+    ) -> None:
+        if identifier in self.expansions:
+            return
+        job.succeeded.connect(lambda report: self.finish_collection(identifier, report, describe))
+        job.cancelled.connect(lambda report: self.finish_collection(identifier, None, describe))
         job.failed.connect(lambda message: self.fail_expansion(identifier, message))
         self.expansions[identifier] = job
         self.expanding_changed.emit(set(self.expansions))
-        self.notify(
-            f"{EXPANSION_STARTED_PREFIX}{label}{EXPANSION_STARTED_SUFFIX}",
-            NotificationKind.INFORMATION,
-        )
+        self.notify(started_message, NotificationKind.INFORMATION)
         job.start()
 
     def forget_expansion(self, identifier: str) -> bool:
@@ -117,11 +145,13 @@ class ReviewActions(QObject):
         self.expanding_changed.emit(set(self.expansions))
         return True
 
-    def finish_expansion(self, identifier: str, label: str, report: object) -> None:
+    def finish_collection(
+        self, identifier: str, report: object, describe: Callable[[ExpansionReport], str]
+    ) -> None:
         if not self.forget_expansion(identifier):
             return
         if isinstance(report, ExpansionReport):
-            self.notify(expansion_message(label, report), NotificationKind.SUCCESS)
+            self.notify(describe(report), NotificationKind.SUCCESS)
         self.changed.emit()
 
     def fail_expansion(self, identifier: str, message: str) -> None:

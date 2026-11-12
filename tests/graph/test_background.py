@@ -25,6 +25,7 @@ from lacis.graph.background import (
     interruptible_sleep,
     layout_job,
     move_job,
+    notices_refresh_job,
     register_search_job,
     search_job,
 )
@@ -520,3 +521,12 @@ def test_a_layout_can_start_again_from_the_moved_positions(
     run(qtbot, layout_job(settings), started_jobs)
     run(qtbot, move_job(settings, {scenario.acme: (1.0, 1.0)}), started_jobs)
     assert run(qtbot, layout_job(settings, again=True), started_jobs) == 8
+
+
+def test_the_notices_of_a_company_are_refreshed_in_the_background(
+    qtbot: QtBot, settings: CollectionSettings, started_jobs: list[BackgroundJob]
+) -> None:
+    add_acme(qtbot, settings, started_jobs)
+    report = run(qtbot, notices_refresh_job(settings, "company:111111111"), started_jobs)
+    assert isinstance(report, ExpansionReport)
+    assert report.changes.new_entities == ()

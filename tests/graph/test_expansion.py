@@ -316,6 +316,34 @@ def test_a_notice_no_longer_returned_on_refresh_is_withdrawn(
     assert withdrawn.is_withdrawn
 
 
+def test_refreshing_the_notices_finds_new_and_withdrawn_ones(
+    expander: GraphExpander,
+    fake_api: FakeApi,
+    wall_clock: FakeWallClock,
+    notice_store: NoticeStore,
+) -> None:
+    expander.expand_company("222222222")
+    fake_api.scenario = replace(
+        FAKE_PLUMBERS_SCENARIO,
+        notices=tuple(
+            notice
+            for notice in FAKE_PLUMBERS_SCENARIO.notices
+            if notice.identifier != "A202200030003"
+        ),
+    )
+    wall_clock.advance(timedelta(hours=1))
+    report = expander.refresh_notices(DUPONT_SERVICES)
+    assert report.changes.withdrawn_notices == ("A202200030003",)
+    assert report.changes.new_notices == ()
+    assert report.changes.new_entities == ()
+    assert notice_store.require_notice("A202200030003").is_withdrawn
+
+
+def test_only_the_notices_of_a_known_company_are_refreshed(expander: GraphExpander) -> None:
+    with pytest.raises(ExpansionError):
+        expander.refresh_notices("company:222222222")
+
+
 @pytest.fixture
 def one_notice_expander(
     investigation_connection: sqlite3.Connection,

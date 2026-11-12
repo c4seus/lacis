@@ -136,7 +136,7 @@ def scenario(builder: InvestigationBuilder) -> PlumbersScenario:
     return plumbers_scenario(builder)
 
 
-def test_the_sheet_of_a_company_shows_its_notices(
+def test_the_sheet_of_a_company_shows_its_notices_and_refreshes_them(
     qtbot: QtBot,
     icon_factory: IconFactory,
     builder: InvestigationBuilder,
@@ -149,12 +149,28 @@ def test_the_sheet_of_a_company_shows_its_notices(
     details = entity_details(builder.connection, scenario.dupont_services, None)
     sheet.show_details(details)
     assert sheet.timeline is not None
+    assert sheet.refresh_button is not None
     assert sheet.section_titles[0].accessibleName() == "Annonces BODACC, 1"
+    assert sheet.refresh_button.accessibleName() == "Rafraîchir les annonces de DUPONT SERVICES"
+    with qtbot.waitSignal(sheet.notices_refresh_requested) as requested:
+        sheet.refresh_button.click()
+    assert requested.args == [scenario.dupont_services, "DUPONT SERVICES"]
     item = sheet.timeline.items[0]
     item.bodacc_button.click()
     assert opened == [QUrl(item.notice.url)]
     with qtbot.waitSignal(sheet.raw_requested):
         item.raw_button.click()
+    sheet.show_running({scenario.dupont_services})
+    assert not sheet.refresh_button.isEnabled()
+    assert not sheet.expand_button.isEnabled()
+    sheet.show_details(details)
+    assert sheet.refresh_button is not None
+    assert not sheet.refresh_button.isEnabled()
+    sheet.show_running(set())
+    assert sheet.refresh_button.isEnabled()
+    sheet.show_details(None)
+    sheet.show_running({scenario.dupont_services})
+    sheet.refresh_notices()
 
 
 def test_only_companies_have_notices_in_their_sheet(
@@ -167,3 +183,4 @@ def test_only_companies_have_notices_in_their_sheet(
     qtbot.addWidget(sheet)
     sheet.show_details(entity_details(builder.connection, scenario.jean, None))
     assert sheet.timeline is None
+    assert sheet.refresh_button is None
