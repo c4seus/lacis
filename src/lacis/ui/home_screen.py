@@ -139,6 +139,7 @@ class InvestigationCard(QFrame):
 
         self.setAccessibleName(f"Enquête {summary.name}")
         self.setAccessibleDescription(self.description())
+        self.pressed = False
 
     def foot_label(self, text: str) -> QLabel:
         label = QLabel(text, self)
@@ -169,9 +170,17 @@ class InvestigationCard(QFrame):
         super().keyPressEvent(event)
 
     @override
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        self.pressed = event.button() is Qt.MouseButton.LeftButton
+        super().mousePressEvent(event)
+
+    @override
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if event.button() is Qt.MouseButton.LeftButton and self.rect().contains(
-            event.position().toPoint()
+        pressed, self.pressed = self.pressed, False
+        if (
+            pressed
+            and event.button() is Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
         ):
             self.open_requested.emit(self.summary.name)
             return

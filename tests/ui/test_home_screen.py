@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMessageBox
 from pytestqt.qtbot import QtBot
@@ -372,9 +372,26 @@ def test_clicking_the_actions_button_does_not_open_the_investigation(
     opened: list[str] = []
     home_screen.investigation_opened.connect(opened.append)
     card = home_screen.cards[0]
-    card.actions_menu.aboutToShow.connect(card.actions_menu.close)
+    menu = card.actions_menu
+    menu.aboutToShow.connect(lambda: QTimer.singleShot(0, menu, menu.close))
     QTest.mouseClick(card.more_button, Qt.MouseButton.LeftButton)
     assert opened == []
+
+
+def test_a_card_opens_only_on_a_click_that_started_on_it(
+    qtbot: QtBot, library: InvestigationLibrary, icon_factory: IconFactory
+) -> None:
+    home_screen = open_home_screen(qtbot, library, icon_factory)
+    opened: list[str] = []
+    home_screen.investigation_opened.connect(opened.append)
+    card = home_screen.cards[0]
+    QTest.mouseRelease(card, Qt.MouseButton.LeftButton)
+    assert opened == []
+    QTest.mousePress(card, Qt.MouseButton.RightButton)
+    QTest.mouseRelease(card, Qt.MouseButton.LeftButton)
+    assert opened == []
+    QTest.mouseClick(card, Qt.MouseButton.LeftButton)
+    assert opened == [card.summary.name]
 
 
 def test_editing_a_card_opens_the_edit_dialog_with_its_investigation(
