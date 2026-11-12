@@ -11,7 +11,13 @@ SOURCE_DIRECTORY = Path("debian")
 MAINTAINER = "c4seus <c4seus@proton.me>"
 RELEASES_URL = "https://github.com/c4seus/lacis/releases"
 PRE_RELEASE = re.compile(r"(?<=\d)\.?(dev|a|b|rc)(?=\d)")
+VERSION_PATTERN = re.compile(r"\d+(\.\d+)*((a|b|rc)\d+)?(\.post\d+)?(\.dev\d+)?(\+[\w.]+)?")
 USAGE = "usage: python scripts/prepare_debian_source.py VERSION"
+INVALID_VERSION_HINT = (
+    "the version comes from `python3 -m hatchling version`, which needs the Debian packages "
+    "python3-hatchling and python3-hatch-vcs: run it with the system Python, outside any "
+    "virtual environment"
+)
 
 
 def debian_version(version: str) -> str:
@@ -51,6 +57,9 @@ def main(root: Path, arguments: list[str], environment: dict[str, str]) -> int:
         print(USAGE)
         return 2
     version = arguments[0].removeprefix("v")
+    if not VERSION_PATTERN.fullmatch(version):
+        print(f"invalid version {version!r}: {INVALID_VERSION_HINT}")
+        return 2
     source = prepare(root, version, build_date(environment))
     print(f"{source.relative_to(root).as_posix()}: lacis {debian_version(version)}")
     return 0

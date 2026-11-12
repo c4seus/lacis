@@ -68,6 +68,30 @@ def test_the_command_takes_the_version_with_or_without_its_v(
     assert capsys.readouterr().out.startswith("usage:")
 
 
+@pytest.mark.parametrize("version", ["", "unknown", "v", "0.1.0 ", "0.1.0-1"])
+def test_an_invalid_version_stops_before_writing_anything(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], version: str
+) -> None:
+    (tmp_path / RECIPE_DIRECTORY).mkdir(parents=True)
+    assert main(tmp_path, [version], {}) == 2
+    assert not (tmp_path / "debian").exists()
+    message = capsys.readouterr().out
+    assert message.startswith("invalid version ")
+    assert "python3-hatchling and python3-hatch-vcs" in message
+
+
+@pytest.mark.parametrize(
+    "version",
+    ["0.1.0", "v1.0.0", "0.1.0rc1", "1.2.0.post1", "0.1.dev67+g1a2b3c4.d20261112"],
+)
+def test_every_version_hatchling_gives_is_accepted(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], version: str
+) -> None:
+    (tmp_path / RECIPE_DIRECTORY).mkdir(parents=True)
+    assert main(tmp_path, [version], {"SOURCE_DATE_EPOCH": "0"}) == 0
+    assert (tmp_path / "debian" / "changelog").is_file()
+
+
 def test_the_package_depends_on_every_qt_module_that_lacis_imports() -> None:
     imported = {
         module.lower()
