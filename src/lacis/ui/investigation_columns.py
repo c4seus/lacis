@@ -15,7 +15,7 @@ from lacis.design.icons import IconFactory
 from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
 from lacis.signals.facts import counted
-from lacis.ui.graph_controls import ZoomToolbar
+from lacis.ui.graph_controls import FilterChip, ZoomToolbar
 from lacis.ui.graph_legend import GraphLegend
 from lacis.ui.graph_view import GraphView
 from lacis.ui.header_bar import create_icon_button
@@ -133,6 +133,7 @@ class GraphArea(QFrame):
         super().__init__(parent)
         self.setObjectName("graphArea")
         self.setMinimumWidth(GRAPH_MINIMUM_WIDTH)
+        self.filter_chip = FilterChip(icon_factory, self)
         self.graph_view = GraphView(icon_factory.colours_provider, self)
         self.zoom_toolbar = ZoomToolbar(icon_factory, self)
         self.empty_label = placeholder(GRAPH_EMPTY_TEXT, self)
@@ -142,6 +143,7 @@ class GraphArea(QFrame):
         self.graph_layout.setContentsMargins(0, 0, 0, 0)
         self.graph_layout.setSpacing(0)
         self.graph_layout.addWidget(self.graph_view, 1)
+        self.filter_chip.filter_changed.connect(self.graph_view.apply_filter)
         self.zoom_toolbar.zoom_in_button.clicked.connect(self.graph_view.zoom_in)
         self.zoom_toolbar.zoom_out_button.clicked.connect(self.graph_view.zoom_out)
         self.zoom_toolbar.fit_button.clicked.connect(self.graph_view.fit)
@@ -150,14 +152,15 @@ class GraphArea(QFrame):
         self.place_overlays()
 
     def overlays(self) -> list[QWidget]:
-        return [self.empty_label, self.zoom_toolbar, self.legend]
+        return [self.empty_label, self.filter_chip, self.zoom_toolbar, self.legend]
 
     def show_controls(self, shown: bool) -> None:
         self.empty_label.setVisible(not shown)
-        for control in (self.zoom_toolbar, self.legend):
+        for control in (self.filter_chip, self.zoom_toolbar, self.legend):
             control.setVisible(shown)
 
     def show_drawing(self, drawing: GraphDrawing) -> None:
+        self.filter_chip.show_drawing(drawing)
         self.graph_view.show_drawing(drawing)
         self.show_controls(bool(drawing.nodes))
         self.place_overlays()
@@ -169,6 +172,7 @@ class GraphArea(QFrame):
             (self.width() - self.empty_label.width()) // 2,
             (self.height() - self.empty_label.height()) // 2,
         )
+        self.filter_chip.move(OVERLAY_MARGIN, OVERLAY_MARGIN)
         self.legend.move(OVERLAY_MARGIN, self.height() - self.legend.height() - OVERLAY_MARGIN)
         self.zoom_toolbar.move(
             self.width() - self.zoom_toolbar.width() - OVERLAY_MARGIN,
