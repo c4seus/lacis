@@ -86,7 +86,10 @@ def test_the_check_names_every_stale_or_missing_icon(
     capsys.readouterr()
     assert main(tmp_path, ["--check"]) == 1
     assert outdated(tmp_path) == [hicolor_icon(32), scalable_icon(), WINDOWS_ICON]
-    assert "run python scripts/build_icons.py" in capsys.readouterr().out
+    assert capsys.readouterr().out.splitlines()[0] == (
+        "packaging/icons/hicolor/32x32/apps/io.github.c4seus.lacis.png does not match its "
+        "master: run python scripts/build_icons.py"
+    )
     (tmp_path / scalable_icon()).unlink()
     (tmp_path / WINDOWS_ICON).unlink()
     assert outdated(tmp_path)[-2:] == [scalable_icon(), WINDOWS_ICON]
