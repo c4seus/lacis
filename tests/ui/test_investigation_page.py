@@ -318,7 +318,7 @@ def test_the_graph_is_laid_out_in_the_background_once_opened(
     assert set(positions) == set(scene.node_items)
     for identifier, item in scene.node_items.items():
         assert item.node.placed
-        assert (item.x(), item.y()) == (positions[identifier].x, positions[identifier].y)
+        assert item.point == (positions[identifier].x, positions[identifier].y)
 
 
 def test_new_entities_are_laid_out_without_moving_the_others(
@@ -339,6 +339,30 @@ def test_new_entities_are_laid_out_without_moving_the_others(
     assert item.node.placed
 
 
+def test_entities_moved_by_the_investigator_are_remembered(
+    qtbot: QtBot, main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    page = main_window.investigation_page
+    identifier = next(iter(page.graph_view.graph_scene.node_items))
+    page.graph_view.entities_moved.emit({identifier: (-300.0, 45.5)})
+    qtbot.waitUntil(lambda: not main_window.move_jobs)
+    assert stored_positions(library)[identifier] == Position(-300.0, 45.5, True)
+    main_window.refresh_overview()
+    assert page.graph_view.graph_scene.node_items[identifier].point == (-300.0, 45.5)
+
+
+def test_a_move_in_an_investigation_removed_meanwhile_is_notified(
+    qtbot: QtBot, main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    page = main_window.investigation_page
+    identifier = next(iter(page.graph_view.graph_scene.node_items))
+    library.rename(INVESTIGATION_NAME, "ailleurs")
+    page.graph_view.entities_moved.emit({identifier: (0.0, 0.0)})
+    qtbot.waitUntil(lambda: not main_window.move_jobs)
+    [notification] = main_window.notification_area.notifications
+    assert notification.message == f"L'enquête « {INVESTIGATION_NAME} » est introuvable."
+
+
 def test_leaving_the_investigation_stops_its_layout(
     qtbot: QtBot, main_window: MainWindow, library: InvestigationLibrary
 ) -> None:
@@ -351,3 +375,14 @@ def test_leaving_the_investigation_stops_its_layout(
     main_window.show_home()
     assert main_window.layout_job is None
     assert not job.is_running()
+
+
+def test_a_move_is_saved_before_leaving_the_investigation(
+    main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    page = main_window.investigation_page
+    identifier = next(iter(page.graph_view.graph_scene.node_items))
+    page.graph_view.entities_moved.emit({identifier: (12.0, 34.0)})
+    main_window.show_home()
+    assert main_window.move_jobs == []
+    assert stored_positions(library)[identifier] == Position(12.0, 34.0, True)

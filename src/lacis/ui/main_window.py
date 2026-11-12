@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLay
 from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
-from lacis.graph.background import BackgroundJob, CollectionSettings, layout_job
+from lacis.graph.background import BackgroundJob, CollectionSettings, layout_job, move_job
 from lacis.overview import read_overview
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE as UNREADABLE
@@ -69,6 +69,7 @@ class MainWindow(QMainWindow):
         self.investigation_page = InvestigationPage(settings, self.icon_factory)
         self.connect_investigation_page()
         self.layout_job: BackgroundJob | None = None
+        self.move_jobs: list[BackgroundJob] = []
         self.pages.addWidget(self.home_screen)
         self.pages.addWidget(self.investigation_page)
         content_layout.addWidget(self.pages)
@@ -99,6 +100,7 @@ class MainWindow(QMainWindow):
         queue_action.setChecked(not self.investigation_page.is_queue_collapsed())
         queue_action.toggled.connect(self.investigation_page.toggle_queue)
         self.investigation_page.queue_toggled.connect(queue_action.setChecked)
+        self.investigation_page.entities_moved.connect(self.save_moved_positions)
 
     def open_investigation(self, name: str) -> None:
         try:
@@ -155,6 +157,30 @@ class MainWindow(QMainWindow):
             job.cancel()
             job.wait()
 
+    def save_moved_positions(self, moved: dict[str, tuple[float, float]]) -> None:
+        if self.current_investigation is None:
+            return
+        job = move_job(self.collection_settings(self.current_investigation), moved)
+        job.succeeded.connect(lambda: self.forget_move(job))
+        job.cancelled.connect(lambda: self.forget_move(job))
+        job.failed.connect(lambda message: self.fail_move(job, message))
+        self.move_jobs.append(job)
+        job.start()
+
+    def forget_move(self, job: BackgroundJob) -> None:
+        job.wait()
+        if job in self.move_jobs:
+            self.move_jobs.remove(job)
+
+    def fail_move(self, job: BackgroundJob, message: str) -> None:
+        self.forget_move(job)
+        self.show_failure(message)
+
+    def stop_moves(self) -> None:
+        for job in self.move_jobs:
+            job.wait()
+        self.move_jobs = []
+
     def show_added_company(self, identifier: str, message: str) -> None:
         self.refresh_overview()
         self.notification_area.notify(message, NotificationKind.SUCCESS)
@@ -181,6 +207,7 @@ class MainWindow(QMainWindow):
 
     def show_home(self) -> None:
         self.stop_layout()
+        self.stop_moves()
         self.register_search.stop()
         self.header_bar.search_field.clear()
         self.header_bar.set_search_enabled(False)
@@ -221,6 +248,7 @@ class MainWindow(QMainWindow):
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
         self.stop_layout()
+        self.stop_moves()
         self.register_search.stop()
         self.save_geometry()
         super().closeEvent(event)

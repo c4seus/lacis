@@ -30,6 +30,7 @@ from lacis.signals.recomputation import InvestigationSignals
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import InvestigationLibrary
+from lacis.storage.positions import PositionStore
 from lacis.storage.responses import ResponseStore, ResponseSummary
 
 UNEXPECTED_FAILURE_MESSAGE = (
@@ -227,3 +228,7 @@ def layout_job(settings: CollectionSettings) -> BackgroundJob:
     pause = pause_unless_cancelled(job.cancellation)
     job.task = lambda session: lay_out_investigation(session.connection, pause)
     return job
+
+
+def move_job(settings: CollectionSettings, moved: dict[str, tuple[float, float]]) -> BackgroundJob:
+    return BackgroundJob(settings, lambda session: PositionStore(session.connection).move(moved))

@@ -102,6 +102,7 @@ class InvestigationHeader(QFrame):
 
 class InvestigationPage(QWidget):
     queue_toggled = Signal(bool)
+    entities_moved = Signal(dict)
 
     def __init__(
         self, settings: QSettings, icon_factory: IconFactory, parent: QWidget | None = None
@@ -119,6 +120,7 @@ class InvestigationPage(QWidget):
         self.details_panel = DetailsPanel(self)
         self.graph_view = self.graph_area.graph_view
         self.graph_view.selection_changed.connect(self.follow_selection)
+        self.graph_view.entities_moved.connect(self.entities_moved)
         self.columns = QSplitter(Qt.Orientation.Horizontal, self)
         self.columns.setObjectName("investigationColumns")
         self.columns.setChildrenCollapsible(False)

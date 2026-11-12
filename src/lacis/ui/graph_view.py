@@ -7,6 +7,7 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QFontMetricsF,
+    QMouseEvent,
     QPainter,
     QPainterPath,
     QPaintEvent,
@@ -275,8 +276,11 @@ class NodeItem(QGraphicsItem):
     def __init__(self, node: GraphNode) -> None:
         super().__init__()
         self.node = node
+        self.edge_items: list[EdgeItem] = []
         self.setPos(node.x, node.y)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.font = label_font(node.kind)
         self.path = shape_path(node.shape, node.size)
@@ -291,6 +295,17 @@ class NodeItem(QGraphicsItem):
         scene = self.scene()
         assert isinstance(scene, GraphScene)
         return scene.colours()
+
+    @override
+    def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: object) -> object:
+        if change is QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            for edge_item in self.edge_items:
+                edge_item.follow_ends()
+        return super().itemChange(change, value)
+
+    @property
+    def point(self) -> tuple[float, float]:
+        return (self.pos().x(), self.pos().y())
 
     @override
     def boundingRect(self) -> QRectF:
@@ -336,20 +351,31 @@ class EdgeItem(QGraphicsItem):
     def __init__(self, edge: GraphEdge, source: "NodeItem", target: "NodeItem") -> None:
         super().__init__()
         self.edge = edge
+        self.source = source
+        self.target = target
         self.setZValue(-1)
-        source_centre = source.pos()
-        target_centre = target.pos()
-        self.start = boundary_point(source.path, source_centre, target_centre)
-        self.end = boundary_point(target.path, target_centre, source_centre)
-        self.arrow = arrow_head(self.end, self.start) if edge.has_arrow else QPolygonF()
-        self.line_end = (
-            (self.arrow.at(1) + self.arrow.at(2)) / 2
-            if edge.has_arrow and self.arrow
-            else self.end
-        )
         self.font = edge_label_font(edge.kind)
         self.label_area = QFontMetricsF(self.font).boundingRect(edge.label)
         self.label_area.moveCenter(QPointF(0, 0))
+        self.start = QPointF()
+        self.end = QPointF()
+        self.arrow = QPolygonF()
+        self.line_end = QPointF()
+        self.label_angle = 0.0
+        self.follow_ends()
+        source.edge_items.append(self)
+        target.edge_items.append(self)
+
+    def follow_ends(self) -> None:
+        self.prepareGeometryChange()
+        source_centre = self.source.pos()
+        target_centre = self.target.pos()
+        self.start = boundary_point(self.source.path, source_centre, target_centre)
+        self.end = boundary_point(self.target.path, target_centre, source_centre)
+        self.arrow = arrow_head(self.end, self.start) if self.edge.has_arrow else QPolygonF()
+        self.line_end = (
+            self.end if self.arrow.isEmpty() else (self.arrow.at(1) + self.arrow.at(2)) / 2
+        )
         self.label_angle = upright_angle(self.start, self.end)
 
     @property
@@ -402,6 +428,7 @@ class EdgeItem(QGraphicsItem):
 
 class GraphView(QGraphicsView):
     selection_changed = Signal(str)
+    entities_moved = Signal(dict)
 
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -411,6 +438,7 @@ class GraphView(QGraphicsView):
         self.setScene(self.graph_scene)
         self.drawing = GraphDrawing()
         self.selected_identifier: str | None = None
+        self.points_before_drag: dict[str, tuple[float, float]] = {}
         self.graph_scene.selectionChanged.connect(self.follow_selection)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setRenderHints(
@@ -474,6 +502,26 @@ class GraphView(QGraphicsView):
         )
         self.scale(scale, scale)
         self.centerOn(area.center())
+
+    def current_points(self) -> dict[str, tuple[float, float]]:
+        return {identifier: item.point for identifier, item in self.graph_scene.node_items.items()}
+
+    @override
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        self.points_before_drag = self.current_points()
+        super().mousePressEvent(event)
+
+    @override
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        super().mouseReleaseEvent(event)
+        moved = {
+            identifier: point
+            for identifier, point in self.current_points().items()
+            if self.points_before_drag.get(identifier, point) != point
+        }
+        self.points_before_drag = {}
+        if moved:
+            self.entities_moved.emit(moved)
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
