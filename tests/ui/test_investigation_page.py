@@ -10,6 +10,7 @@ from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
+from lacis.storage.positions import Position, PositionStore
 from lacis.ui.investigation_page import (
     COLUMNS_SETTING,
     Counter,
@@ -51,6 +52,7 @@ def main_window(
     main_window.activateWindow()
     qtbot.waitUntil(main_window.isActiveWindow)
     main_window.open_investigation(INVESTIGATION_NAME)
+    qtbot.waitUntil(lambda: main_window.layout_job is None)
     return main_window
 
 
@@ -301,3 +303,51 @@ def test_the_graph_of_the_investigation_is_drawn_and_selectable(main_window: Mai
     main_window.open_investigation(INVESTIGATION_NAME)
     assert page.selected_entity is None
     assert scene.selected_identifier() is None
+
+
+def stored_positions(library: InvestigationLibrary) -> dict[str, Position]:
+    with library.open(INVESTIGATION_NAME) as opened:
+        return PositionStore(opened.connection).positions()
+
+
+def test_the_graph_is_laid_out_in_the_background_once_opened(
+    main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    scene = main_window.investigation_page.graph_view.graph_scene
+    positions = stored_positions(library)
+    assert set(positions) == set(scene.node_items)
+    for identifier, item in scene.node_items.items():
+        assert item.node.placed
+        assert (item.x(), item.y()) == (positions[identifier].x, positions[identifier].y)
+
+
+def test_new_entities_are_laid_out_without_moving_the_others(
+    qtbot: QtBot, main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    before = stored_positions(library)
+    company = next(identifier for identifier in before if identifier.startswith("company:"))
+    with library.open(INVESTIGATION_NAME) as opened:
+        builder = InvestigationBuilder(opened.connection)
+        newcomer = builder.person("Marie", "MARTIN")
+        builder.mandate(newcomer, company)
+    main_window.refresh_overview()
+    assert main_window.layout_job is not None
+    qtbot.waitUntil(lambda: main_window.layout_job is None)
+    after = stored_positions(library)
+    assert {identifier: after[identifier] for identifier in before} == before
+    item = main_window.investigation_page.graph_view.graph_scene.node_items[newcomer]
+    assert item.node.placed
+
+
+def test_leaving_the_investigation_stops_its_layout(
+    qtbot: QtBot, main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    with library.open(INVESTIGATION_NAME) as opened:
+        opened.connection.execute("DELETE FROM entity_position")
+        opened.connection.commit()
+    main_window.refresh_overview()
+    job = main_window.layout_job
+    assert job is not None
+    main_window.show_home()
+    assert main_window.layout_job is None
+    assert not job.is_running()

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLay
 from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
-from lacis.graph.background import CollectionSettings
+from lacis.graph.background import BackgroundJob, CollectionSettings, layout_job
 from lacis.overview import read_overview
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE as UNREADABLE
@@ -67,10 +67,8 @@ class MainWindow(QMainWindow):
         self.home_screen = HomeScreen(self.library, self.icon_factory)
         self.home_screen.investigation_opened.connect(self.open_investigation)
         self.investigation_page = InvestigationPage(settings, self.icon_factory)
-        queue_action = self.main_menu_bar.queue_action
-        queue_action.setChecked(not self.investigation_page.is_queue_collapsed())
-        queue_action.toggled.connect(self.investigation_page.toggle_queue)
-        self.investigation_page.queue_toggled.connect(queue_action.setChecked)
+        self.connect_investigation_page()
+        self.layout_job: BackgroundJob | None = None
         self.pages.addWidget(self.home_screen)
         self.pages.addWidget(self.investigation_page)
         content_layout.addWidget(self.pages)
@@ -96,6 +94,12 @@ class MainWindow(QMainWindow):
         self.content_area.setFocus()
         self.restore_saved_geometry()
 
+    def connect_investigation_page(self) -> None:
+        queue_action = self.main_menu_bar.queue_action
+        queue_action.setChecked(not self.investigation_page.is_queue_collapsed())
+        queue_action.toggled.connect(self.investigation_page.toggle_queue)
+        self.investigation_page.queue_toggled.connect(queue_action.setChecked)
+
     def open_investigation(self, name: str) -> None:
         try:
             with self.library.open(name) as opened:
@@ -105,23 +109,51 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, OPENING_FAILED_TITLE, message)
             self.home_screen.refresh()
             return
+        self.stop_layout()
         self.current_investigation = name
         self.investigation_page.show_investigation(investigation)
         self.refresh_overview()
-        self.register_search.start(
-            CollectionSettings(
-                self.library,
-                name,
-                self.collection_environment,
-                self.collection_environment.timing,
-            )
-        )
+        self.register_search.start(self.collection_settings(name))
         self.header_bar.set_search_enabled(True)
         self.header_bar.breadcrumb.set_trail((*HOME_TRAIL, name))
         self.main_menu_bar.close_investigation_action.setEnabled(True)
         self.main_menu_bar.queue_action.setEnabled(True)
         self.pages.setCurrentWidget(self.investigation_page)
         self.header_bar.search_field.setFocus()
+
+    def collection_settings(self, name: str) -> CollectionSettings:
+        return CollectionSettings(
+            self.library, name, self.collection_environment, self.collection_environment.timing
+        )
+
+    def start_layout(self) -> None:
+        if self.current_investigation is None or self.layout_job is not None:
+            return
+        job = layout_job(self.collection_settings(self.current_investigation))
+        job.succeeded.connect(self.finish_layout)
+        job.failed.connect(self.fail_layout)
+        self.layout_job = job
+        job.start()
+
+    def finish_layout(self) -> None:
+        job = self.layout_job
+        self.layout_job = None
+        if job is None:
+            return
+        job.wait()
+        if job.settings.investigation_name == self.current_investigation:
+            self.refresh_overview()
+
+    def fail_layout(self, message: str) -> None:
+        self.layout_job = None
+        self.show_failure(message)
+
+    def stop_layout(self) -> None:
+        job = self.layout_job
+        self.layout_job = None
+        if job is not None:
+            job.cancel()
+            job.wait()
 
     def show_added_company(self, identifier: str, message: str) -> None:
         self.refresh_overview()
@@ -140,12 +172,15 @@ class MainWindow(QMainWindow):
             self.show_failure(message)
             return
         self.investigation_page.show_overview(overview)
+        if overview.drawing.needs_layout:
+            self.start_layout()
 
     def follow_breadcrumb(self, position: int) -> None:
         if position == 0:
             self.show_home()
 
     def show_home(self) -> None:
+        self.stop_layout()
         self.register_search.stop()
         self.header_bar.search_field.clear()
         self.header_bar.set_search_enabled(False)
@@ -185,6 +220,7 @@ class MainWindow(QMainWindow):
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
+        self.stop_layout()
         self.register_search.stop()
         self.save_geometry()
         super().closeEvent(event)

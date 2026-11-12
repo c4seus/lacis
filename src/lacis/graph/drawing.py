@@ -1,24 +1,22 @@
 import sqlite3
-from collections.abc import Iterable
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import StrEnum
-from statistics import fmean
 
+from lacis.graph.layout import (
+    LayoutRequest,
+    Pair,
+    Point,
+    initial_positions,
+    lay_out,
+    no_pause,
+)
 from lacis.graph.leads import is_known_as_director_only
 from lacis.signals.signal import Severity
 from lacis.signals.store import SignalReport
 from lacis.storage.entities import Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
-
-COLUMN_GAP = 320.0
-MINIMUM_GAP = 170.0
-DIRECTOR_ROW = 0
-COMPANY_ROW = 1
-ESTABLISHMENT_ROW = 2
-ADDRESS_ROW = 3
-ROW_HEIGHTS = {DIRECTOR_ROW: 0.0, COMPANY_ROW: 170.0, ESTABLISHMENT_ROW: 310.0, ADDRESS_ROW: 420.0}
-ROW_ORDER = (COMPANY_ROW, DIRECTOR_ROW, ESTABLISHMENT_ROW, ADDRESS_ROW)
-
+from lacis.storage.positions import Position, PositionStore
 
 IDENTITY_LABEL = "même personne"
 
@@ -70,6 +68,7 @@ class GraphNode:
     x: float
     y: float
     severity: Severity | None = None
+    placed: bool = True
 
     @property
     def shape(self) -> NodeShape:
@@ -111,35 +110,15 @@ class GraphDrawing:
     def node(self, identifier: str) -> GraphNode | None:
         return next((node for node in self.nodes if node.identifier == identifier), None)
 
+    @property
+    def needs_layout(self) -> bool:
+        return any(not node.placed for node in self.nodes)
+
     def require_node(self, identifier: str) -> GraphNode:
         node = self.node(identifier)
         if node is None:
             raise KeyError(identifier)
         return node
-
-
-@dataclass
-class Block:
-    identifiers: list[str]
-    desired: list[float]
-    start: float = field(init=False)
-
-    def __post_init__(self) -> None:
-        self.place()
-
-    def place(self) -> None:
-        self.start = fmean(
-            position - index * MINIMUM_GAP for index, position in enumerate(self.desired)
-        )
-
-    @property
-    def end(self) -> float:
-        return self.start + (len(self.identifiers) - 1) * MINIMUM_GAP
-
-    def absorb(self, other: "Block") -> None:
-        self.identifiers.extend(other.identifiers)
-        self.desired.extend(other.desired)
-        self.place()
 
 
 def node_label(entity: Entity) -> str:
@@ -161,59 +140,6 @@ def is_closed(entity: Entity) -> bool:
     if entity.kind is EntityKind.ESTABLISHMENT:
         return bool(entity.attributes.get("closing_date"))
     return False
-
-
-def spread(desired: dict[str, float]) -> dict[str, float]:
-    blocks: list[Block] = []
-    for identifier, position in sorted(desired.items(), key=lambda item: (item[1], item[0])):
-        block = Block([identifier], [position])
-        while blocks and blocks[-1].end + MINIMUM_GAP > block.start:
-            previous = blocks.pop()
-            previous.absorb(block)
-            block = previous
-        blocks.append(block)
-    return {
-        identifier: block.start + index * MINIMUM_GAP
-        for block in blocks
-        for index, identifier in enumerate(block.identifiers)
-    }
-
-
-def neighbour_positions(
-    identifier: str, edges: Iterable[GraphEdge], placed: dict[str, float]
-) -> list[float]:
-    neighbours = (edge.other_end(identifier) for edge in edges if edge.touches(identifier))
-    return [placed[neighbour] for neighbour in neighbours if neighbour in placed]
-
-
-def row_of(entity: Entity, director_only: set[str]) -> int:
-    if entity.kind is EntityKind.COMPANY:
-        return DIRECTOR_ROW if entity.identifier in director_only else COMPANY_ROW
-    if entity.kind is EntityKind.ESTABLISHMENT:
-        return ESTABLISHMENT_ROW
-    if entity.kind is EntityKind.ADDRESS:
-        return ADDRESS_ROW
-    return DIRECTOR_ROW
-
-
-def layered_positions(
-    entities: list[Entity], edges: list[GraphEdge], director_only: set[str]
-) -> dict[str, tuple[float, float]]:
-    rows: dict[int, list[Entity]] = {row: [] for row in ROW_ORDER}
-    for entity in entities:
-        rows[row_of(entity, director_only)].append(entity)
-    placed: dict[str, float] = {}
-    positions: dict[str, tuple[float, float]] = {}
-    for row in ROW_ORDER:
-        members = sorted(rows[row], key=lambda entity: (entity.label, entity.identifier))
-        desired = {}
-        for index, entity in enumerate(members):
-            around = neighbour_positions(entity.identifier, edges, placed)
-            desired[entity.identifier] = fmean(around) if around else index * COLUMN_GAP
-        for identifier, position in spread(desired).items():
-            placed[identifier] = position
-            positions[identifier] = (position, ROW_HEIGHTS[row])
-    return positions
 
 
 def edge_kind(link: Link) -> EdgeKind:
@@ -262,20 +188,50 @@ def flagged_entities(report: SignalReport | None) -> dict[str, Severity]:
     return severities
 
 
-def graph_drawing(
-    connection: sqlite3.Connection, report: SignalReport | None = None
-) -> GraphDrawing:
+@dataclass(frozen=True)
+class GraphStructure:
+    entities: list[Entity]
+    edges: list[GraphEdge]
+    director_only: set[str]
+
+    @property
+    def pairs(self) -> list[Pair]:
+        return [(edge.source, edge.target) for edge in self.edges]
+
+    @property
+    def layered_pairs(self) -> list[Pair]:
+        return [
+            (edge.source, edge.target) for edge in self.edges if edge.kind is not EdgeKind.IDENTITY
+        ]
+
+    def initial_positions(self, known: dict[str, Point]) -> dict[str, Point]:
+        return initial_positions(self.entities, self.layered_pairs, self.director_only, known)
+
+
+def read_structure(connection: sqlite3.Connection) -> GraphStructure:
     graph_store = GraphStore(connection)
     entities = graph_store.entities()
-    links = graph_store.links()
     director_only = {
         entity.identifier
         for entity in entities
         if entity.kind is EntityKind.COMPANY and is_known_as_director_only(graph_store, entity)
     }
-    edges = graph_edges(links)
-    layout_edges = [edge for edge in edges if edge.kind is not EdgeKind.IDENTITY]
-    positions = layered_positions(entities, layout_edges, director_only)
+    return GraphStructure(entities, graph_edges(graph_store.links()), director_only)
+
+
+def stored_points(connection: sqlite3.Connection) -> dict[str, Point]:
+    return {
+        identifier: (position.x, position.y)
+        for identifier, position in PositionStore(connection).positions().items()
+    }
+
+
+def graph_drawing(
+    connection: sqlite3.Connection, report: SignalReport | None = None
+) -> GraphDrawing:
+    structure = read_structure(connection)
+    known = stored_points(connection)
+    positions = structure.initial_positions(known)
     severities = flagged_entities(report)
     nodes = tuple(
         GraphNode(
@@ -283,11 +239,35 @@ def graph_drawing(
             kind=entity.kind,
             label=node_label(entity),
             closed=is_closed(entity),
-            partial=entity.identifier in director_only,
+            partial=entity.identifier in structure.director_only,
             x=positions[entity.identifier][0],
             y=positions[entity.identifier][1],
             severity=severities.get(entity.identifier),
+            placed=entity.identifier in known,
         )
-        for entity in entities
+        for entity in structure.entities
     )
-    return GraphDrawing(nodes, tuple(edges))
+    return GraphDrawing(nodes, tuple(structure.edges))
+
+
+def lay_out_investigation(
+    connection: sqlite3.Connection, pause: Callable[[], None] = no_pause
+) -> int:
+    structure = read_structure(connection)
+    known = stored_points(connection)
+    connection.rollback()
+    newcomers = {entity.identifier for entity in structure.entities} - set(known)
+    if not newcomers:
+        return 0
+    request = LayoutRequest(
+        structure.entities,
+        structure.pairs,
+        structure.layered_pairs,
+        structure.director_only,
+        known,
+    )
+    positions = lay_out(request, pause)
+    PositionStore(connection).save(
+        {identifier: Position(*positions[identifier]) for identifier in sorted(newcomers)}
+    )
+    return len(newcomers)

@@ -1,6 +1,7 @@
 import logging
 import sqlite3
 import threading
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
@@ -19,6 +20,7 @@ from lacis.collectors.http_client import (
     CollectorHttpClient,
     CollectorTiming,
 )
+from lacis.graph.drawing import lay_out_investigation
 from lacis.graph.expansion import ExpansionError, ExpansionReport, GraphExpander
 from lacis.graph.progress import ProgressTracker
 from lacis.graph.register_search import search_register
@@ -33,6 +35,9 @@ from lacis.storage.responses import ResponseStore, ResponseSummary
 UNEXPECTED_FAILURE_MESSAGE = (
     "La collecte s'est arrêtée sur une erreur inattendue. Le journal de Lacis en donne le détail."
 )
+LOCK_POLL_SECONDS = 0.05
+investigation_locks: dict[str, threading.Lock] = {}
+investigation_locks_guard = threading.Lock()
 EXPECTED_FAILURES = (CollectionError, ExpansionError, InvalidQueryError, InvestigationError)
 
 
@@ -83,6 +88,26 @@ def collection_session(
 type CollectionTask = Callable[[CollectionSession], object]
 
 
+def investigation_lock(settings: CollectionSettings) -> threading.Lock:
+    key = str(settings.library.directory_of(settings.investigation_name).resolve())
+    with investigation_locks_guard:
+        return investigation_locks.setdefault(key, threading.Lock())
+
+
+@contextmanager
+def exclusive_access(
+    settings: CollectionSettings, cancellation: threading.Event
+) -> Iterator[None]:
+    lock = investigation_lock(settings)
+    while not lock.acquire(timeout=LOCK_POLL_SECONDS):
+        if cancellation.is_set():
+            raise CollectionCancelledError
+    try:
+        yield
+    finally:
+        lock.release()
+
+
 class BackgroundJob(QObject):
     progressed = Signal(object)
     succeeded = Signal(object)
@@ -116,7 +141,10 @@ class BackgroundJob(QObject):
     def run(self) -> None:
         try:
             tracker = ProgressTracker(self.progressed.emit)
-            with collection_session(self.settings, tracker, self.cancellation) as session:
+            with (
+                exclusive_access(self.settings, self.cancellation),
+                collection_session(self.settings, tracker, self.cancellation) as session,
+            ):
                 result = self.task(session)
         except CollectionCancelledError:
             self.cancelled.emit(None)
@@ -183,3 +211,19 @@ def expansion_job(
             lambda session: session.expander.expand(identifier, depth, refresh=refresh)
         ),
     )
+
+
+def pause_unless_cancelled(cancellation: threading.Event) -> Callable[[], None]:
+    def pause() -> None:
+        if cancellation.is_set():
+            raise CollectionCancelledError
+        time.sleep(0)
+
+    return pause
+
+
+def layout_job(settings: CollectionSettings) -> BackgroundJob:
+    job = BackgroundJob(settings, lambda session: None)
+    pause = pause_unless_cancelled(job.cancellation)
+    job.task = lambda session: lay_out_investigation(session.connection, pause)
+    return job

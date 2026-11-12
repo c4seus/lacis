@@ -1,14 +1,14 @@
+import math
 import sqlite3
 from datetime import UTC, date, datetime
 from itertools import pairwise
+from pathlib import Path
 
 import pytest
 
 from graph_scenario import PlumbersScenario, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.graph.drawing import (
-    MINIMUM_GAP,
-    ROW_HEIGHTS,
     EdgeKind,
     GraphDrawing,
     GraphEdge,
@@ -16,11 +16,14 @@ from lacis.graph.drawing import (
     NodeShape,
     flagged_entities,
     graph_drawing,
-    spread,
+    lay_out_investigation,
 )
+from lacis.graph.layout import IDEAL_DISTANCE, MINIMUM_GAP, ROW_HEIGHTS, spread
 from lacis.signals.signal import Severity, Signal
 from lacis.signals.store import SignalReport
 from lacis.storage.entities import EntityKind
+from lacis.storage.investigations import InvestigationLibrary
+from lacis.storage.positions import PositionStore
 
 
 @pytest.fixture
@@ -279,3 +282,59 @@ def test_signal_subjects_and_their_evidence_are_flagged_in_the_drawing(
         scenario.jean: Severity.HIGH,
     }
     assert all(node.severity is None for node in graph_drawing(builder.connection).nodes)
+
+
+def test_a_new_graph_waits_for_its_layout(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    drawing = graph_drawing(builder.connection)
+    assert drawing.needs_layout
+    assert not any(node.placed for node in drawing.nodes)
+
+
+def test_a_laid_out_graph_keeps_its_positions(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    assert lay_out_investigation(builder.connection) == 9
+    drawing = graph_drawing(builder.connection)
+    assert not drawing.needs_layout
+    stored = PositionStore(builder.connection).positions()
+    for node in drawing.nodes:
+        assert (node.x, node.y) == (stored[node.identifier].x, stored[node.identifier].y)
+    assert lay_out_investigation(builder.connection) == 0
+    assert graph_drawing(builder.connection) == drawing
+
+
+def test_entities_do_not_jump_after_an_expansion(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    lay_out_investigation(builder.connection)
+    before = {
+        node.identifier: (node.x, node.y) for node in graph_drawing(builder.connection).nodes
+    }
+    newcomer = builder.company("DUPONT RENOVATION")
+    builder.mandate(scenario.jean, newcomer)
+    builder.registered_office(newcomer, scenario.address)
+    waiting = graph_drawing(builder.connection)
+    assert [node.identifier for node in waiting.nodes if not node.placed] == [newcomer]
+    assert lay_out_investigation(builder.connection) == 1
+    after = {node.identifier: (node.x, node.y) for node in graph_drawing(builder.connection).nodes}
+    assert {identifier: after[identifier] for identifier in before} == before
+    jean = after[scenario.jean]
+    assert math.dist(after[newcomer], jean) < 3 * IDEAL_DISTANCE
+
+
+def test_laying_out_lets_other_connections_write_meanwhile(tmp_path: Path) -> None:
+    library = InvestigationLibrary(tmp_path / "investigations")
+    library.create("faux-plombiers-31", "")
+    with library.open("faux-plombiers-31") as layout_side:
+        plumbers_scenario(InvestigationBuilder(layout_side.connection))
+
+        def write_elsewhere() -> None:
+            with library.open("faux-plombiers-31") as other_side:
+                InvestigationBuilder(other_side.connection).address(
+                    "3 RUE DU PORT 31000 TOULOUSE", postcode="31000"
+                )
+
+        assert lay_out_investigation(layout_side.connection, write_elsewhere) == 9
+        assert len(PositionStore(layout_side.connection).positions()) == 9
