@@ -2,7 +2,7 @@ PYTHON ?= python
 SYSTEM_PYTHON ?= /usr/bin/python3
 SYSTEM_PATH := $(if $(VIRTUAL_ENV),$(subst $(VIRTUAL_ENV)/bin:,,$(PATH)),$(PATH))
 
-.PHONY: install lint format types test coverage check icons desktop-metadata deb
+.PHONY: install lint format types test coverage check icons desktop-metadata deb rpm
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -43,3 +43,11 @@ deb:
 	mkdir -p dist
 	mv ../lacis_*.deb ../lacis_*.buildinfo ../lacis_*.changes dist/
 	lintian --fail-on error dist/lacis_*.deb
+
+rpm:
+	$(SYSTEM_PYTHON) scripts/prepare_rpm_spec.py "$$($(SYSTEM_PYTHON) -m hatchling version)"
+	env -u VIRTUAL_ENV PATH="$(SYSTEM_PATH)" \
+		rpmbuild -bb --build-in-place --define "_topdir $(CURDIR)/build/rpm" build/rpm/lacis.spec
+	rpmlint build/rpm/RPMS/noarch/lacis-*.rpm build/rpm/lacis.spec
+	mkdir -p dist
+	cp build/rpm/RPMS/noarch/lacis-*.rpm dist/
