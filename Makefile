@@ -2,7 +2,7 @@ PYTHON ?= python
 SYSTEM_PYTHON ?= /usr/bin/python3
 SYSTEM_PATH := $(if $(VIRTUAL_ENV),$(subst $(VIRTUAL_ENV)/bin:,,$(PATH)),$(PATH))
 
-.PHONY: install lint format types test coverage check icons desktop-metadata deb rpm arch
+.PHONY: install lint format types test coverage check icons desktop-metadata deb rpm arch windows
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -69,3 +69,12 @@ arch:
 	! grep -q " E: " build/arch/namcap.txt
 	mkdir -p dist
 	cp build/arch/lacis-*.pkg.tar.zst dist/
+
+windows:
+	@test "$(OS)" = Windows_NT || { \
+		echo "make windows needs Nuitka, Visual Studio and Inno Setup 7: run it on Windows," \
+			"from Git Bash"; \
+		exit 1; \
+	}
+	$(PYTHON) scripts/build_windows_installer.py \
+		"$$($(PYTHON) -c 'import lacis; print(lacis.__version__, end="")')"
