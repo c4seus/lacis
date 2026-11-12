@@ -48,6 +48,11 @@ def qt6_packages(modules: set[str]) -> set[str]:
     return {f"qt6-{module}" for module in modules - QT6_BASE_MODULES}
 
 
+def workflow_jobs() -> tuple[str, str]:
+    build, install = WORKFLOW.read_text(encoding="utf-8").split("\n  install:\n", 1)
+    return build, install
+
+
 def fake_archive_builder(root: Path, directory: Path, version: str) -> None:
     (directory / source_archive_name(version)).write_bytes(ARCHIVE_CONTENT)
 
@@ -116,8 +121,18 @@ def test_the_package_depends_on_every_qt_module_that_lacis_imports() -> None:
     assert {"pyside6", "python", "python-httpx", "hicolor-icon-theme"} <= set(depends)
 
 
+def test_the_arch_tests_install_every_qt_module_that_the_tests_import() -> None:
+    install_job = workflow_jobs()[1]
+    needed = qt6_packages(imported_qt_modules("tests", "scripts"))
+    assert [
+        package
+        for package in needed
+        if package not in pkgbuild_array("depends") and package not in install_job
+    ] == []
+
+
 def test_the_arch_build_installs_every_dependency_of_the_package() -> None:
-    build = WORKFLOW.read_text(encoding="utf-8")
+    build = workflow_jobs()[0]
     required = pkgbuild_array("depends") + pkgbuild_array("makedepends")
     assert required
     assert [name for name in required if not re.search(rf"\s{re.escape(name)}(\s|$)", build)] == []
