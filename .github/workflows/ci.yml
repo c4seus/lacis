@@ -83,6 +83,21 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
+  desktop-metadata:
+    name: Desktop metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install the validator
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends desktop-file-utils
+      - name: Validate the desktop entry
+        run: make desktop-metadata
+
   commits:
     name: Commit convention
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
@@ -103,7 +118,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: always()
-    needs: [lint, types, tests, commits]
+    needs: [lint, types, tests, desktop-metadata, commits]
     runs-on: ubuntu-latest
     steps:
       - name: Fail when a required job failed or was cancelled

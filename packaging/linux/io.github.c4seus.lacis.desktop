@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Lacis
+GenericName=Company Link Analysis
+GenericName[fr]=Analyse des liens entre entreprises
+Comment=Map French companies, their directors and addresses into a sourced link graph
+Comment[fr]=Cartographier les entreprises françaises, leurs dirigeants et leurs adresses dans un graphe de liens sourcé
+Exec=lacis
+Icon=io.github.c4seus.lacis
+Terminal=false
+Categories=Office;Qt;
+Keywords=osint;company;siren;siret;bodacc;director;investigation;graph;
+Keywords[fr]=osint;entreprise;société;siren;siret;bodacc;dirigeant;enquête;graphe;
+StartupNotify=true
+StartupWMClass=Lacis
