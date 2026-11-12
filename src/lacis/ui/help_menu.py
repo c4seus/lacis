@@ -6,6 +6,8 @@ HELP_MENU_TITLE = "Ai&de"
 DOCUMENTATION_ACTION_TEXT = "&Documentation"
 DOCUMENTATION_URL = "https://github.com/c4seus/lacis#readme"
 DOCUMENTATION_SHORTCUT = QKeySequence("F1")
+SHORTCUTS_ACTION_TEXT = "&Raccourcis clavier"
+SHORTCUTS_SHORTCUT = QKeySequence("Ctrl+/")
 REPORT_PROBLEM_ACTION_TEXT = "&Signaler un problème…"
 REPORT_PROBLEM_URL = "https://github.com/c4seus/lacis/issues/new/choose"
 ABOUT_ACTION_TEXT = "À &propos de Lacis"
@@ -17,6 +19,9 @@ class HelpMenu(QMenu):
         self.documentation_action = self.add_link(
             DOCUMENTATION_ACTION_TEXT, DOCUMENTATION_URL, DOCUMENTATION_SHORTCUT
         )
+        self.shortcuts_action = QAction(SHORTCUTS_ACTION_TEXT, self)
+        self.shortcuts_action.setShortcut(SHORTCUTS_SHORTCUT)
+        self.addAction(self.shortcuts_action)
         self.report_problem_action = self.add_link(REPORT_PROBLEM_ACTION_TEXT, REPORT_PROBLEM_URL)
         self.addSeparator()
         self.about_action = QAction(ABOUT_ACTION_TEXT, self)

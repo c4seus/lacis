@@ -26,6 +26,7 @@ from lacis.ui.notifications import NotificationArea, NotificationKind
 from lacis.ui.raw_response_dialog import RawResponseDialog
 from lacis.ui.register_search_list import RegisterSearch, RegisterSearchPopup
 from lacis.ui.review_actions import ReviewActions
+from lacis.ui.shortcuts_dialog import ShortcutsDialog, shortcut_groups
 
 WINDOW_TITLE = "Lacis"
 DEMO_WINDOW_TITLE = "Lacis — démonstration"
@@ -62,6 +63,8 @@ class MainWindow(QMainWindow):
         self.header_bar.breadcrumb.step_activated.connect(self.follow_breadcrumb)
         self.header_bar.help_menu.about_action.triggered.connect(self.show_about_dialog)
         self.about_dialog: AboutDialog | None = None
+        self.header_bar.help_menu.shortcuts_action.triggered.connect(self.show_shortcuts_dialog)
+        self.shortcuts_dialog: ShortcutsDialog | None = None
         self.setMenuBar(self.main_menu_bar)
         self.library = library or InvestigationLibrary(investigations_directory())
         self.content_area = QWidget()
@@ -323,6 +326,11 @@ class MainWindow(QMainWindow):
         if self.about_dialog is None:
             self.about_dialog = AboutDialog(self.icon_factory, self)
         self.about_dialog.open()
+
+    def show_shortcuts_dialog(self) -> None:
+        if self.shortcuts_dialog is None:
+            self.shortcuts_dialog = ShortcutsDialog(shortcut_groups(self.main_menu_bar), self)
+        self.shortcuts_dialog.open()
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
