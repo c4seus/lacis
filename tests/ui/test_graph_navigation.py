@@ -4,14 +4,16 @@ import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QMouseEvent, QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 from pytestqt.qtbot import QtBot
 
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.graph.drawing import GraphDrawing, graph_drawing
-from lacis.ui.graph_controls import ZoomToolbar
+from lacis.graph.filters import GraphFilter
+from lacis.storage.entities import EntityKind
+from lacis.ui.graph_controls import FilterChip, ZoomToolbar
 from lacis.ui.graph_view import MAXIMUM_SCALE, MINIMUM_SCALE, ZOOM_STEP, GraphView
 from lacis.ui.investigation_columns import GraphArea
 
@@ -163,15 +165,81 @@ def test_a_redrawn_graph_keeps_the_zoom_chosen_by_the_investigator(
     assert view.follows_fit
 
 
+def test_filters_hide_entities_and_their_links(
+    area: GraphArea, view: GraphView, scenario: PlumbersScenario
+) -> None:
+    chip = area.filter_chip
+    assert chip.text() == "Filtres · tous les types"
+    chip.kind_actions[EntityKind.ESTABLISHMENT].setChecked(False)
+    assert chip.text() == "Filtres · 2 entités masquées"
+    assert chip.accessibleDescription() == "2 entités masquées"
+    items = view.graph_scene.node_items
+    assert not items[scenario.acme_office].isVisible()
+    assert items[scenario.acme].isVisible()
+    hidden_edges = [edge for edge in view.graph_scene.edge_items if not edge.isVisible()]
+    assert len(hidden_edges) == 4
+    assert view.accessibleDescription().endswith(", 2 entités masquées")
+
+
+def test_flagged_entities_only_keeps_the_ringed_ones(
+    area: GraphArea, view: GraphView, scenario: PlumbersScenario
+) -> None:
+    view.select(scenario.holding)
+    area.filter_chip.flagged_action.setChecked(True)
+    shown = {
+        identifier for identifier, item in view.graph_scene.node_items.items() if item.isVisible()
+    }
+    assert shown == {scenario.acme, scenario.dupont_services, scenario.jean, scenario.jean_pierre}
+    assert view.selected_identifier is None
+    assert area.filter_chip.text() == "Filtres · 5 entités masquées"
+
+
+def test_show_everything_resets_the_filters(area: GraphArea, view: GraphView) -> None:
+    chip = area.filter_chip
+    assert not chip.show_everything_action.isEnabled()
+    chip.kind_actions[EntityKind.PERSON].setChecked(False)
+    chip.flagged_action.setChecked(True)
+    assert chip.show_everything_action.isEnabled()
+    chip.show_everything_action.trigger()
+    assert chip.graph_filter == GraphFilter()
+    assert all(action.isChecked() for action in chip.kind_actions.values())
+    assert not chip.flagged_action.isChecked()
+    assert all(item.isVisible() for item in view.graph_scene.node_items.values())
+    assert chip.text() == "Filtres · tous les types"
+
+
+def test_the_filter_choices_count_the_entities(area: GraphArea) -> None:
+    chip = area.filter_chip
+    assert [action.text() for action in chip.kind_actions.values()] == [
+        "Entreprises (3)",
+        "Personnes (2)",
+        "Adresses (1)",
+        "Établissements (2)",
+        "Entreprises étrangères (1)",
+    ]
+    assert chip.flagged_action.text() == "Entités signalées seulement (4)"
+
+
+def test_a_filter_keeps_applying_to_a_redrawn_graph(
+    area: GraphArea, view: GraphView, drawing: GraphDrawing, scenario: PlumbersScenario
+) -> None:
+    area.filter_chip.kind_actions[EntityKind.ADDRESS].setChecked(False)
+    area.show_drawing(drawing)
+    assert not view.graph_scene.node_items[scenario.address].isVisible()
+    assert area.filter_chip.text() == "Filtres · 1 entité masquée"
+
+
 def test_the_layout_button_asks_for_a_new_layout(qtbot: QtBot, area: GraphArea) -> None:
     with qtbot.waitSignal(area.layout_requested):
         area.zoom_toolbar.layout_button.click()
 
 
 def test_the_controls_show_only_with_a_graph(area: GraphArea) -> None:
+    assert area.filter_chip.isVisible()
     assert area.zoom_toolbar.isVisible()
     assert area.legend.isVisible()
     area.show_drawing(GraphDrawing())
+    assert not area.filter_chip.isVisible()
     assert not area.zoom_toolbar.isVisible()
     assert area.empty_label.isVisible()
 
@@ -180,8 +248,11 @@ def test_every_control_is_reachable_with_the_keyboard(
     qtbot: QtBot, icon_factory: IconFactory
 ) -> None:
     toolbar = ZoomToolbar(icon_factory)
+    chip = FilterChip(icon_factory)
     qtbot.addWidget(toolbar)
-    assert all(button.focusPolicy() & Qt.FocusPolicy.TabFocus for button in toolbar.buttons)
+    qtbot.addWidget(chip)
+    controls: list[QWidget] = [*toolbar.buttons, chip]
+    assert all(control.focusPolicy() & Qt.FocusPolicy.TabFocus for control in controls)
     assert [button.toolTip() for button in toolbar.buttons] == [
         "Zoom avant (Ctrl++)",
         "Zoom arrière (Ctrl+-)",
@@ -194,6 +265,7 @@ def test_every_control_is_reachable_with_the_keyboard(
         "Ajuster à la fenêtre",
         "Réorganiser le graphe",
     ]
+    assert chip.accessibleName() == "Filtres du graphe"
 
 
 def test_the_graph_takes_the_keyboard_focus(view: GraphView) -> None:

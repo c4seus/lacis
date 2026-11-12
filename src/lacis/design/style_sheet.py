@@ -456,6 +456,31 @@ QFrame#graphToolbar {{
     background-color: {colours.surface};
 }}
 
+QToolButton#filterChip {{
+    min-height: 0;
+    padding: 4px 9px;
+    border: 1px solid {colours.border};
+    border-radius: {radii.medium}px;
+    background-color: {colours.surface};
+    color: {colours.text};
+    font-size: {font_sizes.small}px;
+}}
+
+QToolButton#filterChip[active="true"] {{
+    border-color: {colours.accent};
+    color: {colours.accent};
+}}
+
+QToolButton#filterChip:focus {{
+    padding: 3px 8px;
+    border: 2px solid {colours.accent};
+}}
+
+QToolButton#filterChip::menu-indicator {{
+    image: none;
+    width: 0;
+}}
+
 QFrame#graphLegend {{
     border: 1px solid {colours.border};
     border-radius: {radii.medium}px;

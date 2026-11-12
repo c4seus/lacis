@@ -28,6 +28,7 @@ from lacis.design.icons import ColoursProvider
 from lacis.design.tokens import FONT_FAMILIES, Colours
 from lacis.graph.descriptions import entity_description, entity_summary, graph_summary
 from lacis.graph.drawing import EdgeKind, GraphDrawing, GraphEdge, GraphNode, NodeShape
+from lacis.graph.filters import GraphFilter
 from lacis.graph.navigation import Direction
 from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
@@ -453,6 +454,7 @@ class GraphView(QGraphicsView):
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.graph_filter = GraphFilter()
         self.follows_fit = True
 
     def show_drawing(self, drawing: GraphDrawing) -> None:
@@ -462,6 +464,7 @@ class GraphView(QGraphicsView):
         self.graph_scene.blockSignals(True)
         self.graph_scene.show_drawing(drawing)
         self.graph_scene.select(kept)
+        self.apply_filter_to_items()
         self.graph_scene.blockSignals(False)
         self.follow_selection()
         self.describe()
@@ -469,6 +472,24 @@ class GraphView(QGraphicsView):
             self.fit()
         else:
             self.widen_scene()
+
+    def apply_filter(self, graph_filter: GraphFilter) -> None:
+        self.graph_filter = graph_filter
+        self.apply_filter_to_items()
+        self.follow_selection()
+        self.describe()
+
+    def apply_filter_to_items(self) -> None:
+        for item in self.graph_scene.node_items.values():
+            shown = self.graph_filter.shows(item.node)
+            item.setVisible(shown)
+            if not shown:
+                item.setSelected(False)
+        for edge_item in self.graph_scene.edge_items:
+            edge_item.setVisible(edge_item.source.isVisible() and edge_item.target.isVisible())
+
+    def shown_identifiers(self) -> set[str]:
+        return self.graph_filter.shown_identifiers(self.drawing)
 
     def select(self, identifier: str) -> bool:
         found = self.graph_scene.select(identifier)
@@ -489,7 +510,10 @@ class GraphView(QGraphicsView):
 
     def describe(self) -> None:
         if self.selected_identifier is None:
-            self.setAccessibleDescription(graph_summary(self.drawing))
+            summary = graph_summary(self.drawing)
+            if self.graph_filter.is_active:
+                summary = f"{summary}, {self.graph_filter.summary(self.drawing)}"
+            self.setAccessibleDescription(summary)
         else:
             self.setAccessibleDescription(
                 entity_description(self.drawing, self.selected_identifier)
