@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install lint format types test coverage check icons
+.PHONY: install lint format types test coverage check icons desktop-metadata
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -27,3 +27,6 @@ check: lint types coverage
 
 icons:
 	QT_QPA_PLATFORM=offscreen $(PYTHON) scripts/build_icons.py
+
+desktop-metadata:
+	desktop-file-validate packaging/linux/io.github.c4seus.lacis.desktop
