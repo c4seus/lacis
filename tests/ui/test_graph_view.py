@@ -23,13 +23,13 @@ from lacis.graph.drawing import (
 from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
 from lacis.ui import announcements
+from lacis.ui.graph_legend import GraphLegend
 from lacis.ui.graph_view import (
     ARROW_LENGTH,
     CLOSED_FILL_OPACITY,
     GRAPH_ACCESSIBLE_NAME,
     RING_WIDTH,
     SELECTION_OPACITY,
-    GraphLegend,
     GraphView,
     NodeItem,
     arrow_head,
@@ -229,8 +229,15 @@ def test_the_legend_names_each_kind(qtbot: QtBot, icon_factory: IconFactory) -> 
         "Adresse",
         "Établissement",
         "Étranger",
-        "Signal",
+        "Mandat",
+        "Rattachement",
+        "Même personne",
+        "Signal :",
+        "fort",
+        "moyen",
+        "faible",
     ]
+    assert legend.accessibleDescription() == ", ".join(legend.texts)
     legend.show()
     legend.grab()
     assert legend.accessibleName() == "Légende du graphe"
