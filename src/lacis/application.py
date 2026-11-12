@@ -16,6 +16,7 @@ from lacis.collectors.environment import (
     CollectionEnvironment,
     demo_collection_environment,
 )
+from lacis.design.application_icon import application_icon
 from lacis.design.fonts import application_font, load_bundled_fonts
 from lacis.design.theme_controller import ThemeController
 from lacis.diagnostics import (
@@ -24,7 +25,7 @@ from lacis.diagnostics import (
     default_log_directory,
     forward_qt_messages_to_the_log,
 )
-from lacis.product import PRODUCT_DESCRIPTION
+from lacis.product import APPLICATION_ID, PRODUCT_DESCRIPTION
 from lacis.storage.locations import DEMO_DIRECTORY_PREFIX, data_directory, use_data_directory
 from lacis.ui.error_dialog import install_unexpected_error_handler
 from lacis.ui.main_window import MainWindow
@@ -59,6 +60,8 @@ def configure_application(application: QApplication) -> None:
     application.setApplicationDisplayName(APPLICATION_NAME)
     application.setOrganizationName(ORGANIZATION_NAME)
     application.setApplicationVersion(__version__)
+    application.setDesktopFileName(APPLICATION_ID)
+    application.setWindowIcon(application_icon())
     QLocale.setDefault(APPLICATION_LOCALE)
     load_bundled_fonts()
     application.setFont(application_font())

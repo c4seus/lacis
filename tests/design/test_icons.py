@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QByteArray, QPoint, QRect, QSettings, QSize, Qt
@@ -7,6 +8,7 @@ from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication, QToolButton
 from pytestqt.qtbot import QtBot
 
+from lacis.design.application_icon import LARGE_MASTER, SMALL_MASTERS
 from lacis.design.icons import (
     CURRENT_COLOUR,
     ICON_DIRECTORY,
@@ -58,7 +60,8 @@ def test_every_icon_takes_its_colour_from_the_theme(name: str) -> None:
 
 def test_every_svg_file_of_the_icon_directory_is_listed() -> None:
     files = {path.stem for path in ICON_DIRECTORY.glob("*.svg")}
-    assert files == {*ICON_NAMES, LOGO_NAME}
+    application_masters = {Path(name).stem for name in (LARGE_MASTER, *SMALL_MASTERS.values())}
+    assert files == {*ICON_NAMES, LOGO_NAME, *application_masters}
 
 
 def test_an_unknown_icon_is_refused() -> None:
