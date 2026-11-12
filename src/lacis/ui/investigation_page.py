@@ -104,7 +104,7 @@ class InvestigationPage(QWidget):
     queue_toggled = Signal(bool)
     entities_moved = Signal(dict)
     decision_requested = Signal(object, object, object)
-    expansion_requested = Signal(str, str)
+    expansion_requested = Signal(str, str, int, bool)
     entity_selected = Signal(str)
 
     def __init__(
@@ -127,7 +127,11 @@ class InvestigationPage(QWidget):
         review_list = self.queue_column.review_list
         review_list.entity_chosen.connect(lambda identifier: self.show_entity(identifier, ""))
         review_list.decision_requested.connect(self.decision_requested)
-        review_list.expansion_requested.connect(self.expansion_requested)
+        review_list.expansion_requested.connect(
+            lambda identifier, label: self.expansion_requested.emit(identifier, label, 1, False)
+        )
+        sheet = self.details_panel.entity_sheet
+        sheet.expansion_requested.connect(self.expansion_requested)
         self.columns = QSplitter(Qt.Orientation.Horizontal, self)
         self.columns.setObjectName("investigationColumns")
         self.columns.setChildrenCollapsible(False)

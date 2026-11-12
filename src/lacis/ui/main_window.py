@@ -124,6 +124,10 @@ class MainWindow(QMainWindow):
         self.investigation_page.decision_requested.connect(self.review_actions.decide)
         self.investigation_page.expansion_requested.connect(self.review_actions.expand)
         self.investigation_page.entity_selected.connect(self.show_details)
+        sheet = self.investigation_page.details_panel.entity_sheet
+        sheet.copied.connect(
+            lambda message: self.notification_area.notify(message, NotificationKind.SUCCESS)
+        )
 
     def open_investigation(self, name: str) -> None:
         try:

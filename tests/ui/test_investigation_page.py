@@ -565,3 +565,27 @@ def test_details_of_an_investigation_removed_meanwhile_are_not_shown(
     main_window.show_home()
     main_window.show_details("company:100000000")
     assert sheet_of(main_window).details is None
+
+
+def test_copying_from_the_sheet_is_confirmed(main_window: MainWindow) -> None:
+    select_first_company(main_window)
+    sheet = sheet_of(main_window)
+    sheet.copy_button.click()
+    [notification] = main_window.notification_area.notifications
+    assert notification.message.endswith("copié dans le presse-papiers.")
+
+
+def test_an_entity_is_expanded_again_from_its_sheet(
+    qtbot: QtBot,
+    settings: QSettings,
+    theme_controller: ThemeController,
+    library: InvestigationLibrary,
+) -> None:
+    window = MainWindow(settings, theme_controller, demo_collection_environment(), library)
+    qtbot.addWidget(window)
+    window.open_investigation(INVESTIGATION_NAME)
+    qtbot.waitUntil(lambda: window.layout_job is None)
+    company = select_first_company(window)
+    sheet_of(window).depth_menu.actions()[1].trigger()
+    assert company in window.review_actions.expansions
+    qtbot.waitUntil(lambda: not window.review_actions.expansions, timeout=10_000)

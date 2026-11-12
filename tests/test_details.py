@@ -53,6 +53,8 @@ def test_a_closed_company_shows_its_status_identifiers_and_dates(
         "Créée le 01/06/2019",
         "Fermée le 15/01/2023",
     )
+    assert (details.copy_label, details.copy_value) == ("Copier le SIREN", siren)
+    assert details.directory_url == f"https://annuaire-entreprises.data.gouv.fr/entreprise/{siren}"
     assert details.expandable
     assert not details.expanded
     assert details.expanded_on == ""
@@ -90,6 +92,8 @@ def test_an_establishment_shows_its_siret_and_status(
         f"SIRET {spaced(siret[:9])} {siret[9:]}",
         "Fermé le 15/01/2023",
     )
+    assert (closed.copy_label, closed.copy_value) == ("Copier le SIRET", siret)
+    assert closed.directory_url.endswith(f"/etablissement/{siret}")
     assert not closed.expandable
 
 
@@ -120,6 +124,8 @@ def test_a_person_shows_birth_and_nationality(
     details = details_of(builder, scenario.jean)
     assert (details.kind_label, details.badges) == ("Personne", ())
     assert details.facts == ("Né en 05/1980", "Nationalité Française")
+    assert (details.copy_label, details.copy_value) == ("Copier le nom", "Jean DUPONT")
+    assert details.directory_url.endswith("/rechercher?terme=Jean%20DUPONT")
 
 
 def test_an_address_shows_its_postcode_and_town(
@@ -131,18 +137,21 @@ def test_an_address_shows_its_postcode_and_town(
     )
     details = details_of(builder, scenario.address)
     assert details.facts == ("Code postal 31000", "Commune TOULOUSE")
+    assert details.copy_label == "Copier l'adresse"
+    assert details.directory_url.startswith("https://annuaire-entreprises.data.gouv.fr/rechercher")
 
 
-def test_a_foreign_company_shows_its_country(
+def test_a_foreign_company_shows_its_country_without_directory(
     builder: InvestigationBuilder, scenario: PlumbersScenario
 ) -> None:
     details = details_of(builder, scenario.invest)
     assert details.kind_label == "Entreprise étrangère"
     assert details.facts == ("Pays Royaume-Uni",)
+    assert details.directory_url == ""
     assert not details.expandable
 
 
-def test_a_company_without_attributes_has_no_facts(builder: InvestigationBuilder) -> None:
+def test_a_company_without_siren_copies_its_name(builder: InvestigationBuilder) -> None:
     company = builder.company("ACME PLOMBERIE")
     GraphStore(builder.connection).save_entity(
         CollectedEntity(company, "ACME PLOMBERIE", {"siren": None}), builder.response
@@ -151,7 +160,11 @@ def test_a_company_without_attributes_has_no_facts(builder: InvestigationBuilder
         "UPDATE entity SET attributes = '{}' WHERE identifier = ?", (company,)
     )
     details = details_of(builder, company)
-    assert details.facts == ()
+    assert (details.copy_label, details.directory_url, details.facts) == (
+        "Copier le nom",
+        "",
+        (),
+    )
 
 
 def test_an_expanded_entity_tells_when(builder: InvestigationBuilder) -> None:

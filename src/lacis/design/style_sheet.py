@@ -505,6 +505,17 @@ QScrollArea#entitySheet, QWidget#entitySheetContent {{
     background-color: {colours.surface};
 }}
 
+QToolButton#expandButton {{
+    min-height: 26px;
+    border-color: {colours.accent};
+    background-color: {colours.accent};
+    color: {colours.text_on_accent};
+}}
+
+QToolButton#expandButton:focus {{
+    border: 2px solid {colours.text};
+}}
+
 QPushButton[compact="true"] {{
     min-height: 24px;
     padding: 0 {spacing.step_2}px;
