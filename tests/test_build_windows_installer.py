@@ -19,7 +19,10 @@ from build_windows_installer import (
     nuitka_command,
     windows_version,
 )
+from lacis.application import APPLICATION_NAME, ORGANIZATION_NAME
 from lacis.product import APPLICATION_ID, PRODUCT_DESCRIPTION, PRODUCT_NAME, REPOSITORY_URL
+from lacis.storage.investigations import DATABASE_FILE_NAME
+from lacis.storage.locations import INVESTIGATIONS_DIRECTORY_NAME
 
 REPOSITORY = Path(__file__).resolve().parent.parent
 WORKFLOW = REPOSITORY / ".github" / "workflows" / "windows-installer.yml"
@@ -38,6 +41,12 @@ class RecordedCommands:
 def defines(command: list[str]) -> dict[str, str]:
     pairs = [argument[2:].partition("=") for argument in command if argument.startswith("/D")]
     return {name: value for name, _, value in pairs}
+
+
+def workflow_value(name: str) -> str:
+    found = re.search(rf"^ +{name}: (.+)$", WORKFLOW.read_text(encoding="utf-8"), re.MULTILINE)
+    assert found is not None
+    return found.group(1)
 
 
 def installed_compiler(base: Path) -> Path:
@@ -196,3 +205,14 @@ def test_the_windows_build_installs_nuitka_with_lacis() -> None:
     requirements = project["project"]["optional-dependencies"]["windows-installer"]
     assert [requirement for requirement in requirements if requirement.startswith("nuitka")]
     assert '-e ".[windows-installer]"' in WORKFLOW.read_text(encoding="utf-8")
+
+
+def test_the_windows_checks_follow_the_names_that_lacis_uses() -> None:
+    assert workflow_value("INSTALLATION_DIRECTORY") == f"Programs\\{PRODUCT_NAME}"
+    assert workflow_value("DATA_DIRECTORY") == f"{ORGANIZATION_NAME}\\{APPLICATION_NAME}"
+    assert workflow_value("INVESTIGATIONS_DIRECTORY") == INVESTIGATIONS_DIRECTORY_NAME
+    assert workflow_value("SHORTCUT").endswith(f"\\{PRODUCT_NAME}.lnk")
+    assert workflow_value("UNINSTALL_KEY").endswith(f"\\{APPLICATION_ID}_is1")
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    assert f'"{DATABASE_FILE_NAME}"' in workflow
+    assert '"lacis.exe"' in workflow
