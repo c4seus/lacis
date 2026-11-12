@@ -1,10 +1,10 @@
 import sqlite3
 
 import pytest
-from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QAccessible, QColor, QFont, QImage
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+from PySide6.QtGui import QAccessible, QColor, QFont, QImage, QMouseEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QApplication, QWidget
 from pytestqt.qtbot import QtBot
 
 from accessibility_checks import accessible_name
@@ -484,3 +484,59 @@ def test_screen_readers_hear_the_selected_entity_its_kind_and_its_links(
     view.show_drawing(GraphDrawing())
     assert spoken_description(view) == "Graphe vide"
     assert len(heard) == 1
+
+
+def send_mouse(view: GraphView, kind: QEvent.Type, position: QPoint, held: bool) -> None:
+    buttons = Qt.MouseButton.LeftButton if held else Qt.MouseButton.NoButton
+    event = QMouseEvent(
+        kind,
+        QPointF(position),
+        QPointF(view.viewport().mapToGlobal(position)),
+        Qt.MouseButton.LeftButton,
+        buttons,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    QApplication.sendEvent(view.viewport(), event)
+
+
+def drag(view: GraphView, start: QPoint, end: QPoint) -> None:
+    send_mouse(view, QEvent.Type.MouseButtonPress, start, held=True)
+    middle = (start + end) / 2
+    send_mouse(view, QEvent.Type.MouseMove, middle, held=True)
+    send_mouse(view, QEvent.Type.MouseMove, end, held=True)
+    send_mouse(view, QEvent.Type.MouseButtonRelease, end, held=False)
+
+
+def test_the_investigator_moves_an_entity_and_its_links_follow(
+    qtbot: QtBot,
+    icon_factory: IconFactory,
+    scenario: PlumbersScenario,
+    scenario_drawing: GraphDrawing,
+) -> None:
+    view = shown_view(qtbot, icon_factory, scenario_drawing)
+    holding = view.graph_scene.node_items[scenario.holding]
+    [mandate] = holding.edge_items
+    start = view.mapFromScene(holding.pos())
+    end = start + QPoint(40, 60)
+    with qtbot.waitSignal(view.entities_moved) as moved:
+        drag(view, start, end)
+    [positions] = moved.args
+    assert list(positions) == [scenario.holding]
+    assert positions[scenario.holding] == holding.point
+    assert holding.pos() == view.mapToScene(end)
+    assert mandate.start == boundary_point(
+        holding.path, holding.pos(), view.graph_scene.node_items[scenario.acme].pos()
+    )
+
+
+def test_a_simple_click_moves_nothing(
+    qtbot: QtBot,
+    icon_factory: IconFactory,
+    scenario: PlumbersScenario,
+    scenario_drawing: GraphDrawing,
+) -> None:
+    view = shown_view(qtbot, icon_factory, scenario_drawing)
+    holding = view.graph_scene.node_items[scenario.holding]
+    with qtbot.assertNotEmitted(view.entities_moved, wait=10):
+        drag(view, view.mapFromScene(holding.pos()), view.mapFromScene(holding.pos()))
+    assert holding.isSelected()

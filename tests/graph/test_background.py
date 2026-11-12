@@ -24,6 +24,7 @@ from lacis.graph.background import (
     expansion_job,
     interruptible_sleep,
     layout_job,
+    move_job,
     register_search_job,
     search_job,
 )
@@ -35,7 +36,7 @@ from lacis.signals.store import SignalReport, SignalStore
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.investigations import InvestigationLibrary
-from lacis.storage.positions import PositionStore
+from lacis.storage.positions import Position, PositionStore
 from large_investigation import large_investigation
 
 INVESTIGATION_NAME = "faux-plombiers-31"
@@ -491,3 +492,18 @@ def test_jobs_on_other_investigations_do_not_wait(
     assert started.wait(SIGNAL_TIMEOUT_MILLISECONDS / 1000)
     assert run(qtbot, other, started_jobs) == 1
     release.set()
+
+
+def test_moved_positions_are_saved_in_the_background(
+    qtbot: QtBot,
+    library: InvestigationLibrary,
+    settings: CollectionSettings,
+    started_jobs: list[BackgroundJob],
+) -> None:
+    with library.open(INVESTIGATION_NAME) as investigation:
+        scenario = plumbers_scenario(InvestigationBuilder(investigation.connection))
+    run(qtbot, move_job(settings, {scenario.acme: (5.0, 6.0)}), started_jobs)
+    with library.open(INVESTIGATION_NAME) as investigation:
+        assert PositionStore(investigation.connection).positions() == {
+            scenario.acme: Position(5.0, 6.0, moved_by_investigator=True)
+        }

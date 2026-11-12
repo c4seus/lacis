@@ -23,7 +23,7 @@ from lacis.signals.signal import Severity, Signal
 from lacis.signals.store import SignalReport
 from lacis.storage.entities import EntityKind
 from lacis.storage.investigations import InvestigationLibrary
-from lacis.storage.positions import PositionStore
+from lacis.storage.positions import Position, PositionStore
 
 
 @pytest.fixture
@@ -338,3 +338,17 @@ def test_laying_out_lets_other_connections_write_meanwhile(tmp_path: Path) -> No
 
         assert lay_out_investigation(layout_side.connection, write_elsewhere) == 9
         assert len(PositionStore(layout_side.connection).positions()) == 9
+
+
+def test_positions_moved_by_the_investigator_are_kept_by_the_layout(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    lay_out_investigation(builder.connection)
+    PositionStore(builder.connection).move({scenario.acme: (-900.0, -900.0)})
+    newcomer = builder.company("DUPONT RENOVATION")
+    builder.mandate(scenario.jean_pierre, newcomer)
+    lay_out_investigation(builder.connection)
+    stored = PositionStore(builder.connection).positions()
+    assert stored[scenario.acme] == Position(-900.0, -900.0, moved_by_investigator=True)
+    assert not stored[newcomer].moved_by_investigator
+    assert drawn_node(graph_drawing(builder.connection), scenario.acme).x == -900.0

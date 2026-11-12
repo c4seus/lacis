@@ -38,3 +38,6 @@ class PositionStore:
                     for identifier, position in positions.items()
                 ],
             )
+
+    def move(self, moved: dict[str, tuple[float, float]]) -> None:
+        self.save({identifier: Position(x, y, True) for identifier, (x, y) in moved.items()})
