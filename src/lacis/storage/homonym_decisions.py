@@ -128,13 +128,16 @@ class HomonymDecisionStore:
         return {(first, second) for first, second in rows}
 
     def withdraw(self, first_person: str, second_person: str) -> RecordedDecision:
-        recorded = self.decision_between(first_person, second_person)
-        if recorded is None:
-            raise HomonymDecisionNotFoundError
+        first, second = ordered_people(first_person, second_person)
         with self.connection:
-            self.connection.execute(
-                "DELETE FROM homonym_decision WHERE first_person = ? AND second_person = ?",
-                (recorded.first_person, recorded.second_person),
-            )
-            self.remove_same_person_link(recorded.first_person, recorded.second_person)
-        return recorded
+            row = self.connection.execute(
+                """
+                DELETE FROM homonym_decision WHERE first_person = ? AND second_person = ?
+                RETURNING first_person, second_person, decision, decided_at
+                """,
+                (first, second),
+            ).fetchone()
+            if row is None:
+                raise HomonymDecisionNotFoundError
+            self.remove_same_person_link(first, second)
+        return decision_from_row(row)
