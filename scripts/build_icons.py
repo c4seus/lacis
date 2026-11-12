@@ -143,10 +143,12 @@ def main(root: Path, arguments: list[str]) -> int:
     if arguments == ["--check"]:
         stale = outdated(root)
         for path in stale:
-            print(f"{path} does not match its master: run python scripts/build_icons.py")
+            print(
+                f"{path.as_posix()} does not match its master: run python scripts/build_icons.py"
+            )
         return 1 if stale else 0
     for path in build(root):
-        print(path.relative_to(root))
+        print(path.relative_to(root).as_posix())
     return 0
 
 
