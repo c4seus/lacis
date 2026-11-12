@@ -217,6 +217,20 @@ def create_homonym_decision_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def create_entity_position_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE entity_position (
+            entity_identifier TEXT PRIMARY KEY
+                REFERENCES entity (identifier) ON DELETE CASCADE,
+            x REAL NOT NULL,
+            y REAL NOT NULL,
+            moved_by_investigator INTEGER NOT NULL
+        )
+        """
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     create_investigation_table,
     create_entity_table,
@@ -230,6 +244,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     create_homonym_decision_table,
     add_notice_office_transfer,
     track_revisions_and_signals,
+    create_entity_position_table,
 )
 
 

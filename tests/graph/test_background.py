@@ -1,12 +1,17 @@
 import threading
 import time
 from collections.abc import Iterator
+from dataclasses import replace
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import QTimer
 from pytestqt.qtbot import QtBot
 
 from fake_time import FakeTime
+from graph_scenario import plumbers_scenario
+from investigation_builder import InvestigationBuilder
 from lacis.collectors.company_register import CompanySearchPage
 from lacis.collectors.environment import demo_collection_environment
 from lacis.collectors.http_client import CollectorTiming
@@ -18,6 +23,7 @@ from lacis.graph.background import (
     add_company_job,
     expansion_job,
     interruptible_sleep,
+    layout_job,
     register_search_job,
     search_job,
 )
@@ -29,6 +35,8 @@ from lacis.signals.store import SignalReport, SignalStore
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.investigations import InvestigationLibrary
+from lacis.storage.positions import PositionStore
+from large_investigation import large_investigation
 
 INVESTIGATION_NAME = "faux-plombiers-31"
 SIGNAL_TIMEOUT_MILLISECONDS = 10_000
@@ -364,3 +372,122 @@ def test_the_refresher_follows_jobs(
     refresher.follow_job(job)
     with qtbot.waitSignal(refresher.refreshed, timeout=SIGNAL_TIMEOUT_MILLISECONDS):
         run(qtbot, job, started_jobs)
+
+
+def test_a_layout_places_new_entities_in_the_background(
+    qtbot: QtBot,
+    library: InvestigationLibrary,
+    settings: CollectionSettings,
+    started_jobs: list[BackgroundJob],
+) -> None:
+    with library.open(INVESTIGATION_NAME) as investigation:
+        plumbers_scenario(InvestigationBuilder(investigation.connection))
+    assert run(qtbot, layout_job(settings), started_jobs) == 9
+    with library.open(INVESTIGATION_NAME) as investigation:
+        assert len(PositionStore(investigation.connection).positions()) == 9
+    assert run(qtbot, layout_job(settings), started_jobs) == 0
+
+
+def test_a_cancelled_layout_saves_nothing(
+    qtbot: QtBot,
+    library: InvestigationLibrary,
+    settings: CollectionSettings,
+    started_jobs: list[BackgroundJob],
+) -> None:
+    with library.open(INVESTIGATION_NAME) as investigation:
+        plumbers_scenario(InvestigationBuilder(investigation.connection))
+    assert cancellation_of(qtbot, layout_job(settings), started_jobs) is None
+    with library.open(INVESTIGATION_NAME) as investigation:
+        assert PositionStore(investigation.connection).positions() == {}
+
+
+def test_the_interface_stays_responsive_while_500_entities_are_laid_out(
+    qtbot: QtBot,
+    library: InvestigationLibrary,
+    settings: CollectionSettings,
+    started_jobs: list[BackgroundJob],
+) -> None:
+    with library.open(INVESTIGATION_NAME) as investigation:
+        assert large_investigation(investigation.connection, 100).size == 500
+    ticks: list[float] = []
+    timer = QTimer()
+    timer.setInterval(10)
+    timer.timeout.connect(lambda: ticks.append(time.monotonic()))
+    timer.start()
+    job = layout_job(settings)
+    started_jobs.append(job)
+    with qtbot.waitSignal(job.succeeded, timeout=60_000) as blocker:
+        job.start()
+    timer.stop()
+    job.wait()
+    assert blocker.args == [500]
+    assert len(ticks) >= 5
+    assert max(later - earlier for earlier, later in pairwise(ticks)) < 1.0
+
+
+def test_jobs_on_the_same_investigation_take_turns(
+    qtbot: QtBot, settings: CollectionSettings, started_jobs: list[BackgroundJob]
+) -> None:
+    release = threading.Event()
+    order: list[str] = []
+
+    def first_task(session: CollectionSession) -> None:
+        order.append("first starts")
+        release.wait(SIGNAL_TIMEOUT_MILLISECONDS / 1000)
+        order.append("first ends")
+
+    first = BackgroundJob(settings, first_task)
+    second = BackgroundJob(settings, lambda session: order.append("second runs"))
+    started_jobs.extend([first, second])
+    first.start()
+    qtbot.waitUntil(lambda: order == ["first starts"])
+    with qtbot.waitSignal(second.succeeded, timeout=SIGNAL_TIMEOUT_MILLISECONDS):
+        second.start()
+        time.sleep(0.2)
+        assert order == ["first starts"]
+        release.set()
+    assert order == ["first starts", "first ends", "second runs"]
+
+
+def test_a_job_waiting_for_its_turn_can_be_cancelled(
+    qtbot: QtBot, settings: CollectionSettings, started_jobs: list[BackgroundJob]
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def first_task(session: CollectionSession) -> None:
+        started.set()
+        release.wait(SIGNAL_TIMEOUT_MILLISECONDS / 1000)
+
+    first = BackgroundJob(settings, first_task)
+    waiting = BackgroundJob(settings, lambda session: None)
+    started_jobs.extend([first, waiting])
+    first.start()
+    assert started.wait(SIGNAL_TIMEOUT_MILLISECONDS / 1000)
+    waiting.start()
+    with qtbot.waitSignal(waiting.cancelled, timeout=SIGNAL_TIMEOUT_MILLISECONDS):
+        waiting.cancel()
+    release.set()
+
+
+def test_jobs_on_other_investigations_do_not_wait(
+    qtbot: QtBot,
+    library: InvestigationLibrary,
+    settings: CollectionSettings,
+    started_jobs: list[BackgroundJob],
+) -> None:
+    library.create("autre-enquete", "")
+    release = threading.Event()
+    started = threading.Event()
+
+    def first_task(session: CollectionSession) -> None:
+        started.set()
+        release.wait(SIGNAL_TIMEOUT_MILLISECONDS / 1000)
+
+    first = BackgroundJob(settings, first_task)
+    other = BackgroundJob(replace(settings, investigation_name="autre-enquete"), lambda s: 1)
+    started_jobs.extend([first, other])
+    first.start()
+    assert started.wait(SIGNAL_TIMEOUT_MILLISECONDS / 1000)
+    assert run(qtbot, other, started_jobs) == 1
+    release.set()
