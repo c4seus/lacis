@@ -33,3 +33,41 @@ jobs:
           name: fedora-${{ matrix.release }}-package
           path: dist/lacis-*.rpm
           if-no-files-found: error
+
+  install:
+    name: Install and launch on Fedora ${{ matrix.release }}
+    needs: build
+    runs-on: ubuntu-latest
+    container: fedora:${{ matrix.release }}
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ["44", "45"]
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: fedora-${{ matrix.release }}-package
+          path: dist
+      - name: Install the package with dnf
+        run: |
+          rpm --query --all --queryformat '%{NAME}\n' | sort > /tmp/before
+          dnf install --assumeyes ./dist/lacis-*.rpm
+          rpm --query --all --queryformat '%{NAME}\n' | sort > /tmp/after
+      - name: Check that every other installed package comes from Fedora
+        run: |
+          added=$(comm -13 /tmp/before /tmp/after | grep -vx lacis)
+          vendors=$(echo "$added" | xargs rpm --query --queryformat '%{NAME}: %{VENDOR}\n')
+          echo "$vendors"
+          test -n "$added"
+          test -z "$(echo "$vendors" | grep -v ': Fedora Project$')"
+      - name: Launch Lacis
+        run: lacis --version | grep -E '^Lacis [0-9]'
+      - name: Install the test tools from Fedora
+        run: dnf install --assumeyes git python3-pytest python3-pytest-qt
+      - uses: actions/checkout@v4
+      - name: Run the tests against the installed package and the PySide6 of Fedora
+        run: |
+          python3 -c "import lacis, sys; sys.exit(not lacis.__file__.startswith('/usr/lib/python3'))"
+          python3 -m pytest -p no:cacheprovider
