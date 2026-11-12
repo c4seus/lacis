@@ -1,4 +1,5 @@
 PYTHON ?= python
+SYSTEM_PYTHON ?= /usr/bin/python3
 
 .PHONY: install lint format types test coverage check icons desktop-metadata deb
 
@@ -35,7 +36,7 @@ desktop-metadata:
 	appstreamcli validate-tree --no-net --pedantic --strict build/desktop-tree
 
 deb:
-	$(PYTHON) scripts/prepare_debian_source.py "$$($(PYTHON) -m hatchling version)"
+	$(SYSTEM_PYTHON) scripts/prepare_debian_source.py "$$($(SYSTEM_PYTHON) -m hatchling version)"
 	dpkg-buildpackage --build=binary --unsigned-source --unsigned-changes
 	mkdir -p dist
 	mv ../lacis_*.deb ../lacis_*.buildinfo ../lacis_*.changes dist/
