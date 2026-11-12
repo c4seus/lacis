@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install lint format types test coverage check
+.PHONY: install lint format types test coverage check icons
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -24,3 +24,6 @@ coverage:
 	QT_QPA_PLATFORM=offscreen pytest --cov --cov-report=term
 
 check: lint types coverage
+
+icons:
+	QT_QPA_PLATFORM=offscreen $(PYTHON) scripts/build_icons.py

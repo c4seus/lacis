@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PRODUCT_NAME = "Lacis"
+APPLICATION_ID = "io.github.c4seus.lacis"
 PRODUCT_DESCRIPTION = (
     "Cartographie des entreprises françaises, de leurs dirigeants et de leurs adresses."
 )

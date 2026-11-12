@@ -10,6 +10,7 @@ from PySide6.QtCore import (
     QEvent,
     QLocale,
     QSettings,
+    QSize,
     Qt,
     qInstallMessageHandler,
 )
@@ -74,6 +75,13 @@ def test_the_application_has_its_name_organisation_and_version(qapp: QApplicatio
     assert qapp.applicationDisplayName() == APPLICATION_NAME
     assert qapp.organizationName() == ORGANIZATION_NAME
     assert qapp.applicationVersion() == __version__
+
+
+def test_the_application_is_known_to_the_desktop_with_its_icon(qapp: QApplication) -> None:
+    configure_application(qapp)
+    assert qapp.desktopFileName() == "io.github.c4seus.lacis"
+    assert QSize(16, 16) in qapp.windowIcon().availableSizes()
+    assert QSize(256, 256) in qapp.windowIcon().availableSizes()
 
 
 def test_the_application_uses_the_bundled_inter_font(qapp: QApplication) -> None:
