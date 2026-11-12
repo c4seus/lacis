@@ -21,6 +21,7 @@ from lacis.ui.investigation_page import InvestigationPage
 from lacis.ui.menu_bar import MainMenuBar
 from lacis.ui.notifications import NotificationArea, NotificationKind
 from lacis.ui.register_search_list import RegisterSearch, RegisterSearchPopup
+from lacis.ui.review_actions import ReviewActions
 
 WINDOW_TITLE = "Lacis"
 DEMO_WINDOW_TITLE = "Lacis — démonstration"
@@ -90,6 +91,10 @@ class MainWindow(QMainWindow):
         self.register_search.company_added.connect(self.show_added_company)
         self.register_search.adding_failed.connect(self.show_failure)
         self.notification_area = NotificationArea(self, self.icon_factory)
+        self.review_actions = ReviewActions(
+            self.main_menu_bar, self.notification_area.notify, self
+        )
+        self.connect_review_actions()
         self.register_search.company_shown.connect(self.investigation_page.show_entity)
 
         self.content_area.setFocus()
@@ -108,6 +113,10 @@ class MainWindow(QMainWindow):
         self.main_menu_bar.fit_action.triggered.connect(graph_view.fit)
         self.main_menu_bar.layout_action.triggered.connect(self.lay_out_again)
 
+    def connect_review_actions(self) -> None:
+        self.review_actions.changed.connect(self.refresh_overview)
+        self.investigation_page.decision_requested.connect(self.review_actions.decide)
+
     def open_investigation(self, name: str) -> None:
         try:
             with self.library.open(name) as opened:
@@ -122,6 +131,7 @@ class MainWindow(QMainWindow):
         self.investigation_page.show_investigation(investigation)
         self.refresh_overview()
         self.register_search.start(self.collection_settings(name))
+        self.review_actions.start(self.collection_settings(name))
         self.header_bar.set_search_enabled(True)
         self.header_bar.breadcrumb.set_trail((*HOME_TRAIL, name))
         self.main_menu_bar.close_investigation_action.setEnabled(True)
@@ -219,6 +229,7 @@ class MainWindow(QMainWindow):
             self.show_home()
 
     def show_home(self) -> None:
+        self.review_actions.stop()
         self.stop_layout()
         self.stop_moves()
         self.register_search.stop()
@@ -262,6 +273,7 @@ class MainWindow(QMainWindow):
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
+        self.review_actions.stop()
         self.stop_layout()
         self.stop_moves()
         self.register_search.stop()

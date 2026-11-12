@@ -1,9 +1,11 @@
+from collections.abc import Callable
+from typing import Protocol
+
 from PySide6.QtGui import QUndoCommand
 
 from lacis.storage.homonym_decisions import (
     HomonymDecision,
     HomonymDecisionNotFoundError,
-    HomonymDecisionStore,
     RecordedDecision,
 )
 
@@ -11,10 +13,24 @@ DECISION_ACTION_NAME = "la décision d'homonyme"
 WITHDRAWAL_ACTION_NAME = "le retrait de la décision d'homonyme"
 
 
+class DecisionStore(Protocol):
+    def record(
+        self, first_person: str, second_person: str, decision: HomonymDecision
+    ) -> RecordedDecision: ...
+
+    def restore(self, recorded: RecordedDecision) -> RecordedDecision: ...
+
+    def withdraw(self, first_person: str, second_person: str) -> RecordedDecision: ...
+
+    def decision_between(
+        self, first_person: str, second_person: str
+    ) -> RecordedDecision | None: ...
+
+
 class RecordDecisionCommand(QUndoCommand):
     def __init__(
         self,
-        decision_store: HomonymDecisionStore,
+        decision_store: DecisionStore,
         first_person: str,
         second_person: str,
         decision: HomonymDecision,
@@ -41,7 +57,7 @@ class RecordDecisionCommand(QUndoCommand):
 
 class WithdrawDecisionCommand(QUndoCommand):
     def __init__(
-        self, decision_store: HomonymDecisionStore, first_person: str, second_person: str
+        self, decision_store: DecisionStore, first_person: str, second_person: str
     ) -> None:
         super().__init__(WITHDRAWAL_ACTION_NAME)
         withdrawn = decision_store.decision_between(first_person, second_person)
@@ -55,3 +71,28 @@ class WithdrawDecisionCommand(QUndoCommand):
 
     def undo(self) -> None:
         self.decision_store.restore(self.withdrawn)
+
+
+class ReportedCommand(QUndoCommand):
+    def __init__(
+        self,
+        command: QUndoCommand,
+        expected_failures: tuple[type[Exception], ...],
+        report_failure: Callable[[Exception], None],
+    ) -> None:
+        super().__init__(command.text())
+        self.command = command
+        self.expected_failures = expected_failures
+        self.report_failure = report_failure
+
+    def redo(self) -> None:
+        self.run(self.command.redo)
+
+    def undo(self) -> None:
+        self.run(self.command.undo)
+
+    def run(self, action: Callable[[], None]) -> None:
+        try:
+            action()
+        except self.expected_failures as failure:
+            self.report_failure(failure)

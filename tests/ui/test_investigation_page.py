@@ -437,10 +437,12 @@ def queue_rows(main_window: MainWindow) -> list[QueueRow]:
     return main_window.investigation_page.queue_column.review_list.rows
 
 
-def test_the_queue_shows_the_signals_of_the_investigation(main_window: MainWindow) -> None:
+def test_the_queue_shows_signals_and_homonyms(main_window: MainWindow) -> None:
     review_list = main_window.investigation_page.queue_column.review_list
-    assert review_list.group_titles == ["Rafale de créations · moyenne"]
-    assert len(review_list.rows) == 4
+    assert review_list.group_titles == ["Rafale de créations · moyenne", "Homonymes à vérifier"]
+    assert [label.text() for label in review_list.empty_labels] == [
+        "Aucun rapprochement en attente"
+    ]
 
 
 def test_choosing_an_entity_in_the_queue_selects_it_everywhere(
@@ -471,3 +473,25 @@ def test_choosing_an_entity_hidden_by_a_filter_shows_it_again(
     QTest.mouseClick(lead, Qt.MouseButton.LeftButton)
     assert not chip.graph_filter.is_active
     assert page.graph_view.selected_identifier == lead.entity.identifier
+
+
+def test_a_homonym_decided_in_the_queue_can_be_undone(
+    qtbot: QtBot, main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    with library.open(INVESTIGATION_NAME) as opened:
+        builder = InvestigationBuilder(opened.connection)
+        builder.person("Marie", "DUPONT")
+        builder.person("Marie Claire", "DUPONT")
+    main_window.refresh_overview()
+    review_list = main_window.investigation_page.queue_column.review_list
+    same, _different = review_list.decision_buttons
+    same.click()
+    assert main_window.investigation_page.header.homonym_counter.text() == (
+        "2 homonymes confirmés"
+    )
+    assert review_list.decision_buttons == []
+    menu_bar = main_window.main_menu_bar
+    menu_bar.undo_action.trigger()
+    assert len(review_list.decision_buttons) == 2
+    main_window.show_home()
+    assert not menu_bar.undo_action.isEnabled()

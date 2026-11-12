@@ -1,4 +1,6 @@
 import sqlite3
+import threading
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -6,14 +8,20 @@ import pytest
 
 from investigation_builder import InvestigationBuilder
 from lacis.signals.configuration import load_configuration
+from lacis.signals.context import InvestigationContext
 from lacis.signals.engine import SignalEngine
 from lacis.signals.recomputation import (
     InvestigationSignals,
     configuration_fingerprint,
     local_day,
 )
+from lacis.signals.rule_settings import RuleSettings, Threshold
 from lacis.signals.rules import RULES
+from lacis.signals.signal import Finding
 from lacis.signals.store import SignalStore
+from lacis.storage.entities import EntityKind
+from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
+from signal_rules import defaults_for
 
 BURST_DATES = (date(2025, 1, 10), date(2025, 2, 1), date(2025, 3, 15))
 
@@ -124,3 +132,50 @@ def test_the_configuration_fingerprint_follows_every_setting(tmp_path: Path) -> 
 def test_the_day_of_a_computation_is_the_local_day() -> None:
     moment = datetime(2026, 11, 10, 9, 0, tzinfo=UTC)
     assert local_day(moment) == moment.astimezone().date()
+
+
+class ConcurrentWriter:
+    def __init__(self, database: Path) -> None:
+        self.database = database
+        self.holding = threading.Event()
+        self.failures: list[Exception] = []
+        self.thread = threading.Thread(target=self.write)
+
+    def write(self) -> None:
+        connection = sqlite3.connect(self.database, timeout=10, autocommit=True)
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            self.holding.set()
+            connection.execute("UPDATE investigation SET question = 'Autre question'")
+            connection.execute("COMMIT")
+        except sqlite3.Error as failure:
+            self.failures.append(failure)
+        finally:
+            connection.close()
+
+
+@dataclass(frozen=True)
+class WriterMeanwhileRule:
+    writer: ConcurrentWriter
+    name: str = "fixed"
+    title: str = "Règle fixe"
+    thresholds: tuple[Threshold, ...] = ()
+
+    def evaluate(self, context: InvestigationContext, settings: RuleSettings) -> list[Finding]:
+        context.entities_of(EntityKind.COMPANY)
+        self.writer.thread.start()
+        assert self.writer.holding.wait(10)
+        return []
+
+
+def test_saving_signals_waits_for_a_writer_instead_of_failing(tmp_path: Path) -> None:
+    library = InvestigationLibrary(tmp_path / "investigations")
+    library.create("faux-plombiers-31", "")
+    writer = ConcurrentWriter(library.directory_of("faux-plombiers-31") / DATABASE_FILE_NAME)
+    rule = WriterMeanwhileRule(writer)
+    engine = SignalEngine((rule,), load_configuration((rule,), None, defaults_for(["fixed"])))
+    with library.open("faux-plombiers-31") as opened:
+        report = InvestigationSignals(opened.connection, engine).recompute()
+    writer.thread.join(10)
+    assert report.signals == ()
+    assert writer.failures == []
