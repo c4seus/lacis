@@ -1,5 +1,6 @@
 PYTHON ?= python
 SYSTEM_PYTHON ?= /usr/bin/python3
+SYSTEM_PATH := $(if $(VIRTUAL_ENV),$(subst $(VIRTUAL_ENV)/bin:,,$(PATH)),$(PATH))
 
 .PHONY: install lint format types test coverage check icons desktop-metadata deb
 
@@ -37,7 +38,8 @@ desktop-metadata:
 
 deb:
 	$(SYSTEM_PYTHON) scripts/prepare_debian_source.py "$$($(SYSTEM_PYTHON) -m hatchling version)"
-	dpkg-buildpackage --build=binary --unsigned-source --unsigned-changes
+	env -u VIRTUAL_ENV PATH="$(SYSTEM_PATH)" \
+		dpkg-buildpackage --build=binary --unsigned-source --unsigned-changes
 	mkdir -p dist
 	mv ../lacis_*.deb ../lacis_*.buildinfo ../lacis_*.changes dist/
 	lintian --fail-on error dist/lacis_*.deb
