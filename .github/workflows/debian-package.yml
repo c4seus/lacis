@@ -43,15 +43,15 @@ jobs:
         with:
           name: debian-package
           path: dist
-      - name: Check that apt only knows the Debian archive
-        run: |
-          sources=$(grep -rhE '^(URIs:|deb )' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null)
-          echo "$sources"
-          test -z "$(echo "$sources" | grep -v 'deb.debian.org')"
-      - name: Install the package with apt
+      - name: Update the package lists and check that they all come from Debian
         run: |
           apt-get update
-          apt-get install --yes ./dist/lacis_*.deb
+          origins=$(apt-cache policy | grep -oE 'https?://[^ ]+' | sort -u)
+          echo "$origins"
+          test -n "$origins"
+          test -z "$(echo "$origins" | grep -vE '^https?://deb\.debian\.org/')"
+      - name: Install the package with apt
+        run: apt-get install --yes ./dist/lacis_*.deb
       - name: Launch Lacis
         run: lacis --version | grep -E '^Lacis [0-9]'
       - name: Install the test tools from Debian
