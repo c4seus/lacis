@@ -3,14 +3,12 @@ from typing import override
 
 from PySide6.QtCore import QEvent, QLineF, QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import (
-    QBrush,
     QColor,
     QFont,
     QFontMetricsF,
     QMouseEvent,
     QPainter,
     QPainterPath,
-    QPaintEvent,
     QPen,
     QPolygonF,
     QResizeEvent,
@@ -20,8 +18,6 @@ from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsScene,
     QGraphicsView,
-    QHBoxLayout,
-    QLabel,
     QStyleOptionGraphicsItem,
     QWidget,
 )
@@ -29,13 +25,12 @@ from PySide6.QtWidgets import (
 from lacis.design.icons import ColoursProvider
 from lacis.design.tokens import FONT_FAMILIES, Colours
 from lacis.graph.descriptions import entity_description, entity_summary, graph_summary
-from lacis.graph.drawing import SHAPES, EdgeKind, GraphDrawing, GraphEdge, GraphNode, NodeShape
+from lacis.graph.drawing import EdgeKind, GraphDrawing, GraphEdge, GraphNode, NodeShape
 from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
 from lacis.ui import announcements
 
 GRAPH_ACCESSIBLE_NAME = "Graphe de l'enquête"
-LEGEND_ACCESSIBLE_NAME = "Légende du graphe"
 GRID_STEP = 18.0
 GRID_DOT_RADIUS = 1.0
 FIT_PADDING = 60.0
@@ -52,16 +47,6 @@ RING_WIDTH = 3.0
 RING_OFFSET = 3.0
 SELECTION_OPACITY = 0.22
 SELECTION_PADDING = 12.0
-SIGNAL_LEGEND_TEXT = "Signal"
-LEGEND_MARGIN = 12
-LEGEND_SWATCH_SIZE = 10
-LEGEND_ENTRIES = (
-    (EntityKind.COMPANY, "Entreprise"),
-    (EntityKind.PERSON, "Personne"),
-    (EntityKind.ADDRESS, "Adresse"),
-    (EntityKind.ESTABLISHMENT, "Établissement"),
-    (EntityKind.FOREIGN_COMPANY, "Étranger"),
-)
 EDGE_WIDTHS = {EdgeKind.DIRECTS: 1.6, EdgeKind.STRUCTURE: 1.0, EdgeKind.IDENTITY: 2.0}
 IDENTITY_DASH_PATTERN = (3.0, 2.0)
 ARROW_LENGTH = 8.0
@@ -552,77 +537,3 @@ class GraphView(QGraphicsView):
                 column += GRID_STEP
             row += GRID_STEP
         painter.restore()
-
-
-class LegendSwatch(QWidget):
-    def __init__(
-        self, kind: EntityKind, colours_provider: ColoursProvider, parent: QWidget | None = None
-    ) -> None:
-        super().__init__(parent)
-        self.kind = kind
-        self.colours_provider = colours_provider
-        self.setFixedSize(LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE)
-
-    @override
-    def paintEvent(self, event: QPaintEvent) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.translate(self.width() / 2, self.height() / 2)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(kind_colour(self.colours_provider(), self.kind)))
-        size = LEGEND_SWATCH_SIZE * (0.6 if self.kind is EntityKind.ESTABLISHMENT else 0.9)
-        painter.drawPath(shape_path(SHAPES[self.kind], size))
-        painter.end()
-
-
-class RingSwatch(QWidget):
-    def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.colours_provider = colours_provider
-        self.setFixedSize(LEGEND_SWATCH_SIZE + 2, LEGEND_SWATCH_SIZE + 2)
-
-    @override
-    def paintEvent(self, event: QPaintEvent) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(ring_pen(self.colours_provider(), Severity.HIGH))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        inset = RING_WIDTH / 2
-        painter.drawEllipse(QRectF(self.rect()).adjusted(inset, inset, -inset, -inset))
-        painter.end()
-
-
-class GraphLegend(QFrame):
-    def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setObjectName("graphLegend")
-        self.setAccessibleName(LEGEND_ACCESSIBLE_NAME)
-        self.entry_labels: list[QLabel] = []
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 6, 10, 6)
-        layout.setSpacing(10)
-        for kind, text in LEGEND_ENTRIES:
-            entry = QHBoxLayout()
-            entry.setSpacing(5)
-            entry.addWidget(LegendSwatch(kind, colours_provider, self))
-            label = QLabel(text, self)
-            label.setProperty("tone", "legend")
-            entry.addWidget(label)
-            self.entry_labels.append(label)
-            layout.addLayout(entry)
-        divider = QFrame(self)
-        divider.setObjectName("legendDivider")
-        divider.setFixedSize(1, 14)
-        layout.addWidget(divider)
-        signal_entry = QHBoxLayout()
-        signal_entry.setSpacing(5)
-        signal_entry.addWidget(RingSwatch(colours_provider, self))
-        signal_label = QLabel(SIGNAL_LEGEND_TEXT, self)
-        signal_label.setProperty("tone", "legend-signal")
-        signal_entry.addWidget(signal_label)
-        self.entry_labels.append(signal_label)
-        layout.addLayout(signal_entry)
-
-    @property
-    def texts(self) -> list[str]:
-        return [label.text() for label in self.entry_labels]

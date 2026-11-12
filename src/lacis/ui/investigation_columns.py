@@ -15,7 +15,8 @@ from lacis.design.icons import ColoursProvider, IconFactory
 from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
 from lacis.signals.facts import counted
-from lacis.ui.graph_view import LEGEND_MARGIN, GraphLegend, GraphView
+from lacis.ui.graph_legend import GraphLegend
+from lacis.ui.graph_view import GraphView
 from lacis.ui.header_bar import create_icon_button
 
 QUEUE_TITLE = "À examiner"
@@ -28,6 +29,7 @@ COLLAPSE_TOOLTIP = "Replier"
 EXPAND_TOOLTIP = "Déplier"
 RAIL_ACCESSIBLE_NAME = "Colonne À examiner repliée"
 QUEUE_MINIMUM_WIDTH = 240
+OVERLAY_MARGIN = 12
 RAIL_WIDTH = 44
 RAIL_COUNT_HEIGHT = 18
 GRAPH_MINIMUM_WIDTH = 320
@@ -152,7 +154,7 @@ class GraphArea(QFrame):
             (self.height() - self.empty_label.height()) // 2,
         )
         self.legend.adjustSize()
-        self.legend.move(LEGEND_MARGIN, self.height() - self.legend.height() - LEGEND_MARGIN)
+        self.legend.move(OVERLAY_MARGIN, self.height() - self.legend.height() - OVERLAY_MARGIN)
         self.empty_label.raise_()
         self.legend.raise_()
 
