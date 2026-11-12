@@ -8,12 +8,16 @@ from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.graph.expansion import ExpansionReport, GraphChanges
 from lacis.graph.leads import Lead
+from lacis.graph.progress import ExpansionProgress
 from lacis.identity.homonyms import Confidence
 from lacis.overview import InvestigationOverview, overview_of
 from lacis.review import (
     QueueEntity,
     ReviewQueue,
+    RunningCollection,
+    expansion_cancelled_message,
     expansion_message,
+    notices_cancelled_message,
     notices_message,
     review_queue,
 )
@@ -190,3 +194,25 @@ def test_a_notices_message_tells_what_changed() -> None:
     assert notices_message("ACME", ExpansionReport(GraphChanges())) == (
         "Annonces de ACME rafraîchies : rien de nouveau"
     )
+
+
+def test_a_cancelled_collection_tells_what_was_kept() -> None:
+    partial = ExpansionReport(GraphChanges(new_entities=("company:1", "person:1")), cancelled=True)
+    assert expansion_cancelled_message("ACME", partial) == (
+        "Extension de ACME annulée : 2 entités ajoutées avant l'arrêt"
+    )
+    assert expansion_cancelled_message("ACME", None) == (
+        "Extension de ACME annulée : rien n'a été ajouté"
+    )
+    assert notices_cancelled_message("ACME", None) == (
+        "Rafraîchissement des annonces de ACME annulé"
+    )
+
+
+def test_a_running_collection_tells_where_it_stands() -> None:
+    collection = RunningCollection("company:1", "Extension de ACME")
+    assert collection.status_text == "Démarrage…"
+    assert collection.cancel_name == "Annuler : Extension de ACME"
+    progressed = replace(collection, progress=ExpansionProgress(3, 1))
+    assert progressed.status_text == "3 requêtes, 1 nouvelle entité"
+    assert replace(progressed, cancelling=True).status_text == "Annulation en cours…"

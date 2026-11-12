@@ -12,7 +12,14 @@ from lacis.collectors.environment import demo_collection_environment
 from lacis.collectors.http_client import CollectorTiming
 from lacis.collectors.rate_limiting import RateLimiters
 from lacis.design.theme_controller import ThemeController
-from lacis.graph.background import CollectionSettings, add_company_job, search_job
+from lacis.graph.background import (
+    CollectionSettings,
+    add_company_job,
+    investigation_lock,
+    search_job,
+)
+from lacis.graph.progress import ExpansionProgress
+from lacis.review import RunningCollection
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
 from lacis.storage.investigations import InvestigationLibrary
@@ -210,7 +217,10 @@ def test_leaving_cancels_the_running_expansions(
     assert actions.expansions == {}
     assert not job.is_running()
     actions.finish_collection("company:111111111", None, str)
+    actions.finish_cancelled("company:111111111", None, str)
     actions.fail_expansion("company:111111111", "Problème")
+    actions.follow_progress("company:111111111", ExpansionProgress(1, 0))
+    actions.cancel("company:111111111")
 
 
 def test_messages_name_the_decision_and_the_failure() -> None:
@@ -246,3 +256,71 @@ def test_nothing_is_refreshed_once_stopped(menu_bar: MainMenuBar) -> None:
     actions.refresh_notices("company:111111111", "ACME PLOMBERIE")
     actions.expand("company:111111111", "ACME PLOMBERIE")
     assert actions.expansions == {}
+
+
+def test_the_progress_of_an_expansion_is_published_until_it_ends(
+    qtbot: QtBot,
+    actions: ReviewActions,
+    collection_settings: CollectionSettings,
+) -> None:
+    add_acme(qtbot, collection_settings)
+    published: list[tuple[RunningCollection, ...]] = []
+    actions.collections_changed.connect(published.append)
+    with qtbot.waitSignal(actions.changed, timeout=WAIT_MILLISECONDS):
+        actions.expand("company:111111111", "ACME PLOMBERIE")
+    first = published[0]
+    assert [collection.title for collection in first] == ["Extension de ACME PLOMBERIE"]
+    assert first[0].status_text == "Démarrage…"
+    requests = [running[0].progress.requests_made for running in published[1:-1] if running]
+    assert requests
+    assert requests == sorted(requests)
+    assert requests[-1] > 0
+    assert published[-1] == ()
+
+
+def test_a_cancelled_expansion_is_reported_as_such(
+    qtbot: QtBot,
+    actions: ReviewActions,
+    collection_settings: CollectionSettings,
+    notified: Notified,
+) -> None:
+    add_acme(qtbot, collection_settings)
+    published: list[tuple[RunningCollection, ...]] = []
+    actions.collections_changed.connect(published.append)
+    lock = investigation_lock(collection_settings)
+    lock.acquire()
+    try:
+        actions.expand("company:111111111", "ACME PLOMBERIE")
+        with qtbot.waitSignal(actions.changed, timeout=WAIT_MILLISECONDS):
+            actions.cancel("company:111111111")
+            assert published[-1][0].cancelling
+            assert published[-1][0].status_text == "Annulation en cours…"
+    finally:
+        lock.release()
+    assert actions.expansions == {}
+    assert published[-1] == ()
+    assert notified[-1] == (
+        "Extension de ACME PLOMBERIE annulée : rien n'a été ajouté",
+        NotificationKind.INFORMATION,
+    )
+
+
+def test_a_cancelled_refresh_is_reported_as_such(
+    qtbot: QtBot,
+    actions: ReviewActions,
+    collection_settings: CollectionSettings,
+    notified: Notified,
+) -> None:
+    add_acme(qtbot, collection_settings)
+    lock = investigation_lock(collection_settings)
+    lock.acquire()
+    try:
+        actions.refresh_notices("company:111111111", "ACME PLOMBERIE")
+        with qtbot.waitSignal(actions.changed, timeout=WAIT_MILLISECONDS):
+            actions.cancel("company:111111111")
+    finally:
+        lock.release()
+    assert notified[-1] == (
+        "Rafraîchissement des annonces de ACME PLOMBERIE annulé",
+        NotificationKind.INFORMATION,
+    )
