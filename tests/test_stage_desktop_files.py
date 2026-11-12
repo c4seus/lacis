@@ -21,8 +21,9 @@ def test_the_desktop_files_land_where_desktops_look_for_them(tmp_path: Path) -> 
         "usr/share/icons/hicolor/16x16/apps/io.github.c4seus.lacis.png",
         "usr/share/icons/hicolor/512x512/apps/io.github.c4seus.lacis.png",
         "usr/share/icons/hicolor/scalable/apps/io.github.c4seus.lacis.svg",
+        "usr/share/man/man1/lacis.1",
     } <= staged
-    assert len(staged) == len(staged_files(REPOSITORY)) == 11
+    assert len(staged) == len(staged_files(REPOSITORY)) == 12
     assert all((tmp_path / target).is_file() for target in staged)
 
 

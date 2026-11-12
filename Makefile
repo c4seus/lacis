@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install lint format types test coverage check icons desktop-metadata
+.PHONY: install lint format types test coverage check icons desktop-metadata deb
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -33,3 +33,10 @@ desktop-metadata:
 	appstreamcli validate --no-net --pedantic --strict packaging/linux/io.github.c4seus.lacis.metainfo.xml
 	$(PYTHON) scripts/stage_desktop_files.py build/desktop-tree
 	appstreamcli validate-tree --no-net --pedantic --strict build/desktop-tree
+
+deb:
+	$(PYTHON) scripts/prepare_debian_source.py "$$($(PYTHON) -m hatchling version)"
+	dpkg-buildpackage --build=binary --unsigned-source --unsigned-changes
+	mkdir -p dist
+	mv ../lacis_*.deb ../lacis_*.buildinfo ../lacis_*.changes dist/
+	lintian --fail-on error dist/lacis_*.deb

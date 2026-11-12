@@ -1,0 +1,32 @@
+name: Debian package
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    steps:
+      - name: Install the build tools
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends \
+            ca-certificates git make dpkg-dev debhelper dh-python pybuild-plugin-pyproject \
+            python3-all python3-hatchling python3-hatch-vcs lintian
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build the package and check it with lintian
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          make deb PYTHON=python3
+      - uses: actions/upload-artifact@v7
+        with:
+          name: debian-package
+          path: dist/lacis_*.deb
+          if-no-files-found: error

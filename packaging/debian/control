@@ -1,0 +1,40 @@
+Source: lacis
+Section: utils
+Priority: optional
+Maintainer: c4seus <c4seus@proton.me>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-python,
+ dh-sequence-python3,
+ pybuild-plugin-pyproject,
+ python3-all,
+ python3-hatch-vcs,
+ python3-hatchling,
+Standards-Version: 4.7.2
+Homepage: https://github.com/c4seus/lacis
+Vcs-Browser: https://github.com/c4seus/lacis
+Vcs-Git: https://github.com/c4seus/lacis.git
+Rules-Requires-Root: no
+X-Python3-Version: >= 3.12
+
+Package: lacis
+Architecture: all
+Depends:
+ python3-httpx,
+ python3-pyside6.qtcore (>= 6.8),
+ python3-pyside6.qtgui (>= 6.8),
+ python3-pyside6.qtsvg (>= 6.8),
+ python3-pyside6.qtwidgets (>= 6.8),
+ ${misc:Depends},
+ ${python3:Depends},
+Description: map French companies, their directors and addresses
+ Lacis is a desktop OSINT tool that maps French companies, their directors
+ and their addresses into a link graph, in which every fact links back to the
+ public response it came from.
+ .
+ Starting from one company, Lacis pulls the threads: who runs it, which other
+ companies those people run, who else is registered at the same address, and
+ what the BODACC published about each of them. Explainable rules then flag the
+ patterns worth a closer look, such as mass domiciliation or phoenix schemes.
+ .
+ Each investigation is a local SQLite database. The interface is in French.
