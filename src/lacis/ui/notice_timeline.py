@@ -1,8 +1,8 @@
 from typing import override
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from lacis.design.icons import ColoursProvider
 from lacis.details import NoticeLine
@@ -10,6 +10,8 @@ from lacis.details import NoticeLine
 TIMELINE_ACCESSIBLE_NAME = "Annonces BODACC"
 NO_NOTICE_TEXT = "Aucune annonce collectée pour cette entreprise."
 WITHDRAWN_TEXT = "Retirée"
+BODACC_LINK_TEXT = "bodacc.fr ↗"
+RAW_RESPONSE_TEXT = "Réponse brute"
 JUDGMENT_PREFIX = "Jugement : "
 LINE_X = 7.0
 DOT_RADIUS = 5.0
@@ -25,7 +27,19 @@ def tone_label(text: str, tone: str, parent: QWidget, *, wrapped: bool = False) 
     return label
 
 
+def link_button(text: str, accessible_name: str, parent: QWidget) -> QPushButton:
+    button = QPushButton(text, parent)
+    button.setProperty("variant", "link")
+    button.setProperty("compact", True)
+    button.setAccessibleName(accessible_name)
+    button.setCursor(Qt.CursorShape.PointingHandCursor)
+    return button
+
+
 class NoticeItem(QFrame):
+    link_requested = Signal(str)
+    raw_requested = Signal(int)
+
     def __init__(self, notice: NoticeLine, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.notice = notice
@@ -37,6 +51,16 @@ class NoticeItem(QFrame):
         )
         self.withdrawn_badge = tone_label(WITHDRAWN_TEXT, "badge-closed", self)
         self.withdrawn_badge.setVisible(notice.is_withdrawn)
+        self.bodacc_button = link_button(
+            BODACC_LINK_TEXT, f"Ouvrir l'annonce du {notice.written_date} sur bodacc.fr", self
+        )
+        self.bodacc_button.clicked.connect(lambda: self.link_requested.emit(notice.url))
+        self.raw_button = link_button(
+            RAW_RESPONSE_TEXT, f"{RAW_RESPONSE_TEXT} de l'annonce du {notice.written_date}", self
+        )
+        self.raw_button.clicked.connect(
+            lambda: self.raw_requested.emit(notice.response_identifier)
+        )
         when = QHBoxLayout()
         when.setSpacing(8)
         when.addWidget(self.date_label)
@@ -62,6 +86,12 @@ class NoticeItem(QFrame):
         for note in self.notes:
             layout.addWidget(note)
         layout.addWidget(self.court_label)
+        links = QHBoxLayout()
+        links.setSpacing(10)
+        links.addWidget(self.bodacc_button)
+        links.addWidget(self.raw_button)
+        links.addStretch(1)
+        layout.addLayout(links)
         parts = [notice.written_date, notice.family_label, notice.summary]
         if notice.is_withdrawn:
             parts.append(WITHDRAWN_TEXT.lower())
@@ -69,6 +99,9 @@ class NoticeItem(QFrame):
 
 
 class NoticeTimeline(QWidget):
+    link_requested = Signal(str)
+    raw_requested = Signal(int)
+
     def __init__(
         self,
         notices: tuple[NoticeLine, ...],
@@ -90,6 +123,8 @@ class NoticeTimeline(QWidget):
             layout.addWidget(self.empty_label)
         for notice in notices:
             item = NoticeItem(notice, self)
+            item.link_requested.connect(self.link_requested)
+            item.raw_requested.connect(self.raw_requested)
             self.items.append(item)
             layout.addWidget(item)
 
