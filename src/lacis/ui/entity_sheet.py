@@ -17,8 +17,9 @@ from PySide6.QtWidgets import (
 )
 
 from lacis.design.icons import IconFactory
-from lacis.details import EntityDetails, LinkLine, Reference, SignalCard
+from lacis.details import EntityDetails, LinkLine, Reference, SignalCard, SourceLine
 from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
+from lacis.signals.facts import counted
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.graph_legend import KindSwatch
 
@@ -32,6 +33,9 @@ DIRECTORY_TEXT = "Annuaire"
 DIRECTORY_TOOLTIP = "Ouvrir la fiche dans l'Annuaire des entreprises"
 SIGNALS_TITLE = "Signaux d'alerte"
 LINKS_TITLE = "Liens"
+SOURCES_TITLE = "Provenance"
+RAW_RESPONSE_TEXT = "Réponse brute"
+FINGERPRINT_PREFIX = "Empreinte SHA-256 "
 COPIED_MESSAGE = "« {value} » copié dans le presse-papiers."
 ACTIVATING_KEYS = {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}
 LINK_ROLE_WIDTH = 110
@@ -158,9 +162,46 @@ class LinkRow(QWidget):
             layout.addWidget(badge("Fermé", "closed", self))
 
 
+class SourceRow(QFrame):
+    raw_requested = Signal(int)
+
+    def __init__(self, line: SourceLine, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.line = line
+        self.setObjectName("sourceRow")
+        self.name_label = QLabel(line.source_name, self)
+        self.name_label.setProperty("tone", "card-heading")
+        self.date_label = QLabel(line.written_date, self)
+        self.date_label.setProperty("tone", "muted")
+        self.fingerprint_label = QLabel(f"{FINGERPRINT_PREFIX}{line.short_fingerprint}", self)
+        self.fingerprint_label.setProperty("tone", "fingerprint")
+        self.fingerprint_label.setToolTip(line.fingerprint)
+        self.fingerprint_label.setAccessibleName(f"{FINGERPRINT_PREFIX}{line.fingerprint}")
+        self.fingerprint_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self.raw_button = QPushButton(RAW_RESPONSE_TEXT, self)
+        self.raw_button.setProperty("compact", True)
+        self.raw_button.setAccessibleName(
+            f"{RAW_RESPONSE_TEXT} {line.source_name} du {line.written_date}"
+        )
+        self.raw_button.clicked.connect(lambda: self.raw_requested.emit(line.response_identifier))
+        first = QHBoxLayout()
+        first.setSpacing(8)
+        first.addWidget(self.name_label)
+        first.addWidget(self.date_label, 1)
+        first.addWidget(self.raw_button)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 6, 0, 6)
+        layout.setSpacing(2)
+        layout.addLayout(first)
+        layout.addWidget(self.fingerprint_label)
+
+
 class EntitySheet(QScrollArea):
     entity_chosen = Signal(str)
     expansion_requested = Signal(str, str, int, bool)
+    raw_requested = Signal(int)
     copied = Signal(str)
 
     def __init__(
@@ -183,6 +224,7 @@ class EntitySheet(QScrollArea):
         self.chips: list[ReferenceChip] = []
         self.signal_cards: list[SignalCardView] = []
         self.link_rows: list[LinkRow] = []
+        self.source_rows: list[SourceRow] = []
         self.section_titles: list[SectionTitle] = []
         self.show_details(None)
 
@@ -206,6 +248,7 @@ class EntitySheet(QScrollArea):
         self.chips = []
         self.signal_cards = []
         self.link_rows = []
+        self.source_rows = []
         self.section_titles = []
         if details is None:
             self.empty_label = wrapped_label(EMPTY_TEXT, "faint", self.content)
@@ -214,6 +257,7 @@ class EntitySheet(QScrollArea):
             self.add_head(details)
             self.add_signals(details)
             self.add_links(details)
+            self.add_sources(details)
         self.content_layout.addStretch(1)
         self.setWidget(self.content)
 
@@ -312,6 +356,16 @@ class EntitySheet(QScrollArea):
         for line in details.links:
             row = LinkRow(line, self)
             self.link_rows.append(row)
+            self.content_layout.addWidget(row)
+
+    def add_sources(self, details: EntityDetails) -> None:
+        if not details.sources:
+            return
+        self.add_section_title(SOURCES_TITLE, counted(len(details.sources), "réponse", "réponses"))
+        for line in details.sources:
+            row = SourceRow(line, self.content)
+            row.raw_requested.connect(self.raw_requested)
+            self.source_rows.append(row)
             self.content_layout.addWidget(row)
 
     def expand(self, depth: int) -> None:

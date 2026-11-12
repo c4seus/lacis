@@ -22,6 +22,7 @@ from lacis.ui.investigation_page import (
     noun_for,
 )
 from lacis.ui.main_window import MainWindow
+from lacis.ui.raw_response_dialog import RawResponseDialog
 from lacis.ui.review_queue import QueueRow
 
 INVESTIGATION_NAME = "faux-plombiers-31"
@@ -553,16 +554,36 @@ def test_the_details_follow_the_selection_and_the_refreshes(main_window: MainWin
     assert sheet.details is None
 
 
+def test_the_raw_response_of_a_source_opens_in_a_dialog(
+    main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    select_first_company(main_window)
+    sheet = sheet_of(main_window)
+    sheet.source_rows[0].raw_button.click()
+    [dialog] = main_window.findChildren(RawResponseDialog)
+    assert dialog.isVisible()
+    assert dialog.text_view.toPlainText() == "{}"
+    dialog.reject()
+    with library.open(INVESTIGATION_NAME) as opened:
+        opened.connection.execute("UPDATE response SET body = ?", (b'{"faux": 1}',))
+        opened.connection.commit()
+    sheet.source_rows[0].raw_button.click()
+    [notification] = main_window.notification_area.notifications
+    assert "a été modifiée depuis sa collecte" in notification.message
+
+
 def test_details_of_an_investigation_removed_meanwhile_are_not_shown(
     main_window: MainWindow, library: InvestigationLibrary
 ) -> None:
     library.rename(INVESTIGATION_NAME, "ailleurs")
     main_window.show_details("company:100000000")
+    main_window.show_raw_response(1)
     messages = [
         notification.message for notification in main_window.notification_area.notifications
     ]
-    assert messages == [f"L'enquête « {INVESTIGATION_NAME} » est introuvable."]
+    assert messages == [f"L'enquête « {INVESTIGATION_NAME} » est introuvable."] * 2
     main_window.show_home()
+    main_window.show_raw_response(1)
     main_window.show_details("company:100000000")
     assert sheet_of(main_window).details is None
 

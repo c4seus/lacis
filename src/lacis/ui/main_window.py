@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLay
 from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
-from lacis.details import entity_details
+from lacis.details import entity_details, raw_response
 from lacis.graph.background import BackgroundJob, CollectionSettings, layout_job, move_job
 from lacis.overview import read_overview
 from lacis.signals.store import SignalReport
@@ -22,6 +22,7 @@ from lacis.ui.home_screen import HomeScreen
 from lacis.ui.investigation_page import InvestigationPage
 from lacis.ui.menu_bar import MainMenuBar
 from lacis.ui.notifications import NotificationArea, NotificationKind
+from lacis.ui.raw_response_dialog import RawResponseDialog
 from lacis.ui.register_search_list import RegisterSearch, RegisterSearchPopup
 from lacis.ui.review_actions import ReviewActions
 
@@ -127,6 +128,7 @@ class MainWindow(QMainWindow):
         self.investigation_page.expansion_requested.connect(self.review_actions.expand)
         self.investigation_page.entity_selected.connect(self.show_details)
         sheet = self.investigation_page.details_panel.entity_sheet
+        sheet.raw_requested.connect(self.show_raw_response)
         sheet.copied.connect(
             lambda message: self.notification_area.notify(message, NotificationKind.SUCCESS)
         )
@@ -252,6 +254,19 @@ class MainWindow(QMainWindow):
             self.show_failure(message)
             return
         self.investigation_page.details_panel.show_details(details)
+
+    def show_raw_response(self, response_identifier: int) -> None:
+        if self.current_investigation is None:
+            return
+        try:
+            with self.library.open(self.current_investigation) as opened:
+                text = raw_response(opened.connection, response_identifier)
+        except (InvestigationError, sqlite3.DatabaseError) as problem:
+            message = str(problem) if isinstance(problem, InvestigationError) else UNREADABLE
+            self.show_failure(message)
+            return
+        dialog = RawResponseDialog(response_identifier, text, self)
+        dialog.open()
 
     def follow_breadcrumb(self, position: int) -> None:
         if position == 0:

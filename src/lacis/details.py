@@ -1,9 +1,11 @@
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import StrEnum
 from urllib.parse import quote
 
+from lacis.collectors.http_client import SOURCE_NAMES
 from lacis.graph.drawing import KIND_LABELS, is_closed
 from lacis.graph.expansion import EXPANDED_AT_ATTRIBUTE, PIVOT_KINDS
 from lacis.graph.leads import is_known_as_director_only
@@ -12,8 +14,10 @@ from lacis.signals.signal import Severity, Signal
 from lacis.signals.store import SignalReport
 from lacis.storage.entities import Attributes, Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.responses import ResponseStore, ResponseSummary
 
 DIRECTORY_ROOT = "https://annuaire-entreprises.data.gouv.fr"
+SHORT_FINGERPRINT_LENGTH = 8
 ACTIVE_TEXT = "Active"
 CLOSED_COMPANY_TEXT = "Fermée"
 OPEN_ESTABLISHMENT_TEXT = "Ouvert"
@@ -62,6 +66,25 @@ class LinkLine:
 
 
 @dataclass(frozen=True)
+class SourceLine:
+    response_identifier: int
+    source_name: str
+    collected_at: datetime
+    fingerprint: str
+    url: str
+
+    @property
+    def written_date(self) -> str:
+        return written_moment(self.collected_at)
+
+    @property
+    def short_fingerprint(self) -> str:
+        start = self.fingerprint[:SHORT_FINGERPRINT_LENGTH]
+        end = self.fingerprint[-SHORT_FINGERPRINT_LENGTH:]
+        return f"{start}…{end}"
+
+
+@dataclass(frozen=True)
 class EntityDetails:
     identifier: str
     kind: EntityKind
@@ -74,6 +97,7 @@ class EntityDetails:
     directory_url: str
     signals: tuple[SignalCard, ...]
     links: tuple[LinkLine, ...]
+    sources: tuple[SourceLine, ...]
 
     @property
     def kind_label(self) -> str:
@@ -282,6 +306,16 @@ def link_lines(graph_store: GraphStore, identifier: str) -> list[LinkLine]:
     return sorted(lines, key=lambda line: (line.role, line.reference.label))
 
 
+def source_line(summary: ResponseSummary) -> SourceLine:
+    return SourceLine(
+        summary.identifier,
+        SOURCE_NAMES[summary.source],
+        summary.collected_at,
+        summary.fingerprint,
+        summary.url,
+    )
+
+
 def entity_details(
     connection: sqlite3.Connection, identifier: str, report: SignalReport | None
 ) -> EntityDetails | None:
@@ -296,6 +330,7 @@ def entity_details(
         if isinstance(expanded_at, str) and expanded_at
         else ""
     )
+    sources = [source_line(summary) for summary in graph_store.sources_of_entity(identifier)]
     return EntityDetails(
         identifier=identifier,
         kind=entity.kind,
@@ -308,4 +343,13 @@ def entity_details(
         directory_url=directory_url(entity),
         signals=tuple(signal_cards(report, identifier, References(graph_store))),
         links=tuple(link_lines(graph_store, identifier)),
+        sources=tuple(reversed(sources)),
     )
+
+
+def raw_response(connection: sqlite3.Connection, response_identifier: int) -> str:
+    body = ResponseStore(connection).read(response_identifier).body
+    try:
+        return json.dumps(json.loads(body), ensure_ascii=False, indent=2)
+    except ValueError:
+        return body.decode("utf-8", errors="replace")

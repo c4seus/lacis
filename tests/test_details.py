@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -11,12 +11,15 @@ from lacis.details import (
     EntityDetails,
     Reference,
     entity_details,
+    raw_response,
     written_day,
     written_month,
 )
 from lacis.signals.signal import Severity
 from lacis.storage.entities import CollectedEntity, EntityKind
+from lacis.storage.errors import TamperedResponseError
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 
 
 @pytest.fixture
@@ -228,8 +231,68 @@ def test_links_name_the_role_seen_from_the_entity(
     ]
 
 
+def test_the_sources_tell_where_and_when_the_entity_was_collected(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    [source] = details_of(builder, scenario.acme).sources
+    assert source.source_name == "Recherche d'entreprises"
+    assert source.collected_at == COLLECTED_AT
+    assert source.written_date == COLLECTED_AT.astimezone().strftime("%d/%m/%Y à %H:%M")
+    assert len(source.fingerprint) == 64
+    assert source.short_fingerprint == f"{source.fingerprint[:8]}…{source.fingerprint[-8:]}"
+    assert source.url == "https://company_register.example"
+
+
+def test_newer_sources_come_first(builder: InvestigationBuilder) -> None:
+    company = builder.company("ACME PLOMBERIE")
+    later = ResponseStore(builder.connection).save(
+        CollectedResponse(
+            ResponseSource.BODACC,
+            "https://bodacc.example",
+            b"{}",
+            datetime(2026, 11, 12, tzinfo=UTC),
+        )
+    )
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "ACME PLOMBERIE", {}), later
+    )
+    assert [source.source_name for source in details_of(builder, company).sources] == [
+        "BODACC",
+        "Recherche d'entreprises",
+    ]
+
+
 def test_an_unknown_entity_has_no_details(builder: InvestigationBuilder) -> None:
     assert entity_details(builder.connection, "company:100000000", None) is None
+
+
+def test_a_raw_response_is_shown_readable(builder: InvestigationBuilder) -> None:
+    store = ResponseStore(builder.connection)
+    json_response = store.save(
+        CollectedResponse(
+            ResponseSource.COMPANY_REGISTER,
+            "https://company_register.example",
+            '{"nom": "ACME", "siège": {"ville": "Toulouse"}}'.encode(),
+            COLLECTED_AT,
+        )
+    )
+    assert raw_response(builder.connection, json_response.identifier) == (
+        '{\n  "nom": "ACME",\n  "siège": {\n    "ville": "Toulouse"\n  }\n}'
+    )
+    text_response = store.save(
+        CollectedResponse(
+            ResponseSource.BODACC, "https://bodacc.example", b"pas du JSON \xff", COLLECTED_AT
+        )
+    )
+    assert raw_response(builder.connection, text_response.identifier) == "pas du JSON �"
+
+
+def test_a_tampered_response_is_refused(builder: InvestigationBuilder) -> None:
+    builder.connection.execute(
+        "UPDATE response SET body = ? WHERE identifier = ?", (b'{"faux": 1}', 1)
+    )
+    with pytest.raises(TamperedResponseError):
+        raw_response(builder.connection, 1)
 
 
 def test_dates_are_written_the_french_way() -> None:
