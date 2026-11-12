@@ -31,3 +31,34 @@ jobs:
           name: arch-package
           path: dist/lacis-*.pkg.tar.zst
           if-no-files-found: error
+
+  install:
+    name: Install and launch on Arch Linux
+    needs: build
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: arch-package
+          path: dist
+      - name: Install the package with pacman
+        run: |
+          pacman -Syu --noconfirm
+          pacman -U --noconfirm dist/lacis-*.pkg.tar.zst
+      - name: Check that every other installed package comes from the Arch Linux repositories
+        run: |
+          foreign=$(pacman -Qmq)
+          echo "$foreign"
+          test "$foreign" = lacis
+      - name: Launch Lacis
+        run: lacis --version | grep -E '^Lacis [0-9]'
+      - name: Install the test tools from Arch Linux
+        run: pacman -S --noconfirm --needed git python-pytest python-pytest-qt
+      - uses: actions/checkout@v4
+      - name: Run the tests against the installed package and the PySide6 of Arch Linux
+        run: |
+          python -c "import lacis, sys; sys.exit(not lacis.__file__.startswith('/usr/lib/python3'))"
+          python -m pytest -p no:cacheprovider
