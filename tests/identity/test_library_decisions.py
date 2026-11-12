@@ -1,3 +1,5 @@
+import sqlite3
+import threading
 from pathlib import Path
 
 import pytest
@@ -7,7 +9,7 @@ from lacis.identity.library_decisions import LibraryDecisionStore
 from lacis.storage.entities import LinkKind
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionNotFoundError
-from lacis.storage.investigations import InvestigationLibrary
+from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
 
 INVESTIGATION_NAME = "faux-plombiers-31"
 
@@ -52,3 +54,26 @@ def test_withdrawing_a_missing_decision_fails(
 ) -> None:
     with pytest.raises(HomonymDecisionNotFoundError):
         LibraryDecisionStore(library, INVESTIGATION_NAME).withdraw(*people)
+
+
+def test_a_decision_is_withdrawn_once_another_writer_has_finished(
+    library: InvestigationLibrary, people: tuple[str, str]
+) -> None:
+    store = LibraryDecisionStore(library, INVESTIGATION_NAME)
+    store.record(*people, HomonymDecision.SAME_PERSON)
+    writer = sqlite3.connect(
+        library.directory_of(INVESTIGATION_NAME) / DATABASE_FILE_NAME,
+        autocommit=True,
+        check_same_thread=False,
+    )
+    writer.execute("BEGIN IMMEDIATE")
+    finishing = threading.Timer(0.3, lambda: writer.execute("COMMIT"))
+    finishing.start()
+    try:
+        withdrawn = store.withdraw(*people)
+    finally:
+        finishing.join()
+        writer.close()
+    assert withdrawn.decision is HomonymDecision.SAME_PERSON
+    assert store.decision_between(*people) is None
+    assert same_person_links(library) == 0
