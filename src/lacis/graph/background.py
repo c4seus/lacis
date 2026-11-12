@@ -20,7 +20,7 @@ from lacis.collectors.http_client import (
     CollectorHttpClient,
     CollectorTiming,
 )
-from lacis.graph.drawing import lay_out_investigation
+from lacis.graph.drawing import lay_out_again, lay_out_investigation
 from lacis.graph.expansion import ExpansionError, ExpansionReport, GraphExpander
 from lacis.graph.progress import ProgressTracker
 from lacis.graph.register_search import search_register
@@ -223,10 +223,11 @@ def pause_unless_cancelled(cancellation: threading.Event) -> Callable[[], None]:
     return pause
 
 
-def layout_job(settings: CollectionSettings) -> BackgroundJob:
+def layout_job(settings: CollectionSettings, *, again: bool = False) -> BackgroundJob:
     job = BackgroundJob(settings, lambda session: None)
     pause = pause_unless_cancelled(job.cancellation)
-    job.task = lambda session: lay_out_investigation(session.connection, pause)
+    lay_out = lay_out_again if again else lay_out_investigation
+    job.task = lambda session: lay_out(session.connection, pause)
     return job
 
 

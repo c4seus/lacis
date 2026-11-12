@@ -116,7 +116,7 @@ class InvestigationPage(QWidget):
         self.queue_column.collapse_button.clicked.connect(self.collapse_queue)
         self.queue_rail = QueueRail(icon_factory, self)
         self.queue_rail.expand_button.clicked.connect(self.expand_queue)
-        self.graph_area = GraphArea(icon_factory.colours_provider, self)
+        self.graph_area = GraphArea(icon_factory, self)
         self.details_panel = DetailsPanel(self)
         self.graph_view = self.graph_area.graph_view
         self.graph_view.selection_changed.connect(self.follow_selection)

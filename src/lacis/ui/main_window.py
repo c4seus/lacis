@@ -101,6 +101,12 @@ class MainWindow(QMainWindow):
         queue_action.toggled.connect(self.investigation_page.toggle_queue)
         self.investigation_page.queue_toggled.connect(queue_action.setChecked)
         self.investigation_page.entities_moved.connect(self.save_moved_positions)
+        self.investigation_page.graph_area.layout_requested.connect(self.lay_out_again)
+        graph_view = self.investigation_page.graph_view
+        self.main_menu_bar.zoom_in_action.triggered.connect(graph_view.zoom_in)
+        self.main_menu_bar.zoom_out_action.triggered.connect(graph_view.zoom_out)
+        self.main_menu_bar.fit_action.triggered.connect(graph_view.fit)
+        self.main_menu_bar.layout_action.triggered.connect(self.lay_out_again)
 
     def open_investigation(self, name: str) -> None:
         try:
@@ -120,6 +126,8 @@ class MainWindow(QMainWindow):
         self.header_bar.breadcrumb.set_trail((*HOME_TRAIL, name))
         self.main_menu_bar.close_investigation_action.setEnabled(True)
         self.main_menu_bar.queue_action.setEnabled(True)
+        for action in self.main_menu_bar.graph_actions:
+            action.setEnabled(True)
         self.pages.setCurrentWidget(self.investigation_page)
         self.header_bar.search_field.setFocus()
 
@@ -128,14 +136,19 @@ class MainWindow(QMainWindow):
             self.library, name, self.collection_environment, self.collection_environment.timing
         )
 
-    def start_layout(self) -> None:
+    def start_layout(self, *, again: bool = False) -> None:
         if self.current_investigation is None or self.layout_job is not None:
             return
-        job = layout_job(self.collection_settings(self.current_investigation))
+        job = layout_job(self.collection_settings(self.current_investigation), again=again)
         job.succeeded.connect(self.finish_layout)
         job.failed.connect(self.fail_layout)
         self.layout_job = job
         job.start()
+
+    def lay_out_again(self) -> None:
+        self.investigation_page.graph_view.follows_fit = True
+        self.stop_layout()
+        self.start_layout(again=True)
 
     def finish_layout(self) -> None:
         job = self.layout_job
@@ -214,6 +227,8 @@ class MainWindow(QMainWindow):
         self.current_investigation = None
         self.main_menu_bar.close_investigation_action.setEnabled(False)
         self.main_menu_bar.queue_action.setEnabled(False)
+        for action in self.main_menu_bar.graph_actions:
+            action.setEnabled(False)
         self.header_bar.breadcrumb.set_trail(HOME_TRAIL)
         self.home_screen.refresh()
         self.pages.setCurrentWidget(self.home_screen)

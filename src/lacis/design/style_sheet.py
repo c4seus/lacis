@@ -442,6 +442,20 @@ QFrame#graphArea {{
     background-color: {colours.graph_background};
 }}
 
+QGraphicsView#graphView {{
+    border: 2px solid transparent;
+}}
+
+QGraphicsView#graphView:focus {{
+    border: 2px solid {colours.accent};
+}}
+
+QFrame#graphToolbar {{
+    border: 1px solid {colours.border};
+    border-radius: {radii.medium}px;
+    background-color: {colours.surface};
+}}
+
 QFrame#graphLegend {{
     border: 1px solid {colours.border};
     border-radius: {radii.medium}px;

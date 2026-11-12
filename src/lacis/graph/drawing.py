@@ -271,3 +271,8 @@ def lay_out_investigation(
         {identifier: Position(*positions[identifier]) for identifier in sorted(newcomers)}
     )
     return len(newcomers)
+
+
+def lay_out_again(connection: sqlite3.Connection, pause: Callable[[], None] = no_pause) -> int:
+    PositionStore(connection).forget_computed()
+    return lay_out_investigation(connection, pause)

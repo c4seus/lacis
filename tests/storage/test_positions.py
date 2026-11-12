@@ -45,3 +45,15 @@ def test_moving_entities_does_not_revise_the_investigation(builder: Investigatio
     before = builder.connection.execute(query).fetchone()
     PositionStore(builder.connection).move({acme: (1.0, 2.0)})
     assert builder.connection.execute(query).fetchone() == before
+
+
+def test_forgetting_computed_positions_keeps_the_moved_ones(
+    builder: InvestigationBuilder,
+) -> None:
+    acme = builder.company("ACME PLOMBERIE")
+    jean = builder.person("Jean", "DUPONT")
+    store = PositionStore(builder.connection)
+    store.save({acme: Position(10.0, 20.0)})
+    store.move({jean: (1.0, 2.0)})
+    store.forget_computed()
+    assert store.positions() == {jean: Position(1.0, 2.0, moved_by_investigator=True)}

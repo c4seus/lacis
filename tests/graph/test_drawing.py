@@ -16,6 +16,7 @@ from lacis.graph.drawing import (
     NodeShape,
     flagged_entities,
     graph_drawing,
+    lay_out_again,
     lay_out_investigation,
 )
 from lacis.graph.layout import IDEAL_DISTANCE, MINIMUM_GAP, ROW_HEIGHTS, spread
@@ -352,3 +353,17 @@ def test_positions_moved_by_the_investigator_are_kept_by_the_layout(
     assert stored[scenario.acme] == Position(-900.0, -900.0, moved_by_investigator=True)
     assert not stored[newcomer].moved_by_investigator
     assert drawn_node(graph_drawing(builder.connection), scenario.acme).x == -900.0
+
+
+def test_laying_out_again_keeps_only_the_moved_positions(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    lay_out_investigation(builder.connection)
+    store = PositionStore(builder.connection)
+    store.save({scenario.acme: Position(5000.0, 5000.0)})
+    store.move({scenario.holding: (-700.0, 0.0)})
+    assert lay_out_again(builder.connection) == 8
+    stored = store.positions()
+    assert stored[scenario.holding] == Position(-700.0, 0.0, moved_by_investigator=True)
+    assert (stored[scenario.acme].x, stored[scenario.acme].y) != (5000.0, 5000.0)
+    assert len(stored) == 9
