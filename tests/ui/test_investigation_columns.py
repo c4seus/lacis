@@ -1,7 +1,16 @@
 from pytestqt.qtbot import QtBot
 
 from lacis.design.icons import IconFactory
+from lacis.graph.leads import Lead
+from lacis.identity.homonyms import (
+    Confidence,
+    FirstNameRelation,
+    HomonymPair,
+    HomonymProposal,
+    PersonIdentity,
+)
 from lacis.overview import InvestigationOverview
+from lacis.storage.entities import EntityKind
 from lacis.ui.investigation_columns import (
     DETAILS_MINIMUM_WIDTH,
     GRAPH_MINIMUM_WIDTH,
@@ -14,8 +23,28 @@ from lacis.ui.investigation_columns import (
 )
 
 
+def person(index: int) -> PersonIdentity:
+    return PersonIdentity(f"person:{index}", f"Jean DUPONT {index}", "DUPONT", ("JEAN",), None)
+
+
+def overview_with(homonyms: int, leads: int) -> InvestigationOverview:
+    proposals = tuple(
+        HomonymProposal(
+            HomonymPair(person(2 * index), person(2 * index + 1), FirstNameRelation.SAME),
+            Confidence.WEAK,
+            ("Même nom de famille",),
+        )
+        for index in range(homonyms)
+    )
+    unexpanded = tuple(
+        Lead(f"company:10000000{index}", EntityKind.COMPANY, f"SOCIETE {index}", "Raison")
+        for index in range(leads)
+    )
+    return InvestigationOverview(9, 8, 1, None, proposals=proposals, unexpanded=unexpanded)
+
+
 def overview() -> InvestigationOverview:
-    return InvestigationOverview(9, 8, 1, 0, 2, None, "")
+    return overview_with(homonyms=0, leads=2)
 
 
 def test_the_queue_column_sums_up_what_is_left_to_examine(
@@ -31,7 +60,7 @@ def test_the_queue_column_sums_up_what_is_left_to_examine(
 
 
 def test_the_queue_summary_counts_signals_homonyms_and_leads() -> None:
-    assert queue_summary(InvestigationOverview(9, 8, 1, 2, 1, None, "")) == (
+    assert queue_summary(overview_with(homonyms=2, leads=1)) == (
         "signaux indisponibles, 2 homonymes, 1 piste"
     )
 
@@ -76,7 +105,7 @@ def test_the_rail_shows_the_signal_count_and_describes_the_queue(
     rail.show()
     assert rail.accessibleName() == "Colonne À examiner repliée"
     assert rail.expand_button.accessibleName() == "Déplier la colonne À examiner"
-    rail.show_overview(InvestigationOverview(9, 8, 1, 0, 2, None, ""))
+    rail.show_overview(overview_with(homonyms=0, leads=2))
     assert not rail.count_label.isVisible()
     assert rail.expand_button.accessibleDescription() == (
         "signaux indisponibles, 0 homonyme, 2 pistes"

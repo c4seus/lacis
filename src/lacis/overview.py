@@ -3,8 +3,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from lacis.graph.drawing import GraphDrawing, graph_drawing
-from lacis.graph.leads import unexpanded_leads
-from lacis.identity.homonyms import homonym_proposals
+from lacis.graph.leads import Lead, unexpanded_leads
+from lacis.identity.homonyms import HomonymProposal, homonym_proposals
 from lacis.signals.configuration import SignalConfigurationError
 from lacis.signals.engine import SignalEngine
 from lacis.signals.recomputation import InvestigationSignals
@@ -20,11 +20,19 @@ class InvestigationOverview:
     entities: int
     links: int
     confirmed_homonyms: int
-    pending_homonyms: int
-    leads: int
     report: SignalReport | None
     signal_problem: str = ""
     drawing: GraphDrawing = field(default_factory=GraphDrawing)
+    proposals: tuple[HomonymProposal, ...] = ()
+    unexpanded: tuple[Lead, ...] = ()
+
+    @property
+    def pending_homonyms(self) -> int:
+        return len(self.proposals)
+
+    @property
+    def leads(self) -> int:
+        return len(self.unexpanded)
 
     @property
     def signals(self) -> int | None:
@@ -47,11 +55,11 @@ def overview_of(
         entities=len(graph_store.entities()),
         links=len(links),
         confirmed_homonyms=len(confirmed),
-        pending_homonyms=len(homonym_proposals(graph_store, decision_store)),
-        leads=len(unexpanded_leads(graph_store)),
         report=report,
         signal_problem=signal_problem,
         drawing=graph_drawing(connection, report),
+        proposals=tuple(homonym_proposals(graph_store, decision_store)),
+        unexpanded=tuple(unexpanded_leads(graph_store)),
     )
 
 

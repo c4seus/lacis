@@ -438,6 +438,58 @@ QFrame#columnHead {{
     border-bottom: 1px solid {colours.border};
 }}
 
+QScrollArea#reviewQueue, QWidget#reviewQueueContent {{
+    background-color: {colours.surface};
+}}
+
+QFrame#queueRow {{
+    border: 1px solid transparent;
+    border-radius: {radii.small}px;
+}}
+
+QFrame#queueRow:hover {{
+    background-color: {colours.raised_surface};
+}}
+
+QFrame#queueRow[selected="true"] {{
+    border-color: {colours.accent};
+    background-color: {colours.soft_accent};
+}}
+
+QFrame#queueRow:focus {{
+    border: 2px solid {colours.accent};
+}}
+
+QLabel[tone="queue-group"] {{
+    padding: 10px 10px 4px 10px;
+    color: {colours.faint_text};
+    font-size: {font_sizes.caption}px;
+    font-weight: {font_weights.bold};
+    letter-spacing: 1px;
+}}
+
+QLabel[tone="queue-title"] {{
+    font-size: {font_sizes.small}px;
+    font-weight: {font_weights.bold};
+}}
+
+QLabel[tone="queue-score"] {{
+    color: {colours.faint_text};
+    font-size: {font_sizes.caption}px;
+    font-weight: {font_weights.medium};
+}}
+
+QLabel[tone="queue-detail"] {{
+    color: {colours.muted_text};
+    font-size: {font_sizes.caption}px;
+}}
+
+QLabel[tone="queue-empty"] {{
+    padding: 2px 10px 6px 10px;
+    color: {colours.muted_text};
+    font-size: {font_sizes.caption}px;
+}}
+
 QFrame#graphArea {{
     background-color: {colours.graph_background};
 }}

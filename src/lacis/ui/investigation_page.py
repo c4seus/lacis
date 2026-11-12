@@ -2,6 +2,7 @@ from PySide6.QtCore import QByteArray, QSettings, Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget
 
 from lacis.design.icons import IconFactory
+from lacis.graph.descriptions import entity_description
 from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
 from lacis.storage.investigations import Investigation
@@ -121,6 +122,8 @@ class InvestigationPage(QWidget):
         self.graph_view = self.graph_area.graph_view
         self.graph_view.selection_changed.connect(self.follow_selection)
         self.graph_view.entities_moved.connect(self.entities_moved)
+        review_list = self.queue_column.review_list
+        review_list.entity_chosen.connect(lambda identifier: self.show_entity(identifier, ""))
         self.columns = QSplitter(Qt.Orientation.Horizontal, self)
         self.columns.setObjectName("investigationColumns")
         self.columns.setChildrenCollapsible(False)
@@ -191,7 +194,10 @@ class InvestigationPage(QWidget):
         self.graph_area.show_drawing(overview.drawing)
 
     def show_entity(self, identifier: str, label: str) -> None:
-        self.graph_view.select(identifier)
+        self.graph_area.reveal(identifier)
 
     def follow_selection(self, identifier: str) -> None:
         self.selected_entity = identifier or None
+        self.queue_column.review_list.mark_selected(self.selected_entity)
+        description = entity_description(self.graph_view.drawing, identifier) if identifier else ""
+        self.details_panel.show_entity(description)
