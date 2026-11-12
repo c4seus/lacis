@@ -37,7 +37,7 @@ The application is written in Python with PySide6 (see [0001](0001-technology.md
 
 The packages contain the pure Python wheel of Lacis, a `.desktop` entry, the icons and the AppStream metadata. They are built in the CI inside a container of each target distribution, then installed and launched there as a smoke test.
 
-**Windows: Nuitka, then an Inno Setup installer.** Nuitka compiles Lacis and its dependencies into a standalone folder with a native `lacis.exe`. Inno Setup wraps it into a per-user or per-machine installer, with a Start menu entry, an uninstaller and a French interface. The build runs on a Windows runner in the CI.
+**Windows: Nuitka, then an Inno Setup installer.** Nuitka compiles Lacis and its dependencies into a standalone folder with a native `lacis.exe`. Inno Setup wraps it into a per-user or per-machine installer, with a Start menu entry, an uninstaller and a French interface. It installs Lacis for the current user by default, without administrator rights. Uninstalling removes the application but keeps the investigations, which live in the data folder of the user. The build runs on a Windows runner in the CI.
 
 **Source archive:** the sdist built by hatchling (`lacis-X.Y.Z.tar.gz`), which contains everything needed to build and test Lacis.
 
