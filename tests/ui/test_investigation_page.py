@@ -653,3 +653,25 @@ def test_the_raw_response_of_a_notice_opens_in_a_dialog(
     sheet.timeline.items[0].raw_button.click()
     [dialog] = main_window.findChildren(RawResponseDialog)
     assert dialog.isVisible()
+
+
+def test_choosing_a_row_of_the_entities_table_selects_the_entity_in_the_graph(
+    main_window: MainWindow,
+) -> None:
+    page = main_window.investigation_page
+    panel = page.details_panel
+    tabs = panel.tabs
+    assert [tabs.tabText(index) for index in range(tabs.count())][2:] == ["Entités 5", "Journal"]
+    entities = panel.entities_tab
+    entities.sort_box.setCurrentText("Nom")
+    entities.table.selectRow(0)
+    first = entities.selected_identifier()
+    assert first is not None
+    assert page.graph_view.selected_identifier == first
+    details = sheet_of(main_window).details
+    assert details is not None
+    assert details.identifier == first
+    company = select_first_company(main_window)
+    assert entities.selected_identifier() == company
+    main_window.refresh_overview()
+    assert entities.selected_identifier() == company

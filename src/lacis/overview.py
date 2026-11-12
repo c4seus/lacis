@@ -13,6 +13,7 @@ from lacis.storage.entities import LinkKind
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
 from lacis.storage.investigations import InvestigationLibrary
+from lacis.tables import EntityRow, entity_rows
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,7 @@ class InvestigationOverview:
     drawing: GraphDrawing = field(default_factory=GraphDrawing)
     proposals: tuple[HomonymProposal, ...] = ()
     unexpanded: tuple[Lead, ...] = ()
+    entity_rows: tuple[EntityRow, ...] = ()
 
     @property
     def pending_homonyms(self) -> int:
@@ -60,6 +62,7 @@ def overview_of(
         drawing=graph_drawing(connection, report),
         proposals=tuple(homonym_proposals(graph_store, decision_store)),
         unexpanded=tuple(unexpanded_leads(graph_store)),
+        entity_rows=tuple(entity_rows(connection, report)),
     )
 
 

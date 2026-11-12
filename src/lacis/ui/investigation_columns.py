@@ -18,6 +18,7 @@ from lacis.overview import InvestigationOverview
 from lacis.review import review_queue
 from lacis.signals.facts import counted
 from lacis.ui.entity_sheet import EntitySheet
+from lacis.ui.entity_table import EntitiesTab
 from lacis.ui.graph_controls import FilterChip, ZoomToolbar
 from lacis.ui.graph_legend import GraphLegend
 from lacis.ui.graph_view import GraphView
@@ -41,9 +42,13 @@ DETAILS_MINIMUM_WIDTH = 340
 SHEET_TAB_TITLE = "Fiche"
 DETAILS_TABS = (
     ("Signaux", "Les signaux d'alerte de l'enquête s'afficheront ici."),
-    ("Entités", "La liste des entités de l'enquête s'affichera ici."),
     ("Journal", "Le journal de collecte de l'enquête s'affichera ici."),
 )
+ENTITIES_TAB_TITLE = "Entités"
+
+
+def counted_title(title: str, count: int) -> str:
+    return f"{title} {count}" if count else title
 
 
 def queue_summary(overview: InvestigationOverview) -> str:
@@ -215,9 +220,17 @@ class DetailsPanel(QFrame):
             page_layout.addWidget(label)
             page_layout.addStretch(1)
             self.tabs.addTab(page, title)
+        self.entities_tab = EntitiesTab(icon_factory.colours_provider, self.tabs)
+        self.entities_index = self.tabs.insertTab(2, self.entities_tab, ENTITIES_TAB_TITLE)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.tabs)
 
     def show_details(self, details: EntityDetails | None) -> None:
         self.entity_sheet.show_details(details)
+
+    def show_overview(self, overview: InvestigationOverview) -> None:
+        self.entities_tab.show_rows(overview.entity_rows)
+        self.tabs.setTabText(
+            self.entities_index, counted_title(ENTITIES_TAB_TITLE, len(overview.entity_rows))
+        )
