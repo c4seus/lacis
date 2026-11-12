@@ -45,6 +45,11 @@ deb:
 	lintian --fail-on error dist/lacis_*.deb
 
 rpm:
+	@test -n "$$(rpm --eval '%{?python3_sitelib}')" || { \
+		echo "make rpm needs the Fedora RPM macros of python3-devel: run it on Fedora," \
+			"or in a Fedora container"; \
+		exit 1; \
+	}
 	$(SYSTEM_PYTHON) scripts/prepare_rpm_spec.py "$$($(SYSTEM_PYTHON) -m hatchling version)"
 	env -u VIRTUAL_ENV PATH="$(SYSTEM_PATH)" \
 		rpmbuild -bb --build-in-place --define "_topdir $(CURDIR)/build/rpm" build/rpm/lacis.spec
