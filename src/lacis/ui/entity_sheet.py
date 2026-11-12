@@ -34,6 +34,7 @@ DIRECTORY_TEXT = "Annuaire"
 DIRECTORY_TOOLTIP = "Ouvrir la fiche dans l'Annuaire des entreprises"
 SIGNALS_TITLE = "Signaux d'alerte"
 NOTICES_TITLE = "Annonces BODACC"
+REFRESH_NOTICES_TEXT = "Rafraîchir"
 LINKS_TITLE = "Liens"
 SOURCES_TITLE = "Provenance"
 RAW_RESPONSE_TEXT = "Réponse brute"
@@ -96,7 +97,13 @@ class ReferenceChip(QFrame):
 
 
 class SectionTitle(QWidget):
-    def __init__(self, title: str, count: str, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        title: str,
+        count: str,
+        parent: QWidget | None = None,
+        action: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.title_label = QLabel(title.upper(), self)
         self.title_label.setProperty("tone", "section-title")
@@ -111,6 +118,9 @@ class SectionTitle(QWidget):
         layout.addWidget(self.title_label)
         layout.addWidget(self.count_label)
         layout.addWidget(rule, 1, Qt.AlignmentFlag.AlignVCenter)
+        if action is not None:
+            action.setParent(self)
+            layout.addWidget(action)
         self.setAccessibleName(f"{title}, {count}")
 
 
@@ -205,6 +215,7 @@ class EntitySheet(QScrollArea):
     expansion_requested = Signal(str, str, int, bool)
     raw_requested = Signal(int)
     copied = Signal(str)
+    notices_refresh_requested = Signal(str, str)
 
     def __init__(
         self,
@@ -221,7 +232,9 @@ class EntitySheet(QScrollArea):
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.details: EntityDetails | None = None
+        self.running: set[str] = set()
         self.timeline: NoticeTimeline | None = None
+        self.refresh_button: QPushButton | None = None
         self.content = QWidget()
         self.content_layout = QVBoxLayout(self.content)
         self.chips: list[ReferenceChip] = []
@@ -254,6 +267,7 @@ class EntitySheet(QScrollArea):
         self.source_rows = []
         self.section_titles = []
         self.timeline = None
+        self.refresh_button = None
         if details is None:
             self.empty_label = wrapped_label(EMPTY_TEXT, "faint", self.content)
             self.content_layout.addWidget(self.empty_label)
@@ -265,6 +279,7 @@ class EntitySheet(QScrollArea):
             self.add_sources(details)
         self.content_layout.addStretch(1)
         self.setWidget(self.content)
+        self.show_running(self.running)
 
     def add_head(self, details: EntityDetails) -> None:
         kicker = QHBoxLayout()
@@ -357,7 +372,16 @@ class EntitySheet(QScrollArea):
     def add_notices(self, details: EntityDetails) -> None:
         if not details.has_notices:
             return
-        section_title = SectionTitle(NOTICES_TITLE, str(len(details.notices)), self.content)
+        self.refresh_button = QPushButton(
+            self.icon_factory.icon("refresh"), REFRESH_NOTICES_TEXT, self.content
+        )
+        self.refresh_button.setProperty("variant", "link")
+        self.refresh_button.setProperty("compact", True)
+        self.refresh_button.setAccessibleName(f"Rafraîchir les annonces de {details.name}")
+        self.refresh_button.clicked.connect(self.refresh_notices)
+        section_title = SectionTitle(
+            NOTICES_TITLE, str(len(details.notices)), self.content, self.refresh_button
+        )
         self.section_titles.append(section_title)
         self.content_layout.addWidget(section_title)
         self.timeline = NoticeTimeline(
@@ -366,6 +390,18 @@ class EntitySheet(QScrollArea):
         self.timeline.link_requested.connect(lambda url: self.open_url(QUrl(url)))
         self.timeline.raw_requested.connect(self.raw_requested)
         self.content_layout.addWidget(self.timeline)
+
+    def refresh_notices(self) -> None:
+        if self.details is not None:
+            self.notices_refresh_requested.emit(self.details.identifier, self.details.name)
+
+    def show_running(self, running: set[str]) -> None:
+        self.running = set(running)
+        busy = self.details is not None and self.details.identifier in self.running
+        if self.details is not None:
+            self.expand_button.setEnabled(not busy)
+        if self.refresh_button is not None:
+            self.refresh_button.setEnabled(not busy)
 
     def add_links(self, details: EntityDetails) -> None:
         if not details.links:

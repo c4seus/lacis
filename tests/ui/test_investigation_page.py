@@ -613,6 +613,31 @@ def test_an_entity_is_expanded_again_from_its_sheet(
     qtbot.waitUntil(lambda: not window.review_actions.expansions, timeout=10_000)
 
 
+def test_the_notices_of_a_company_are_refreshed_from_its_sheet(
+    qtbot: QtBot,
+    settings: QSettings,
+    theme_controller: ThemeController,
+    library: InvestigationLibrary,
+) -> None:
+    window = MainWindow(settings, theme_controller, demo_collection_environment(), library)
+    qtbot.addWidget(window)
+    window.open_investigation(INVESTIGATION_NAME)
+    qtbot.waitUntil(lambda: window.layout_job is None)
+    company = select_first_company(window)
+    sheet = sheet_of(window)
+    assert sheet.refresh_button is not None
+    sheet.refresh_button.click()
+    assert company in window.review_actions.expansions
+    assert sheet.refresh_button is not None
+    assert not sheet.refresh_button.isEnabled()
+    qtbot.waitUntil(lambda: not window.review_actions.expansions, timeout=10_000)
+    messages = [notification.message for notification in window.notification_area.notifications]
+    assert messages[0].startswith("Rafraîchissement des annonces de SOCIETE")
+    assert messages[-1].startswith("Annonces de SOCIETE")
+    assert sheet.refresh_button is not None
+    assert sheet.refresh_button.isEnabled()
+
+
 def test_the_raw_response_of_a_notice_opens_in_a_dialog(
     main_window: MainWindow, library: InvestigationLibrary
 ) -> None:

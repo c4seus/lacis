@@ -161,3 +161,15 @@ def expansion_message(label: str, report: ExpansionReport) -> str:
         failures = counted(len(report.failures), "source en échec", "sources en échec")
         message = f"{message} ({failures})"
     return message
+
+
+def notices_message(label: str, report: ExpansionReport) -> str:
+    new = len(report.changes.new_notices)
+    withdrawn = len(report.changes.withdrawn_notices)
+    parts = []
+    if new:
+        parts.append(counted(new, "nouvelle annonce", "nouvelles annonces"))
+    if withdrawn:
+        parts.append(counted(withdrawn, "annonce retirée", "annonces retirées"))
+    found = ", ".join(parts) if parts else "rien de nouveau"
+    return f"Annonces de {label} rafraîchies : {found}"

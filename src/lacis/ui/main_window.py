@@ -124,9 +124,15 @@ class MainWindow(QMainWindow):
         review_list = self.investigation_page.queue_column.review_list
         self.review_actions.changed.connect(self.refresh_overview)
         self.review_actions.expanding_changed.connect(review_list.show_expanding)
+        self.review_actions.expanding_changed.connect(
+            self.investigation_page.details_panel.entity_sheet.show_running
+        )
         self.investigation_page.decision_requested.connect(self.review_actions.decide)
         self.investigation_page.expansion_requested.connect(self.review_actions.expand)
         self.investigation_page.entity_selected.connect(self.show_details)
+        self.investigation_page.notices_refresh_requested.connect(
+            self.review_actions.refresh_notices
+        )
         sheet = self.investigation_page.details_panel.entity_sheet
         sheet.raw_requested.connect(self.show_raw_response)
         sheet.copied.connect(

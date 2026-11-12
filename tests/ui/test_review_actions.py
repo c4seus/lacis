@@ -209,7 +209,7 @@ def test_leaving_cancels_the_running_expansions(
     actions.stop()
     assert actions.expansions == {}
     assert not job.is_running()
-    actions.finish_expansion("company:111111111", "ACME PLOMBERIE", None)
+    actions.finish_collection("company:111111111", None, str)
     actions.fail_expansion("company:111111111", "Problème")
 
 
@@ -221,3 +221,28 @@ def test_messages_name_the_decision_and_the_failure() -> None:
     assert failure_message(sqlite3.DatabaseError()) == (
         "La base de données de cette enquête est illisible."
     )
+
+
+def test_the_notices_of_a_company_are_refreshed_in_the_background(
+    qtbot: QtBot,
+    actions: ReviewActions,
+    collection_settings: CollectionSettings,
+    notified: Notified,
+) -> None:
+    add_acme(qtbot, collection_settings)
+    with qtbot.waitSignal(actions.changed, timeout=WAIT_MILLISECONDS):
+        actions.refresh_notices("company:111111111", "ACME PLOMBERIE")
+    assert notified[0] == (
+        "Rafraîchissement des annonces de ACME PLOMBERIE en cours…",
+        NotificationKind.INFORMATION,
+    )
+    message, kind = notified[1]
+    assert kind is NotificationKind.SUCCESS
+    assert message.startswith("Annonces de ACME PLOMBERIE rafraîchies : ")
+
+
+def test_nothing_is_refreshed_once_stopped(menu_bar: MainMenuBar) -> None:
+    actions = ReviewActions(menu_bar, lambda message, kind: None)
+    actions.refresh_notices("company:111111111", "ACME PLOMBERIE")
+    actions.expand("company:111111111", "ACME PLOMBERIE")
+    assert actions.expansions == {}

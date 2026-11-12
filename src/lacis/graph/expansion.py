@@ -392,6 +392,11 @@ class GraphExpander:
                 next_frontier.extend(self.unexpanded_neighbours(current, visited))
             frontier = list(dict.fromkeys(next_frontier))
 
+    def refresh_notices(self, identifier: str) -> ExpansionReport:
+        self.entity_to_expand(identifier, EntityKind.COMPANY)
+        digits = siren_of(identifier.split(":", 1)[1])
+        return ExpansionReport(self.save_notices(self.bodacc.notices_of(digits, refresh=True)))
+
     def expand_one(self, identifier: str, *, refresh: bool) -> GraphChanges:
         kind = kind_of(identifier)
         if kind is EntityKind.COMPANY:

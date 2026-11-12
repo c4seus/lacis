@@ -14,6 +14,7 @@ from lacis.review import (
     QueueEntity,
     ReviewQueue,
     expansion_message,
+    notices_message,
     review_queue,
 )
 from lacis.signals.signal import Severity, Signal
@@ -176,3 +177,16 @@ def test_an_expansion_message_tells_what_was_found() -> None:
     assert message.startswith("Extension de HOLDING DUPONT terminée : 1 entité ajoutée. ")
     assert troubled.cap_message in message
     assert message.endswith("(1 source en échec)")
+
+
+def test_a_notices_message_tells_what_changed() -> None:
+    changed = ExpansionReport(GraphChanges(new_notices=("A1", "A2"), withdrawn_notices=("A3",)))
+    assert notices_message("ACME", changed) == (
+        "Annonces de ACME rafraîchies : 2 nouvelles annonces, 1 annonce retirée"
+    )
+    assert notices_message("ACME", ExpansionReport(GraphChanges(new_notices=("A1",)))) == (
+        "Annonces de ACME rafraîchies : 1 nouvelle annonce"
+    )
+    assert notices_message("ACME", ExpansionReport(GraphChanges())) == (
+        "Annonces de ACME rafraîchies : rien de nouveau"
+    )
