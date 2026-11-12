@@ -94,10 +94,10 @@ class ReviewActions(QObject):
         self.history.record(ReportedCommand(command, DECISION_FAILURES, self.report_failure))
         self.notify(decision_message(*labels, decision), NotificationKind.SUCCESS)
 
-    def expand(self, identifier: str, label: str) -> None:
+    def expand(self, identifier: str, label: str, depth: int = 1, refresh: bool = False) -> None:
         if self.settings is None or identifier in self.expansions:
             return
-        job = expansion_job(self.settings, identifier)
+        job = expansion_job(self.settings, identifier, depth, refresh=refresh)
         job.succeeded.connect(lambda report: self.finish_expansion(identifier, label, report))
         job.cancelled.connect(lambda report: self.finish_expansion(identifier, label, None))
         job.failed.connect(lambda message: self.fail_expansion(identifier, message))

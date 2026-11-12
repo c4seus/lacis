@@ -2,6 +2,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime
 from enum import StrEnum
+from urllib.parse import quote
 
 from lacis.graph.drawing import KIND_LABELS, is_closed
 from lacis.graph.expansion import EXPANDED_AT_ATTRIBUTE, PIVOT_KINDS
@@ -10,6 +11,7 @@ from lacis.graph.mapping import spaced_siren
 from lacis.storage.entities import Attributes, Entity, EntityKind
 from lacis.storage.graph_store import GraphStore
 
+DIRECTORY_ROOT = "https://annuaire-entreprises.data.gouv.fr"
 ACTIVE_TEXT = "Active"
 CLOSED_COMPANY_TEXT = "Fermée"
 OPEN_ESTABLISHMENT_TEXT = "Ouvert"
@@ -38,6 +40,9 @@ class EntityDetails:
     badges: tuple[Badge, ...]
     facts: tuple[str, ...]
     expanded_on: str
+    copy_label: str
+    copy_value: str
+    directory_url: str
 
     @property
     def kind_label(self) -> str:
@@ -155,11 +160,34 @@ def status_badges(graph_store: GraphStore, entity: Entity) -> list[Badge]:
     return badges
 
 
+def copied(entity: Entity) -> tuple[str, str]:
+    if entity.kind is EntityKind.COMPANY and text_of(entity.attributes, "siren"):
+        return "Copier le SIREN", text_of(entity.attributes, "siren")
+    if entity.kind is EntityKind.ESTABLISHMENT and text_of(entity.attributes, "siret"):
+        return "Copier le SIRET", text_of(entity.attributes, "siret")
+    if entity.kind is EntityKind.ADDRESS:
+        return "Copier l'adresse", entity.label
+    return "Copier le nom", entity.label
+
+
+def directory_url(entity: Entity) -> str:
+    siren = text_of(entity.attributes, "siren")
+    siret = text_of(entity.attributes, "siret")
+    if entity.kind is EntityKind.COMPANY and siren:
+        return f"{DIRECTORY_ROOT}/entreprise/{siren}"
+    if entity.kind is EntityKind.ESTABLISHMENT and siret:
+        return f"{DIRECTORY_ROOT}/etablissement/{siret}"
+    if entity.kind in {EntityKind.PERSON, EntityKind.ADDRESS}:
+        return f"{DIRECTORY_ROOT}/rechercher?terme={quote(entity.label)}"
+    return ""
+
+
 def entity_details(connection: sqlite3.Connection, identifier: str) -> EntityDetails | None:
     graph_store = GraphStore(connection)
     entity = graph_store.entity(identifier)
     if entity is None:
         return None
+    copy_label, copy_value = copied(entity)
     expanded_at = entity.attributes.get(EXPANDED_AT_ATTRIBUTE)
     expanded_on = (
         f"Étendue le {written_moment(datetime.fromisoformat(expanded_at))}"
@@ -173,4 +201,7 @@ def entity_details(connection: sqlite3.Connection, identifier: str) -> EntityDet
         badges=tuple(status_badges(graph_store, entity)),
         facts=tuple(FACTS[entity.kind](entity.attributes)),
         expanded_on=expanded_on,
+        copy_label=copy_label,
+        copy_value=copy_value,
+        directory_url=directory_url(entity),
     )

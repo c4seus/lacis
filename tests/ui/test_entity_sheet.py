@@ -1,7 +1,8 @@
 import sqlite3
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QLabel, QWidget
 from pytestqt.qtbot import QtBot
 
@@ -24,8 +25,13 @@ def scenario(builder: InvestigationBuilder) -> PlumbersScenario:
 
 
 @pytest.fixture
-def sheet(qtbot: QtBot, icon_factory: IconFactory) -> EntitySheet:
-    sheet = EntitySheet(icon_factory)
+def opened_urls() -> list[QUrl]:
+    return []
+
+
+@pytest.fixture
+def sheet(qtbot: QtBot, icon_factory: IconFactory, opened_urls: list[QUrl]) -> EntitySheet:
+    sheet = EntitySheet(icon_factory, open_url=opened_urls.append)
     qtbot.addWidget(sheet)
     sheet.resize(420, 900)
     sheet.show()
@@ -66,36 +72,102 @@ def test_a_company_sheet_shows_its_head(
     assert sheet.badge_labels[0].property("tone") == "badge-closed"
     assert sheet.name_label.text() == "DUPONT SERVICES"
     assert [label.text() for label in sheet.fact_labels] == list(details.facts)
+    assert sheet.expand_button.text() == "Étendre"
+    assert sheet.expand_button.isVisible()
+    assert sheet.directory_button.isVisible()
+    assert sheet.copy_button.text() == "Copier le SIREN"
     assert not sheet.expanded_label.isVisible()
 
 
-def test_an_expanded_entity_tells_when(
+def test_an_expanded_entity_offers_to_expand_it_again(
     sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
 ) -> None:
     jean = builder.person("Jean", "DUPONT", expanded=True)
     shown(sheet, builder, scenario, jean)
+    assert sheet.expand_button.text() == "Étendre à nouveau"
     assert sheet.expanded_label.isVisible()
     assert sheet.expanded_label.text().startswith("Étendue le ")
 
 
 @pytest.mark.parametrize(
-    ("entity", "kind_label"),
+    "expected",
     [
-        ("acme_office", "Établissement"),
-        ("jean", "Personne"),
-        ("address", "Adresse"),
-        ("invest", "Entreprise étrangère"),
+        ("acme_office", "Établissement", False, True),
+        ("jean", "Personne", True, True),
+        ("address", "Adresse", True, True),
+        ("invest", "Entreprise étrangère", False, False),
     ],
 )
 def test_each_kind_has_its_sheet(
     sheet: EntitySheet,
     builder: InvestigationBuilder,
     scenario: PlumbersScenario,
-    entity: str,
-    kind_label: str,
+    expected: tuple[str, str, bool, bool],
 ) -> None:
+    entity, kind_label, expandable, with_directory = expected
     shown(sheet, builder, scenario, getattr(scenario, entity))
     assert sheet.kind_label.text() == kind_label
+    assert sheet.expand_button.isVisible() is expandable
+    assert sheet.directory_button.isVisible() is with_directory
+
+
+def test_the_depth_menu_chooses_how_far_to_expand(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    actions = sheet.depth_menu.actions()
+    assert [action.text() for action in actions] == [
+        "Profondeur 1",
+        "Profondeur 2",
+        "Profondeur 3",
+    ]
+    with qtbot.waitSignal(sheet.expansion_requested) as requested:
+        actions[2].trigger()
+    assert requested.args == [scenario.dupont_services, "DUPONT SERVICES", 3, False]
+    with qtbot.waitSignal(sheet.expansion_requested) as requested:
+        sheet.expand_button.click()
+    assert requested.args == [scenario.dupont_services, "DUPONT SERVICES", 1, False]
+
+
+def test_expanding_again_refreshes_the_entity(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    jean = builder.person("Jean", "DUPONT", expanded=True)
+    shown(sheet, builder, scenario, jean)
+    with qtbot.waitSignal(sheet.expansion_requested) as requested:
+        sheet.depth_menu.actions()[1].trigger()
+    assert requested.args == [jean, "Jean DUPONT", 2, True]
+
+
+def test_the_directory_link_opens_the_entity_page(
+    sheet: EntitySheet,
+    builder: InvestigationBuilder,
+    scenario: PlumbersScenario,
+    opened_urls: list[QUrl],
+) -> None:
+    details = shown(sheet, builder, scenario, scenario.dupont_services)
+    sheet.directory_button.click()
+    assert opened_urls == [QUrl(details.directory_url)]
+
+
+def test_copying_puts_the_identifier_in_the_clipboard(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    details = shown(sheet, builder, scenario, scenario.dupont_services)
+    with qtbot.waitSignal(sheet.copied) as copied:
+        sheet.copy_button.click()
+    assert QGuiApplication.clipboard().text() == details.copy_value
+    assert copied.args == [f"« {details.copy_value} » copié dans le presse-papiers."]
+
+
+def test_actions_without_an_entity_do_nothing(
+    qtbot: QtBot, sheet: EntitySheet, opened_urls: list[QUrl]
+) -> None:
+    with qtbot.assertNotEmitted(sheet.expansion_requested), qtbot.assertNotEmitted(sheet.copied):
+        sheet.expand(1)
+        sheet.copy()
+        sheet.open_directory()
+    assert opened_urls == []
 
 
 def test_an_entity_without_facts_hides_them(

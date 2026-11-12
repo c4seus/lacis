@@ -1,21 +1,35 @@
-from PySide6.QtCore import Qt
+from collections.abc import Callable
+
+from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMenu,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from lacis.design.icons import IconFactory
 from lacis.details import EntityDetails
+from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.graph_legend import KindSwatch
 
 EMPTY_TEXT = "La fiche de l'entité sélectionnée s'affichera ici."
 SHEET_ACCESSIBLE_NAME = "Fiche de l'entité"
+EXPAND_TEXT = "Étendre"
+EXPAND_AGAIN_TEXT = "Étendre à nouveau"
+DEPTH_TEXT = "Profondeur {depth}"
+DEPTH_MENU_ACCESSIBLE_NAME = "Choisir la profondeur d'extension"
+DIRECTORY_TEXT = "Annuaire"
+DIRECTORY_TOOLTIP = "Ouvrir la fiche dans l'Annuaire des entreprises"
+COPIED_MESSAGE = "« {value} » copié dans le presse-papiers."
 
 
 def wrapped_label(text: str, tone: str, parent: QWidget) -> QLabel:
@@ -33,13 +47,18 @@ def badge(text: str, tone: str, parent: QWidget) -> QLabel:
 
 
 class EntitySheet(QScrollArea):
+    expansion_requested = Signal(str, str, int, bool)
+    copied = Signal(str)
+
     def __init__(
         self,
         icon_factory: IconFactory,
         parent: QWidget | None = None,
+        open_url: Callable[[QUrl], object] = QDesktopServices.openUrl,
     ) -> None:
         super().__init__(parent)
         self.icon_factory = icon_factory
+        self.open_url = open_url
         self.setObjectName("entitySheet")
         self.setAccessibleName(SHEET_ACCESSIBLE_NAME)
         self.setWidgetResizable(True)
@@ -101,6 +120,61 @@ class EntitySheet(QScrollArea):
             facts_layout.addWidget(label)
         self.facts.setVisible(bool(details.facts))
         self.content_layout.addWidget(self.facts)
+        self.add_actions(details)
         self.expanded_label = wrapped_label(details.expanded_on, "faint", self.content)
         self.expanded_label.setVisible(details.expanded)
         self.content_layout.addWidget(self.expanded_label)
+
+    def add_actions(self, details: EntityDetails) -> None:
+        actions = QHBoxLayout()
+        actions.setContentsMargins(0, 10, 0, 2)
+        actions.setSpacing(6)
+        self.expand_button = QToolButton(self.content)
+        self.expand_button.setObjectName("expandButton")
+        self.expand_button.setText(EXPAND_AGAIN_TEXT if details.expanded else EXPAND_TEXT)
+        self.expand_button.setAccessibleName(self.expand_button.text())
+        self.expand_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.expand_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.depth_menu = QMenu(self.expand_button)
+        self.depth_menu.setAccessibleName(DEPTH_MENU_ACCESSIBLE_NAME)
+        for depth in range(MINIMUM_DEPTH, MAXIMUM_DEPTH + 1):
+            action = self.depth_menu.addAction(DEPTH_TEXT.format(depth=depth))
+            action.triggered.connect(lambda checked=False, chosen=depth: self.expand(chosen))
+        self.expand_button.setMenu(self.depth_menu)
+        self.expand_button.clicked.connect(lambda: self.expand(MINIMUM_DEPTH))
+        self.expand_button.setVisible(details.expandable)
+        self.directory_button = QPushButton(
+            self.icon_factory.icon("external"), DIRECTORY_TEXT, self.content
+        )
+        self.directory_button.setProperty("compact", True)
+        self.directory_button.setToolTip(DIRECTORY_TOOLTIP)
+        self.directory_button.setVisible(bool(details.directory_url))
+        self.directory_button.clicked.connect(self.open_directory)
+        self.copy_button = QPushButton(
+            self.icon_factory.icon("copy"), details.copy_label, self.content
+        )
+        self.copy_button.setProperty("compact", True)
+        self.copy_button.setProperty("variant", "subtle")
+        self.copy_button.clicked.connect(self.copy)
+        for widget in (self.expand_button, self.directory_button, self.copy_button):
+            actions.addWidget(widget)
+        actions.addStretch(1)
+        self.content_layout.addLayout(actions)
+
+    def expand(self, depth: int) -> None:
+        if self.details is None:
+            return
+        self.expansion_requested.emit(
+            self.details.identifier, self.details.name, depth, self.details.expanded
+        )
+
+    def open_directory(self) -> None:
+        if self.details is not None and self.details.directory_url:
+            self.open_url(QUrl(self.details.directory_url))
+
+    def copy(self) -> None:
+        if self.details is None:
+            return
+        clipboard = QGuiApplication.clipboard()
+        clipboard.setText(self.details.copy_value)
+        self.copied.emit(COPIED_MESSAGE.format(value=self.details.copy_value))
