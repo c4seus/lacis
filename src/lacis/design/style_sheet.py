@@ -490,6 +490,28 @@ QLabel[tone="queue-empty"] {{
     font-size: {font_sizes.caption}px;
 }}
 
+QLabel[tone="badge-high"], QLabel[tone="badge-medium"], QLabel[tone="badge-low"] {{
+    padding: 1px {spacing.step_2}px;
+    border-radius: {radii.small}px;
+    font-size: {font_sizes.caption}px;
+    font-weight: {font_weights.bold};
+}}
+
+QLabel[tone="badge-high"] {{
+    background-color: {colours.soft_high_severity};
+    color: {colours.high_severity};
+}}
+
+QLabel[tone="badge-medium"] {{
+    background-color: {colours.soft_medium_severity};
+    color: {colours.medium_severity};
+}}
+
+QLabel[tone="badge-low"] {{
+    background-color: {colours.soft_low_severity};
+    color: {colours.low_severity};
+}}
+
 QFrame#kindBadge {{
     border: 1px solid {colours.strong_border};
     border-radius: {radii.small}px;
@@ -503,6 +525,64 @@ QLabel[tone="badge-text"] {{
 
 QScrollArea#entitySheet, QWidget#entitySheetContent {{
     background-color: {colours.surface};
+}}
+
+QLabel[tone="section-title"] {{
+    color: {colours.muted_text};
+    font-size: {font_sizes.caption}px;
+    font-weight: {font_weights.bold};
+    letter-spacing: 1px;
+}}
+
+QLabel[tone="section-count"] {{
+    color: {colours.faint_text};
+    font-size: {font_sizes.caption}px;
+    font-weight: {font_weights.bold};
+}}
+
+QFrame#sectionRule {{
+    background-color: {colours.border};
+}}
+
+QFrame#signalCard {{
+    border: 1px solid {colours.border};
+    border-left: 3px solid {colours.high_severity};
+    border-radius: {radii.small}px;
+}}
+
+QFrame#signalCard[severity="medium"] {{
+    border-left-color: {colours.medium_severity};
+}}
+
+QFrame#signalCard[severity="low"] {{
+    border-left-color: {colours.low_severity};
+}}
+
+QLabel[tone="card-heading"] {{
+    font-size: {font_sizes.small}px;
+    font-weight: {font_weights.bold};
+}}
+
+QLabel[tone="body"] {{
+    font-size: {font_sizes.small}px;
+}}
+
+QLabel[tone="chip"] {{
+    font-size: {font_sizes.caption}px;
+}}
+
+QFrame#referenceChip {{
+    border: 1px solid {colours.border};
+    border-radius: 12px;
+    background-color: {colours.raised_surface};
+}}
+
+QFrame#referenceChip:hover {{
+    border-color: {colours.strong_border};
+}}
+
+QFrame#referenceChip:focus {{
+    border: 2px solid {colours.accent};
 }}
 
 QToolButton#expandButton {{
