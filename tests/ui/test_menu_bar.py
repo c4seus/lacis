@@ -98,6 +98,9 @@ def test_menus_without_entries_are_disabled(
 ) -> None:
     menu_bar = create_menu_bar(qtbot, theme_controller)
     assert menu_bar.file_menu.menuAction().isEnabled()
+    assert menu_bar.investigation_menu.menuAction().isEnabled()
+    menu_bar.investigation_menu.clear()
+    menu_bar.update_menu_availability()
     assert not menu_bar.investigation_menu.menuAction().isEnabled()
 
 
@@ -162,6 +165,7 @@ def test_the_view_menu_offers_the_theme_choice(
         menu_bar.zoom_out_action,
         menu_bar.fit_action,
         menu_bar.layout_action,
+        menu_bar.details_menu.menuAction(),
         theme_menu.menuAction(),
     ]
     assert [action.shortcut().toString() for action in menu_bar.graph_actions] == [
@@ -198,7 +202,7 @@ def test_every_entry_of_a_menu_has_its_own_mnemonic(
         mnemonics = [mnemonic(entry) for entry in entries]
         assert len(set(mnemonics)) == len(mnemonics), menu.title()
         checked_menus += 1
-    assert checked_menus == len(menu_bar.menus()) + 1
+    assert checked_menus == len(menu_bar.menus()) + 2
 
 
 def test_the_help_menu_and_the_help_button_share_the_same_entries(
@@ -281,3 +285,52 @@ def test_the_entries_follow_the_history_of_the_investigation_shown(
     assert len(menu_bar.histories.stacks()) == 3
     menu_bar.show_history(None)
     assert not menu_bar.undo_action.isEnabled()
+
+
+def test_the_details_tabs_are_reached_from_the_view_menu(
+    qtbot: QtBot, theme_controller: ThemeController
+) -> None:
+    menu_bar = create_menu_bar(qtbot, theme_controller)
+    actions = [action for action in menu_bar.details_menu.actions() if not action.isSeparator()]
+    assert actions == [
+        menu_bar.next_tab_action,
+        menu_bar.previous_tab_action,
+        *menu_bar.tab_actions,
+    ]
+    assert [action.shortcut().toString() for action in actions] == [
+        "Ctrl+PgDown",
+        "Ctrl+PgUp",
+        "Alt+1",
+        "Alt+2",
+        "Alt+3",
+        "Alt+4",
+    ]
+    assert [visible_text(action) for action in menu_bar.tab_actions] == [
+        "Fiche",
+        "Signaux",
+        "Entités",
+        "Journal",
+    ]
+    assert not any(action.isEnabled() for action in actions)
+
+
+def test_the_investigation_menu_searches_and_expands_the_selection(
+    qtbot: QtBot, theme_controller: ThemeController
+) -> None:
+    menu_bar = create_menu_bar(qtbot, theme_controller)
+    assert menu_bar.investigation_menu.actions() == [
+        menu_bar.search_action,
+        menu_bar.expand_action,
+    ]
+    assert [sequence.toString() for sequence in menu_bar.search_action.shortcuts()] == [
+        "Ctrl+F",
+        "/",
+    ]
+    assert menu_bar.expand_action.shortcut().toString() == "Ctrl+E"
+    menu_bar.show_investigation_actions(True)
+    assert menu_bar.search_action.isEnabled()
+    assert not menu_bar.expand_action.isEnabled()
+    menu_bar.expand_action.setEnabled(True)
+    menu_bar.show_investigation_actions(False)
+    assert not menu_bar.search_action.isEnabled()
+    assert not menu_bar.expand_action.isEnabled()

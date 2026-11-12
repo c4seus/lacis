@@ -31,6 +31,9 @@ LOGO_SIZE = QSize(22, 22)
 SEARCH_ICON_SIZE = QSize(16, 16)
 SEARCH_ICON_LEFT_MARGIN = 12
 SEARCH_TEXT_LEFT_MARGIN = 22
+SEARCH_HINT_RIGHT_MARGIN = 8
+SEARCH_SHORTCUT_HINT = "/"
+SEARCH_SHORTCUT_DESCRIPTION = "Raccourcis : / ou Ctrl+F"
 BREADCRUMB_SEPARATOR = "/"
 BREADCRUMB_ACCESSIBLE_NAME = "Fil d'Ariane"
 HOME_TRAIL = ("Enquêtes",)
@@ -60,6 +63,8 @@ class SearchField(QLineEdit):
     chosen = Signal()
     closed = Signal()
     left = Signal()
+    entered = Signal()
+    resized = Signal()
 
     @override
     def keyPressEvent(self, event: QKeyEvent) -> None:
@@ -74,6 +79,16 @@ class SearchField(QLineEdit):
             self.closed.emit()
             return
         super().keyPressEvent(event)
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.resized.emit()
+
+    @override
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        super().focusInEvent(event)
+        self.entered.emit()
 
     @override
     def focusOutEvent(self, event: QFocusEvent) -> None:
@@ -199,7 +214,16 @@ class HeaderBar(QWidget):
         self.search_field.setProperty("variant", "search")
         self.search_field.setPlaceholderText(SEARCH_PLACEHOLDER)
         self.search_field.setAccessibleName(SEARCH_ACCESSIBLE_NAME)
-        self.search_field.setTextMargins(SEARCH_TEXT_LEFT_MARGIN, 0, 0, 0)
+        self.search_field.setAccessibleDescription(SEARCH_SHORTCUT_DESCRIPTION)
+        self.shortcut_hint = QLabel(SEARCH_SHORTCUT_HINT, self.search_field)
+        self.shortcut_hint.setProperty("tone", "kbd")
+        self.shortcut_hint.adjustSize()
+        self.search_field.setTextMargins(
+            SEARCH_TEXT_LEFT_MARGIN, 0, self.shortcut_hint.width() + SEARCH_HINT_RIGHT_MARGIN, 0
+        )
+        self.search_field.entered.connect(self.show_shortcut_hint)
+        self.search_field.left.connect(self.show_shortcut_hint)
+        self.search_field.resized.connect(self.place_search_icon)
         self.search_icon = IconMark(
             self.icon_factory.icon("search"),
             SEARCH_ICON_SIZE,
@@ -271,6 +295,15 @@ class HeaderBar(QWidget):
             SEARCH_ICON_LEFT_MARGIN,
             (self.search_field.height() - self.search_icon.height()) // 2,
         )
+        self.shortcut_hint.adjustSize()
+        self.shortcut_hint.move(
+            self.search_field.width() - self.shortcut_hint.width() - SEARCH_HINT_RIGHT_MARGIN,
+            (self.search_field.height() - self.shortcut_hint.height()) // 2,
+        )
+
+    def show_shortcut_hint(self) -> None:
+        field = self.search_field
+        self.shortcut_hint.setVisible(field.isEnabled() and not field.hasFocus())
 
     def show_theme_preference(self, preference: ThemePreference) -> None:
         self.theme_button.setIcon(self.icon_factory.icon(THEME_PREFERENCE_ICONS[preference]))
@@ -278,3 +311,4 @@ class HeaderBar(QWidget):
     def set_search_enabled(self, enabled: bool) -> None:
         self.search_field.setEnabled(enabled)
         self.search_button.setEnabled(enabled)
+        self.show_shortcut_hint()

@@ -216,6 +216,7 @@ class EntitySheet(QScrollArea):
     raw_requested = Signal(int)
     copied = Signal(str)
     notices_refresh_requested = Signal(str, str)
+    expandable_changed = Signal(bool)
 
     def __init__(
         self,
@@ -402,6 +403,12 @@ class EntitySheet(QScrollArea):
             self.expand_button.setEnabled(not busy)
         if self.refresh_button is not None:
             self.refresh_button.setEnabled(not busy)
+        self.expandable_changed.emit(self.can_expand())
+
+    def can_expand(self) -> bool:
+        if self.details is None or not self.details.expandable:
+            return False
+        return self.details.identifier not in self.running
 
     def add_links(self, details: EntityDetails) -> None:
         if not details.links:

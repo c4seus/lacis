@@ -25,6 +25,16 @@ FIT_ACTION_TEXT = "A&juster le graphe à la fenêtre"
 FIT_SHORTCUT = QKeySequence("Ctrl+0")
 LAYOUT_ACTION_TEXT = "Réor&ganiser le graphe"
 LAYOUT_SHORTCUT = QKeySequence("Ctrl+Shift+R")
+DETAILS_MENU_TITLE = "&Panneau de détails"
+NEXT_TAB_ACTION_TEXT = "Onglet &suivant"
+NEXT_TAB_SHORTCUT = QKeySequence("Ctrl+PgDown")
+PREVIOUS_TAB_ACTION_TEXT = "Onglet &précédent"
+PREVIOUS_TAB_SHORTCUT = QKeySequence("Ctrl+PgUp")
+TAB_ACTION_TEXTS = ("&Fiche", "Si&gnaux", "&Entités", "&Journal")
+SEARCH_ACTION_TEXT = "&Rechercher une entreprise"
+SEARCH_SHORTCUTS = [QKeySequence("Ctrl+F"), QKeySequence("/")]
+EXPAND_ACTION_TEXT = "É&tendre la sélection"
+EXPAND_SHORTCUT = QKeySequence("Ctrl+E")
 UNDO_PREFIX = "&Annuler"
 REDO_PREFIX = "&Rétablir"
 UNDO_SHORTCUT = QKeySequence("Ctrl+Z")
@@ -62,10 +72,15 @@ class MainMenuBar(QMenuBar):
         self.redo_action = self.histories.createRedoAction(self, REDO_PREFIX)
         self.redo_action.setShortcut(REDO_SHORTCUT)
         self.edit_menu.addActions([self.undo_action, self.redo_action])
+        self.create_view_menu(theme_menu)
+        self.create_investigation_menu()
+        self.show_investigation_actions(False)
+        self.update_menu_availability()
+
+    def create_view_menu(self, theme_menu: ThemeMenu) -> None:
         self.queue_action = QAction(QUEUE_ACTION_TEXT, self)
         self.queue_action.setCheckable(True)
         self.queue_action.setShortcut(QUEUE_SHORTCUT)
-        self.queue_action.setEnabled(False)
         self.view_menu.addAction(self.queue_action)
         self.view_menu.addSeparator()
         self.zoom_in_action = QAction(ZOOM_IN_ACTION_TEXT, self)
@@ -78,14 +93,54 @@ class MainMenuBar(QMenuBar):
         self.layout_action.setShortcut(LAYOUT_SHORTCUT)
         self.view_menu.addActions(self.graph_actions)
         self.view_menu.addSeparator()
-        for action in self.graph_actions:
-            action.setEnabled(False)
+        self.create_details_menu()
+        self.view_menu.addSeparator()
         self.view_menu.addMenu(theme_menu)
-        self.update_menu_availability()
+
+    def create_investigation_menu(self) -> None:
+        self.search_action = QAction(SEARCH_ACTION_TEXT, self)
+        self.search_action.setShortcuts(SEARCH_SHORTCUTS)
+        self.expand_action = QAction(EXPAND_ACTION_TEXT, self)
+        self.expand_action.setShortcut(EXPAND_SHORTCUT)
+        self.expand_action.setEnabled(False)
+        self.investigation_menu.addActions([self.search_action, self.expand_action])
+
+    def create_details_menu(self) -> None:
+        self.details_menu = QMenu(DETAILS_MENU_TITLE, self.view_menu)
+        self.next_tab_action = QAction(NEXT_TAB_ACTION_TEXT, self)
+        self.next_tab_action.setShortcut(NEXT_TAB_SHORTCUT)
+        self.previous_tab_action = QAction(PREVIOUS_TAB_ACTION_TEXT, self)
+        self.previous_tab_action.setShortcut(PREVIOUS_TAB_SHORTCUT)
+        self.details_menu.addActions([self.next_tab_action, self.previous_tab_action])
+        self.details_menu.addSeparator()
+        self.tab_actions: list[QAction] = []
+        for position, text in enumerate(TAB_ACTION_TEXTS, start=1):
+            action = QAction(text, self)
+            action.setShortcut(QKeySequence(f"Alt+{position}"))
+            self.tab_actions.append(action)
+        self.details_menu.addActions(self.tab_actions)
+        self.view_menu.addMenu(self.details_menu)
 
     @property
     def graph_actions(self) -> list[QAction]:
         return [self.zoom_in_action, self.zoom_out_action, self.fit_action, self.layout_action]
+
+    @property
+    def investigation_actions(self) -> list[QAction]:
+        return [
+            self.queue_action,
+            *self.graph_actions,
+            self.next_tab_action,
+            self.previous_tab_action,
+            *self.tab_actions,
+            self.search_action,
+        ]
+
+    def show_investigation_actions(self, shown: bool) -> None:
+        for action in self.investigation_actions:
+            action.setEnabled(shown)
+        if not shown:
+            self.expand_action.setEnabled(False)
 
     def menus(self) -> list[QMenu]:
         return [
