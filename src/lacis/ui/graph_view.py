@@ -29,7 +29,7 @@ from lacis.design.tokens import FONT_FAMILIES, Colours
 from lacis.graph.descriptions import entity_description, entity_summary, graph_summary
 from lacis.graph.drawing import EdgeKind, GraphDrawing, GraphEdge, GraphNode, NodeShape
 from lacis.graph.filters import GraphFilter
-from lacis.graph.navigation import Direction
+from lacis.graph.navigation import Direction, linked_towards, starting_entity
 from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
 from lacis.ui import announcements
@@ -43,7 +43,9 @@ ZOOM_STEP = 1.25
 MINIMUM_SCALE = 0.1
 MAXIMUM_SCALE = 4.0
 PAN_STEP = 60
+MOVE_STEP = 10.0
 PANNING_MARGIN = 3000.0
+NO_LINK_TOWARDS_TEXT = "Aucune entité liée dans cette direction"
 ARROW_DIRECTIONS = {
     Qt.Key.Key_Left: Direction.LEFT,
     Qt.Key.Key_Right: Direction.RIGHT,
@@ -566,6 +568,29 @@ class GraphView(QGraphicsView):
         horizontal.setValue(horizontal.value() + int(step_x * PAN_STEP))
         vertical.setValue(vertical.value() + int(step_y * PAN_STEP))
 
+    def navigate(self, direction: Direction) -> None:
+        points = self.current_points()
+        shown = self.shown_identifiers()
+        if self.selected_identifier is None:
+            target = starting_entity(self.drawing, points, shown)
+        else:
+            target = linked_towards(
+                self.drawing, points, self.selected_identifier, direction, shown
+            )
+        if target is None:
+            announcements.announce(self, NO_LINK_TOWARDS_TEXT, announcements.POLITE)
+            return
+        self.select(target)
+
+    def move_selection(self, direction: Direction) -> None:
+        if self.selected_identifier is None:
+            return
+        item = self.graph_scene.node_items[self.selected_identifier]
+        step_x, step_y = direction.value
+        item.moveBy(step_x * MOVE_STEP, step_y * MOVE_STEP)
+        self.ensureVisible(item, 0, 0)
+        self.entities_moved.emit({self.selected_identifier: item.point})
+
     @override
     def keyPressEvent(self, event: QKeyEvent) -> None:
         key = Qt.Key(event.key())
@@ -573,12 +598,18 @@ class GraphView(QGraphicsView):
         direction = ARROW_DIRECTIONS.get(key)
         if direction is not None and modifiers & Qt.KeyboardModifier.ShiftModifier:
             self.pan(direction)
+        elif direction is not None and modifiers & Qt.KeyboardModifier.AltModifier:
+            self.move_selection(direction)
+        elif direction is not None:
+            self.navigate(direction)
         elif key in ZOOM_IN_KEYS:
             self.zoom_in()
         elif key in ZOOM_OUT_KEYS:
             self.zoom_out()
         elif key in FIT_KEYS:
             self.fit()
+        elif key == Qt.Key.Key_Escape and self.selected_identifier is not None:
+            self.graph_scene.select(None)
         else:
             super().keyPressEvent(event)
 
