@@ -2,7 +2,7 @@ import sqlite3
 
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QMouseEvent, QWheelEvent
+from PySide6.QtGui import QAccessible, QMouseEvent, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QWidget
 from pytestqt.qtbot import QtBot
@@ -13,9 +13,12 @@ from lacis.design.icons import IconFactory
 from lacis.graph.drawing import GraphDrawing, graph_drawing
 from lacis.graph.filters import GraphFilter
 from lacis.storage.entities import EntityKind
+from lacis.ui import announcements
 from lacis.ui.graph_controls import FilterChip, ZoomToolbar
-from lacis.ui.graph_view import MAXIMUM_SCALE, MINIMUM_SCALE, ZOOM_STEP, GraphView
+from lacis.ui.graph_view import MAXIMUM_SCALE, MINIMUM_SCALE, MOVE_STEP, ZOOM_STEP, GraphView
 from lacis.ui.investigation_columns import GraphArea
+
+type Announcement = tuple[str, QAccessible.AnnouncementPoliteness]
 
 
 @pytest.fixture
@@ -44,6 +47,21 @@ def area(qtbot: QtBot, icon_factory: IconFactory, drawing: GraphDrawing) -> Grap
 @pytest.fixture
 def view(area: GraphArea) -> GraphView:
     return area.graph_view
+
+
+@pytest.fixture
+def heard(monkeypatch: pytest.MonkeyPatch) -> list[Announcement]:
+    messages: list[Announcement] = []
+
+    def record(
+        widget: QWidget,
+        message: str,
+        politeness: QAccessible.AnnouncementPoliteness = announcements.ASSERTIVE,
+    ) -> None:
+        messages.append((message, politeness))
+
+    monkeypatch.setattr(announcements, "announce", record)
+    return messages
 
 
 def press(view: GraphView, key: Qt.Key, modifier: Qt.KeyboardModifier | None = None) -> None:
@@ -147,6 +165,46 @@ def test_shift_and_the_arrows_pan_the_graph(view: GraphView) -> None:
     assert view.selected_identifier is None
 
 
+def test_the_arrows_move_from_entity_to_linked_entity(
+    view: GraphView, scenario: PlumbersScenario, heard: list[Announcement]
+) -> None:
+    press(view, Qt.Key.Key_Down)
+    assert view.selected_identifier in {scenario.jean, scenario.jean_pierre}
+    view.select(scenario.acme)
+    press(view, Qt.Key.Key_Down)
+    assert view.selected_identifier == scenario.acme_office
+    press(view, Qt.Key.Key_Down)
+    assert view.selected_identifier == scenario.address
+    press(view, Qt.Key.Key_Down)
+    assert view.selected_identifier == scenario.address
+    assert heard[-1] == ("Aucune entité liée dans cette direction", announcements.POLITE)
+    assert heard[-2][0].startswith("12 RUE DES LILAS 31000 TOULOUSE, adresse")
+
+
+def test_escape_clears_the_selection(view: GraphView, scenario: PlumbersScenario) -> None:
+    view.select(scenario.acme)
+    press(view, Qt.Key.Key_Escape)
+    assert view.selected_identifier is None
+    press(view, Qt.Key.Key_Escape)
+    assert view.selected_identifier is None
+
+
+def test_alt_and_the_arrows_move_the_selected_entity(
+    qtbot: QtBot, view: GraphView, scenario: PlumbersScenario
+) -> None:
+    with qtbot.assertNotEmitted(view.entities_moved, wait=10):
+        press(view, Qt.Key.Key_Right, Qt.KeyboardModifier.AltModifier)
+    view.select(scenario.holding)
+    item = view.graph_scene.node_items[scenario.holding]
+    start = item.point
+    with qtbot.waitSignal(view.entities_moved) as moved:
+        press(view, Qt.Key.Key_Right, Qt.KeyboardModifier.AltModifier)
+    assert item.point == (start[0] + MOVE_STEP, start[1])
+    assert moved.args == [{scenario.holding: item.point}]
+    press(view, Qt.Key.Key_Up, Qt.KeyboardModifier.AltModifier)
+    assert item.point == (start[0] + MOVE_STEP, start[1] - MOVE_STEP)
+
+
 def test_other_keys_keep_their_usual_meaning(view: GraphView, scenario: PlumbersScenario) -> None:
     view.select(scenario.acme)
     press(view, Qt.Key.Key_A)
@@ -192,6 +250,9 @@ def test_flagged_entities_only_keeps_the_ringed_ones(
     assert shown == {scenario.acme, scenario.dupont_services, scenario.jean, scenario.jean_pierre}
     assert view.selected_identifier is None
     assert area.filter_chip.text() == "Filtres · 5 entités masquées"
+    view.select(scenario.acme)
+    press(view, Qt.Key.Key_Down)
+    assert view.selected_identifier == scenario.acme
 
 
 def test_show_everything_resets_the_filters(area: GraphArea, view: GraphView) -> None:
