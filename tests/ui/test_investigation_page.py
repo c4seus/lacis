@@ -14,6 +14,7 @@ from lacis.design.theme_controller import ThemeController
 from lacis.storage.entities import EntityKind
 from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
 from lacis.storage.positions import Position, PositionStore
+from lacis.ui.entity_sheet import EntitySheet
 from lacis.ui.investigation_page import (
     COLUMNS_SETTING,
     Counter,
@@ -461,12 +462,12 @@ def test_choosing_an_entity_in_the_queue_selects_it_everywhere(
     assert page.selected_entity == identifier
     assert page.graph_view.selected_identifier == identifier
     assert row.property("selected")
-    assert page.details_panel.entity_label.text().startswith(row.entity.label)
+    details = page.details_panel.entity_sheet.details
+    assert details is not None
+    assert details.identifier == identifier
     page.graph_view.graph_scene.select(None)
     assert not row.property("selected")
-    assert page.details_panel.entity_label.text() == (
-        "La fiche de l'entité sélectionnée s'affichera ici."
-    )
+    assert page.details_panel.entity_sheet.details is None
 
 
 def test_choosing_an_entity_hidden_by_a_filter_shows_it_again(
@@ -523,3 +524,44 @@ def test_a_lead_is_expanded_from_the_queue(
     assert review_list.expand_buttons[identifier].isEnabled() or identifier not in (
         review_list.expand_buttons
     )
+
+
+def sheet_of(main_window: MainWindow) -> EntitySheet:
+    return main_window.investigation_page.details_panel.entity_sheet
+
+
+def select_first_company(main_window: MainWindow) -> str:
+    page = main_window.investigation_page
+    company = next(
+        node.identifier
+        for node in page.graph_view.drawing.nodes
+        if node.kind is EntityKind.COMPANY
+    )
+    page.show_entity(company, "")
+    return company
+
+
+def test_the_details_follow_the_selection_and_the_refreshes(main_window: MainWindow) -> None:
+    company = select_first_company(main_window)
+    sheet = sheet_of(main_window)
+    assert sheet.details is not None
+    assert sheet.details.identifier == company
+    main_window.refresh_overview()
+    assert sheet.details is not None
+    assert sheet.details.identifier == company
+    main_window.show_details("company:100000009")
+    assert sheet.details is None
+
+
+def test_details_of_an_investigation_removed_meanwhile_are_not_shown(
+    main_window: MainWindow, library: InvestigationLibrary
+) -> None:
+    library.rename(INVESTIGATION_NAME, "ailleurs")
+    main_window.show_details("company:100000000")
+    messages = [
+        notification.message for notification in main_window.notification_area.notifications
+    ]
+    assert messages == [f"L'enquête « {INVESTIGATION_NAME} » est introuvable."]
+    main_window.show_home()
+    main_window.show_details("company:100000000")
+    assert sheet_of(main_window).details is None

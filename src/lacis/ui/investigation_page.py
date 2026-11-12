@@ -2,7 +2,6 @@ from PySide6.QtCore import QByteArray, QSettings, Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget
 
 from lacis.design.icons import IconFactory
-from lacis.graph.descriptions import entity_description
 from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
 from lacis.storage.investigations import Investigation
@@ -106,6 +105,7 @@ class InvestigationPage(QWidget):
     entities_moved = Signal(dict)
     decision_requested = Signal(object, object, object)
     expansion_requested = Signal(str, str)
+    entity_selected = Signal(str)
 
     def __init__(
         self, settings: QSettings, icon_factory: IconFactory, parent: QWidget | None = None
@@ -120,7 +120,7 @@ class InvestigationPage(QWidget):
         self.queue_rail = QueueRail(icon_factory, self)
         self.queue_rail.expand_button.clicked.connect(self.expand_queue)
         self.graph_area = GraphArea(icon_factory, self)
-        self.details_panel = DetailsPanel(self)
+        self.details_panel = DetailsPanel(icon_factory, self)
         self.graph_view = self.graph_area.graph_view
         self.graph_view.selection_changed.connect(self.follow_selection)
         self.graph_view.entities_moved.connect(self.entities_moved)
@@ -203,5 +203,4 @@ class InvestigationPage(QWidget):
     def follow_selection(self, identifier: str) -> None:
         self.selected_entity = identifier or None
         self.queue_column.review_list.mark_selected(self.selected_entity)
-        description = entity_description(self.graph_view.drawing, identifier) if identifier else ""
-        self.details_panel.show_entity(description)
+        self.entity_selected.emit(identifier)

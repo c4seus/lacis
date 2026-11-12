@@ -12,10 +12,12 @@ from PySide6.QtWidgets import (
 )
 
 from lacis.design.icons import IconFactory
+from lacis.details import EntityDetails
 from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
 from lacis.review import review_queue
 from lacis.signals.facts import counted
+from lacis.ui.entity_sheet import EntitySheet
 from lacis.ui.graph_controls import FilterChip, ZoomToolbar
 from lacis.ui.graph_legend import GraphLegend
 from lacis.ui.graph_view import GraphView
@@ -36,8 +38,8 @@ RAIL_WIDTH = 44
 RAIL_COUNT_HEIGHT = 18
 GRAPH_MINIMUM_WIDTH = 320
 DETAILS_MINIMUM_WIDTH = 340
+SHEET_TAB_TITLE = "Fiche"
 DETAILS_TABS = (
-    ("Fiche", "La fiche de l'entité sélectionnée s'affichera ici."),
     ("Signaux", "Les signaux d'alerte de l'enquête s'afficheront ici."),
     ("Entités", "La liste des entités de l'enquête s'affichera ici."),
     ("Journal", "Le journal de collecte de l'enquête s'affichera ici."),
@@ -192,7 +194,7 @@ class GraphArea(QFrame):
 
 
 class DetailsPanel(QFrame):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, icon_factory: IconFactory, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("detailsPanel")
         self.setMinimumWidth(DETAILS_MINIMUM_WIDTH)
@@ -201,6 +203,8 @@ class DetailsPanel(QFrame):
         self.tabs.setAccessibleName(DETAILS_ACCESSIBLE_NAME)
         self.tabs.setDocumentMode(True)
         self.tabs.tabBar().setDrawBase(False)
+        self.entity_sheet = EntitySheet(icon_factory, self.tabs)
+        self.tabs.addTab(self.entity_sheet, SHEET_TAB_TITLE)
         self.placeholders: list[QLabel] = []
         for title, empty_text in DETAILS_TABS:
             page = QWidget(self.tabs)
@@ -215,12 +219,5 @@ class DetailsPanel(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.tabs)
 
-    @property
-    def entity_label(self) -> QLabel:
-        return self.placeholders[0]
-
-    def show_entity(self, description: str) -> None:
-        self.entity_label.setText(description or DETAILS_TABS[0][1])
-        self.entity_label.setProperty("tone", "body" if description else "faint")
-        self.entity_label.style().unpolish(self.entity_label)
-        self.entity_label.style().polish(self.entity_label)
+    def show_details(self, details: EntityDetails | None) -> None:
+        self.entity_sheet.show_details(details)
