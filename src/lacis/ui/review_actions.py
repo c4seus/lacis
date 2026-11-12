@@ -1,5 +1,6 @@
 import sqlite3
 from collections.abc import Callable
+from dataclasses import replace
 
 from PySide6.QtCore import QObject, Signal
 
@@ -10,10 +11,17 @@ from lacis.graph.background import (
     notices_refresh_job,
 )
 from lacis.graph.expansion import ExpansionReport
+from lacis.graph.progress import ExpansionProgress
 from lacis.history import InvestigationHistory
 from lacis.identity.decision_commands import RecordDecisionCommand, ReportedCommand
 from lacis.identity.library_decisions import LibraryDecisionStore
-from lacis.review import expansion_message, notices_message
+from lacis.review import (
+    RunningCollection,
+    expansion_cancelled_message,
+    expansion_message,
+    notices_cancelled_message,
+    notices_message,
+)
 from lacis.storage.errors import InvestigationError
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionNotFoundError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE
@@ -26,9 +34,12 @@ DECISION_TEXTS = {
     HomonymDecision.DIFFERENT_PERSON: "personnes différentes",
 }
 UNDO_HINT = "Ctrl+Z pour annuler."
-EXPANSION_STARTED_PREFIX = "Extension de "
-EXPANSION_STARTED_SUFFIX = " en cours…"
-NOTICES_REFRESH_STARTED_PREFIX = "Rafraîchissement des annonces de "
+EXPANSION_TITLE_PREFIX = "Extension de "
+STARTED_SUFFIX = " en cours…"
+NOTICES_REFRESH_TITLE_PREFIX = "Rafraîchissement des annonces de "
+
+type Describe = Callable[[ExpansionReport], str]
+type DescribeCancelled = Callable[[ExpansionReport | None], str]
 
 
 def failure_message(failure: Exception) -> str:
@@ -44,6 +55,7 @@ def decision_message(first_label: str, second_label: str, decision: HomonymDecis
 class ReviewActions(QObject):
     changed = Signal()
     expanding_changed = Signal(object)
+    collections_changed = Signal(object)
 
     def __init__(
         self,
@@ -58,6 +70,7 @@ class ReviewActions(QObject):
         self.history = InvestigationHistory(self)
         self.history.changed.connect(self.follow_history)
         self.expansions: dict[str, BackgroundJob] = {}
+        self.running: dict[str, RunningCollection] = {}
 
     def start(self, settings: CollectionSettings) -> None:
         self.stop()
@@ -74,7 +87,8 @@ class ReviewActions(QObject):
         for job in self.expansions.values():
             job.wait()
         self.expansions = {}
-        self.expanding_changed.emit(set())
+        self.running = {}
+        self.publish_running()
         self.settings = None
         self.history.clear()
         self.menu_bar.show_history(None)
@@ -104,54 +118,86 @@ class ReviewActions(QObject):
         if self.settings is None:
             return
         self.run_collection(
-            identifier,
+            RunningCollection(identifier, f"{EXPANSION_TITLE_PREFIX}{label}"),
             expansion_job(self.settings, identifier, depth, refresh=refresh),
-            f"{EXPANSION_STARTED_PREFIX}{label}{EXPANSION_STARTED_SUFFIX}",
             lambda report: expansion_message(label, report),
+            lambda report: expansion_cancelled_message(label, report),
         )
 
     def refresh_notices(self, identifier: str, label: str) -> None:
         if self.settings is None:
             return
         self.run_collection(
-            identifier,
+            RunningCollection(identifier, f"{NOTICES_REFRESH_TITLE_PREFIX}{label}"),
             notices_refresh_job(self.settings, identifier),
-            f"{NOTICES_REFRESH_STARTED_PREFIX}{label}{EXPANSION_STARTED_SUFFIX}",
             lambda report: notices_message(label, report),
+            lambda report: notices_cancelled_message(label, report),
         )
 
     def run_collection(
         self,
-        identifier: str,
+        collection: RunningCollection,
         job: BackgroundJob,
-        started_message: str,
-        describe: Callable[[ExpansionReport], str],
+        describe: Describe,
+        describe_cancelled: DescribeCancelled,
     ) -> None:
+        identifier = collection.identifier
         if identifier in self.expansions:
             return
+        job.progressed.connect(lambda progress: self.follow_progress(identifier, progress))
         job.succeeded.connect(lambda report: self.finish_collection(identifier, report, describe))
-        job.cancelled.connect(lambda report: self.finish_collection(identifier, None, describe))
+        job.cancelled.connect(
+            lambda report: self.finish_cancelled(identifier, report, describe_cancelled)
+        )
         job.failed.connect(lambda message: self.fail_expansion(identifier, message))
         self.expansions[identifier] = job
-        self.expanding_changed.emit(set(self.expansions))
-        self.notify(started_message, NotificationKind.INFORMATION)
+        self.running[identifier] = collection
+        self.publish_running()
+        self.notify(f"{collection.title}{STARTED_SUFFIX}", NotificationKind.INFORMATION)
         job.start()
+
+    def publish_running(self) -> None:
+        self.expanding_changed.emit(set(self.expansions))
+        self.collections_changed.emit(tuple(self.running.values()))
+
+    def follow_progress(self, identifier: str, progress: ExpansionProgress) -> None:
+        collection = self.running.get(identifier)
+        if collection is None:
+            return
+        self.running[identifier] = replace(collection, progress=progress)
+        self.collections_changed.emit(tuple(self.running.values()))
+
+    def cancel(self, identifier: str) -> None:
+        job = self.expansions.get(identifier)
+        if job is None:
+            return
+        job.cancel()
+        self.running[identifier] = replace(self.running[identifier], cancelling=True)
+        self.collections_changed.emit(tuple(self.running.values()))
 
     def forget_expansion(self, identifier: str) -> bool:
         job = self.expansions.pop(identifier, None)
         if job is None:
             return False
         job.wait()
-        self.expanding_changed.emit(set(self.expansions))
+        self.running.pop(identifier, None)
+        self.publish_running()
         return True
 
-    def finish_collection(
-        self, identifier: str, report: object, describe: Callable[[ExpansionReport], str]
-    ) -> None:
+    def finish_collection(self, identifier: str, report: object, describe: Describe) -> None:
         if not self.forget_expansion(identifier):
             return
         if isinstance(report, ExpansionReport):
             self.notify(describe(report), NotificationKind.SUCCESS)
+        self.changed.emit()
+
+    def finish_cancelled(
+        self, identifier: str, report: object, describe_cancelled: DescribeCancelled
+    ) -> None:
+        if not self.forget_expansion(identifier):
+            return
+        cancelled_report = report if isinstance(report, ExpansionReport) else None
+        self.notify(describe_cancelled(cancelled_report), NotificationKind.INFORMATION)
         self.changed.emit()
 
     def fail_expansion(self, identifier: str, message: str) -> None:

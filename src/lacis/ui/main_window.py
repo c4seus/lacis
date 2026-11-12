@@ -137,6 +137,9 @@ class MainWindow(QMainWindow):
         review_list = self.investigation_page.queue_column.review_list
         self.review_actions.changed.connect(self.refresh_overview)
         self.review_actions.expanding_changed.connect(review_list.show_expanding)
+        graph_area = self.investigation_page.graph_area
+        self.review_actions.collections_changed.connect(graph_area.show_collections)
+        graph_area.progress_panel.cancel_requested.connect(self.review_actions.cancel)
         self.review_actions.expanding_changed.connect(
             self.investigation_page.details_panel.entity_sheet.show_running
         )

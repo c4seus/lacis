@@ -15,8 +15,9 @@ from lacis.design.icons import IconFactory
 from lacis.details import EntityDetails
 from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
-from lacis.review import review_queue
+from lacis.review import RunningCollection, review_queue
 from lacis.signals.facts import counted
+from lacis.ui.collection_progress import CollectionProgressPanel
 from lacis.ui.entity_sheet import EntitySheet
 from lacis.ui.entity_table import EntitiesTab
 from lacis.ui.graph_controls import FilterChip, ZoomToolbar
@@ -143,6 +144,7 @@ class GraphArea(QFrame):
         self.empty_label = placeholder(GRAPH_EMPTY_TEXT, self)
         self.empty_label.setWordWrap(False)
         self.legend = GraphLegend(icon_factory.colours_provider, self)
+        self.progress_panel = CollectionProgressPanel(self)
         self.graph_layout = QVBoxLayout(self)
         self.graph_layout.setContentsMargins(0, 0, 0, 0)
         self.graph_layout.setSpacing(0)
@@ -162,7 +164,13 @@ class GraphArea(QFrame):
         return self.graph_view.select(identifier)
 
     def overlays(self) -> list[QWidget]:
-        return [self.empty_label, self.filter_chip, self.zoom_toolbar, self.legend]
+        return [
+            self.empty_label,
+            self.filter_chip,
+            self.zoom_toolbar,
+            self.legend,
+            self.progress_panel,
+        ]
 
     def show_controls(self, shown: bool) -> None:
         self.empty_label.setVisible(not shown)
@@ -178,6 +186,7 @@ class GraphArea(QFrame):
     def place_overlays(self) -> None:
         for overlay in self.overlays():
             overlay.adjustSize()
+        self.progress_panel.fit()
         self.empty_label.move(
             (self.width() - self.empty_label.width()) // 2,
             (self.height() - self.empty_label.height()) // 2,
@@ -188,8 +197,15 @@ class GraphArea(QFrame):
             self.width() - self.zoom_toolbar.width() - OVERLAY_MARGIN,
             self.height() - self.zoom_toolbar.height() - OVERLAY_MARGIN,
         )
+        self.progress_panel.move(
+            self.width() - self.progress_panel.width() - OVERLAY_MARGIN, OVERLAY_MARGIN
+        )
         for overlay in self.overlays():
             overlay.raise_()
+
+    def show_collections(self, collections: tuple[RunningCollection, ...]) -> None:
+        self.progress_panel.show_collections(collections)
+        self.place_overlays()
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:

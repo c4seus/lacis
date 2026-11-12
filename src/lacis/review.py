@@ -1,7 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from lacis.graph.descriptions import spoken_label
 from lacis.graph.expansion import ExpansionReport
+from lacis.graph.progress import ExpansionProgress
 from lacis.identity.homonyms import Confidence, HomonymProposal
 from lacis.overview import InvestigationOverview
 from lacis.signals.facts import counted
@@ -18,6 +19,8 @@ NO_SIGNAL_TEXT = "Aucun signal"
 NO_HOMONYM_TEXT = "Aucun rapprochement en attente"
 NO_LEAD_TEXT = "Aucune piste à étendre"
 UNAVAILABLE_SIGNALS_PREFIX = "Signaux indisponibles : "
+STARTING_TEXT = "Démarrage…"
+CANCELLING_TEXT = "Annulation en cours…"
 
 
 @dataclass(frozen=True)
@@ -173,3 +176,35 @@ def notices_message(label: str, report: ExpansionReport) -> str:
         parts.append(counted(withdrawn, "annonce retirée", "annonces retirées"))
     found = ", ".join(parts) if parts else "rien de nouveau"
     return f"Annonces de {label} rafraîchies : {found}"
+
+
+def expansion_cancelled_message(label: str, report: ExpansionReport | None) -> str:
+    added = 0 if report is None else len(report.changes.new_entities)
+    if not added:
+        return f"Extension de {label} annulée : rien n'a été ajouté"
+    found = counted(added, "entité ajoutée", "entités ajoutées")
+    return f"Extension de {label} annulée : {found} avant l'arrêt"
+
+
+def notices_cancelled_message(label: str, report: ExpansionReport | None) -> str:
+    return f"Rafraîchissement des annonces de {label} annulé"
+
+
+@dataclass(frozen=True)
+class RunningCollection:
+    identifier: str
+    title: str
+    progress: ExpansionProgress = field(default_factory=ExpansionProgress)
+    cancelling: bool = False
+
+    @property
+    def status_text(self) -> str:
+        if self.cancelling:
+            return CANCELLING_TEXT
+        if self.progress == ExpansionProgress():
+            return STARTING_TEXT
+        return self.progress.summary
+
+    @property
+    def cancel_name(self) -> str:
+        return f"Annuler : {self.title}"

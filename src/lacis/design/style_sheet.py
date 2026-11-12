@@ -684,6 +684,23 @@ QTreeWidget#shortcutsTree::item {{
     padding: 3px 4px;
 }}
 
+QFrame#collectionProgress {{
+    border: 1px solid {colours.border};
+    border-radius: {radii.medium}px;
+    background-color: {colours.surface};
+}}
+
+QFrame#collectionProgress QProgressBar {{
+    border: none;
+    border-radius: 2px;
+    background-color: {colours.soft_accent};
+}}
+
+QFrame#collectionProgress QProgressBar::chunk {{
+    border-radius: 2px;
+    background-color: {colours.accent};
+}}
+
 QFrame#graphLegend {{
     border: 1px solid {colours.border};
     border-radius: {radii.medium}px;
