@@ -228,7 +228,7 @@ The website, https://c4seus.github.io/lacis/, presents Lacis and holds its user 
 
 - **Pages** are Markdown or MDX files in `site/src/content/docs/`. The file `guide/installation.md` becomes the page `/lacis/guide/installation/`.
 - **Node.js.** The website needs the version of Node.js written in `site/.node-version`, and npm. `make site` and `make site-preview` install the dependencies locked in `site/package-lock.json` when they change.
-- **Links** between pages start with the base path and end with a slash, as in `/lacis/guide/installation/`. `make site` fails on a broken internal link.
+- **Links** between pages start with the base path and end with a slash, as in `/lacis/guide/installation/`. `make site` fails on a broken internal link, and the CI also checks the external links with [lychee](https://github.com/lycheeverse/lychee), configured in `site/lychee.toml`.
 
 ## Pull requests
 
