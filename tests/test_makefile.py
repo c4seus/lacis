@@ -5,6 +5,7 @@ MAKEFILE = Path(__file__).resolve().parent.parent / "Makefile"
 CONTRIBUTING = MAKEFILE.parent / "CONTRIBUTING.md"
 RULE = re.compile(r"^([a-z][a-z-]*):")
 PLATFORM_TARGETS = ("deb", "rpm", "arch", "windows")
+WEBSITE_TARGETS = ("site", "site-preview")
 
 
 def makefile() -> str:
@@ -49,6 +50,13 @@ def test_every_platform_target_stops_early_with_a_message_elsewhere() -> None:
         recipe = recipes()[target]
         assert recipe[0].startswith("@"), target
         assert f'"make {target} needs' in " ".join(recipe[:3]), target
+
+
+def test_every_website_target_checks_the_version_of_node_of_the_website_first() -> None:
+    assert "\nSITE_NODE := $(shell cat site/.node-version)\n" in makefile()
+    first_lines = [recipes()[target][0] for target in WEBSITE_TARGETS]
+    assert first_lines == ["@$(CHECK_SITE_NODE)"] * len(WEBSITE_TARGETS)
+    assert "\t@$(CHECK_SITE_NODE)\n\tnpm --prefix site ci\n" in makefile()
 
 
 def test_make_deb_lints_only_the_package_it_has_just_built() -> None:
