@@ -1,6 +1,10 @@
+import json
 import re
 import tomllib
 from pathlib import Path
+
+from PySide6.QtCore import QSize
+from PySide6.QtGui import QImage
 
 from workflows import workflow, workflow_jobs
 
@@ -111,3 +115,23 @@ def test_the_home_page_shows_the_main_window_in_both_themes_at_the_same_size() -
         for theme in ("light", "dark")
     }
     assert sizes == {(2 * 1440, 2 * 900)}
+
+
+def test_the_sharing_image_is_served_at_the_size_that_social_networks_expect() -> None:
+    assert QImage(str(SITE / "public/sharing-image.png")).size() == QSize(1200, 630)
+    configuration = site_configuration()
+    assert f'const sharingImage = "{WEBSITE_ADDRESS}sharing-image.png";\n' in configuration
+    og_image = '{ tag: "meta", attrs: { property: "og:image", content: sharingImage } },'
+    assert og_image in configuration
+
+
+def test_the_structured_data_describes_a_free_application_without_inventing_ratings() -> None:
+    software = json.loads((SITE / "src/software-application.json").read_text(encoding="utf-8"))
+    assert software["@type"] == "SoftwareApplication"
+    assert software["url"] == WEBSITE_ADDRESS
+    assert software["downloadUrl"] == LATEST_RELEASE
+    assert software["operatingSystem"] == "Linux, Windows"
+    assert software["offers"]["price"] == 0
+    assert "aggregateRating" not in software
+    assert "review" not in software
+    assert "<SoftwareApplication />" in HOME_PAGE.read_text(encoding="utf-8")
