@@ -1,0 +1,21 @@
+:root {
+    --sl-color-accent-low: #1e2a4a;
+    --sl-color-accent: #4f6fd6;
+    --sl-color-accent-high: #7c9cff;
+}
+
+:root[data-theme="light"] {
+    --sl-color-accent-low: #e8eefc;
+    --sl-color-accent: #2f55d4;
+    --sl-color-accent-high: #1d3a9e;
+}
+
+starlight-theme-select label {
+    --sl-select-width: 7em !important;
+}
+
+@media (min-width: 50rem) {
+    .hero {
+        padding-bottom: 3rem;
+    }
+}
