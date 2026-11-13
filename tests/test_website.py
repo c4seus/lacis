@@ -83,3 +83,8 @@ def test_the_website_is_published_after_each_final_release_only() -> None:
     assert "    if: ${{ !contains(github.ref_name, 'rc') }}\n" in website
     assert "      pages: write\n      id-token: write\n" in website
     assert "    uses: ./.github/workflows/website.yml\n" in website
+
+
+def test_dependabot_updates_the_dependencies_of_the_website_on_develop() -> None:
+    updates = "  - package-ecosystem: npm\n    directory: /site\n    target-branch: develop\n"
+    assert updates in (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")

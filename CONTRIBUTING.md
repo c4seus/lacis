@@ -293,7 +293,7 @@ A pre-release follows the same steps with a tag such as `v0.2.0rc1`, without the
 
 ## Dependencies
 
-Dependabot opens pull requests against `develop` every week for Python dependencies and GitHub Actions. They are reviewed like any other pull request. Their commits keep the subjects written by Dependabot, so the commit check skips them, in their own pull request and in a release.
+Dependabot opens pull requests against `develop` every week for Python dependencies, GitHub Actions and the npm dependencies of the website. Astro, Starlight and its plugins depend on each other, so their updates come in a single pull request. They are reviewed like any other pull request. Their commits keep the subjects written by Dependabot, so the commit check skips them, in their own pull request and in a release.
 
 ## Security
 
