@@ -4,7 +4,7 @@ Thank you for your interest in Lacis. This guide explains how the project is org
 
 ## Ground rules
 
-- **Languages.** Code, commits, issues, pull requests and documentation are in English. The user interface is in French, because Lacis is built for French company data and a French audience.
+- **Languages.** Code, commits, issues, pull requests and documentation are in English. The user interface and the website are in French, because Lacis is built for French company data and a French audience.
 - **No real personal data.** Test data, screenshots, issues and logs use fictional companies, people and identifiers only.
 - **Every change starts from an issue.** Open or pick an issue before writing code, so the scope is agreed first.
 - **Small pull requests.** One issue per pull request, one commit per task of the issue.
@@ -219,6 +219,13 @@ Established acronyms of the domain stay as they are: `siren`, `siret`, `naf`, `b
 - **Colours, spacing and fonts come from the design tokens.** No hard-coded colour in a widget.
 - **Accessibility is part of the definition of done.** Every interactive widget has an accessible name, is reachable with the keyboard in a logical order and shows a visible focus. A custom-painted widget provides a `QAccessibleInterface`. A test checks that every interactive widget has a name.
 - **Both themes are checked.** A visible change comes with screenshots in the light and the dark theme.
+
+## Website
+
+The website, https://c4seus.github.io/lacis/, presents Lacis and holds its user guide. It is built with [Starlight](https://starlight.astro.build/) from the `site/` folder, and written in French with the typography of the interface. The documentation for contributors stays in this repository, and the website links to it.
+
+- **Pages** are Markdown or MDX files in `site/src/content/docs/`. The file `guide/installation.md` becomes the page `/lacis/guide/installation/`.
+- **Links** between pages start with the base path and end with a slash, as in `/lacis/guide/installation/`. The build fails on a broken internal link.
 
 ## Pull requests
 
