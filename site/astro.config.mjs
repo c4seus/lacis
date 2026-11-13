@@ -2,6 +2,8 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import starlightLinksValidator from "starlight-links-validator";
 
+const sharingImage = "https://c4seus.github.io/lacis/sharing-image.png";
+
 export default defineConfig({
     site: "https://c4seus.github.io",
     base: "/lacis",
@@ -19,6 +21,18 @@ export default defineConfig({
             ],
             editLink: { baseUrl: "https://github.com/c4seus/lacis/edit/develop/site/" },
             customCss: ["./src/styles/custom.css"],
+            head: [
+                { tag: "meta", attrs: { property: "og:image", content: sharingImage } },
+                { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
+                { tag: "meta", attrs: { property: "og:image:height", content: "630" } },
+                {
+                    tag: "meta",
+                    attrs: {
+                        property: "og:image:alt",
+                        content: "Lacis, logiciel libre d'OSINT, et sa fenêtre d'enquête",
+                    },
+                },
+            ],
             sidebar: [
                 { label: "Guide de l'utilisateur", items: [{ autogenerate: { directory: "guide" } }] },
             ],

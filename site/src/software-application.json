@@ -1,0 +1,25 @@
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Lacis",
+  "description": "Logiciel libre d'OSINT qui cartographie les entreprises françaises, leurs dirigeants et leurs adresses en un graphe de liens sourcés, et signale les situations qui méritent un examen.",
+  "url": "https://c4seus.github.io/lacis/",
+  "image": "https://c4seus.github.io/lacis/sharing-image.png",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Linux, Windows",
+  "inLanguage": "fr",
+  "isAccessibleForFree": true,
+  "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+  "downloadUrl": "https://github.com/c4seus/lacis/releases/latest",
+  "sameAs": ["https://github.com/c4seus/lacis"],
+  "author": {
+    "@type": "Person",
+    "name": "c4seus",
+    "url": "https://github.com/c4seus"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": 0,
+    "priceCurrency": "EUR"
+  }
+}

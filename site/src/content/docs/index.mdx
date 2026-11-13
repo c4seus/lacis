@@ -1,6 +1,6 @@
 ---
 title: Cartographier les entreprises françaises et leurs dirigeants
-description: Logiciel libre d'OSINT qui cartographie les entreprises françaises, leurs dirigeants et leurs adresses en un graphe de liens sourcés.
+description: Lacis est un logiciel libre d'OSINT pour Linux et Windows. Il relie les entreprises françaises, leurs dirigeants et leurs adresses en un graphe sourcé, à partir des données publiques de l'État.
 template: splash
 hero:
   title: Lacis
@@ -16,6 +16,7 @@ hero:
 ---
 
 import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
+import SoftwareApplication from "../../components/SoftwareApplication.astro";
 import ThemedScreenshot from "../../components/ThemedScreenshot.astro";
 import darkWindow from "../../assets/main-window-dark.webp";
 import lightWindow from "../../assets/main-window-light.webp";
@@ -80,3 +81,5 @@ Lacis travaille sur des données d'entreprises publiques, publiées légalement.
 <LinkButton href="/lacis/guide/usage-responsable/" variant="secondary" icon="right-arrow">
     Les règles d'un usage responsable
 </LinkButton>
+
+<SoftwareApplication />
