@@ -96,3 +96,18 @@ def test_dependabot_updates_the_dependencies_of_the_website_on_develop() -> None
 def test_the_download_button_of_the_home_page_leads_to_the_latest_release() -> None:
     home_page = HOME_PAGE.read_text(encoding="utf-8")
     assert f"    - text: Télécharger Lacis\n      link: {LATEST_RELEASE}\n" in home_page
+
+
+def lossless_webp_size(path: Path) -> tuple[int, int]:
+    header = path.read_bytes()[:25]
+    assert (header[:4], header[8:16], header[20]) == (b"RIFF", b"WEBPVP8L", 0x2F)
+    bits = int.from_bytes(header[21:25], "little")
+    return (bits & 0x3FFF) + 1, (bits >> 14 & 0x3FFF) + 1
+
+
+def test_the_home_page_shows_the_main_window_in_both_themes_at_the_same_size() -> None:
+    sizes = {
+        lossless_webp_size(SITE / f"src/assets/main-window-{theme}.webp")
+        for theme in ("light", "dark")
+    }
+    assert sizes == {(2 * 1440, 2 * 900)}
