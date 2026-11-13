@@ -7,6 +7,7 @@ COMMIT_TYPES = ("feat", "fix", "refactor", "docs", "test", "ci", "build", "chore
 MAXIMUM_SUBJECT_LENGTH = 72
 EXPECTED_ARGUMENTS = ("BASE", "HEAD")
 USAGE_ERROR = 2
+AUTOMATED_AUTHORS = frozenset({"dependabot[bot]"})
 SUBJECT_PATTERN = re.compile(
     rf"^(?P<type>{'|'.join(COMMIT_TYPES)})\((?P<ticket>[1-9]\d*)\): (?P<description>.+)$"
 )
@@ -43,6 +44,7 @@ IMPERATIVE_WORDS_WITH_THOSE_ENDINGS = frozenset(
 @dataclass(frozen=True)
 class Commit:
     identifier: str
+    author: str
     subject: str
 
 
@@ -78,14 +80,16 @@ def subject_problems(subject: str) -> list[str]:
 
 def commits_between(base: str, head: str) -> list[Commit]:
     output = subprocess.run(
-        ["git", "log", "--no-merges", "--format=%H%x1f%s", f"{base}..{head}"],
+        ["git", "log", "--no-merges", "--format=%H%x1f%an%x1f%s", f"{base}..{head}"],
         check=True,
         capture_output=True,
         text=True,
     ).stdout
     return [
-        Commit(identifier, subject)
-        for identifier, subject in (line.split("\x1f", 1) for line in output.splitlines() if line)
+        Commit(identifier, author, subject)
+        for identifier, author, subject in (
+            line.split("\x1f", 2) for line in output.splitlines() if line
+        )
     ]
 
 
@@ -95,6 +99,8 @@ def main(arguments: list[str]) -> int:
         return USAGE_ERROR
     failures = 0
     for commit in commits_between(*arguments):
+        if commit.author in AUTOMATED_AUTHORS:
+            continue
         for problem in subject_problems(commit.subject):
             failures += 1
             print(f"{commit.identifier[:12]} {commit.subject!r}: {problem}")
