@@ -53,6 +53,8 @@ The demonstration serves the fictional companies of the « faux plombiers » sce
 
 ### Make targets
 
+`make` alone prints the summary of the targets.
+
 | Target | What it does |
 |---|---|
 | `make install` | Installs Lacis in editable mode with the development tools |
@@ -62,6 +64,13 @@ The demonstration serves the fictional companies of the « faux plombiers » sce
 | `make test` | Runs the tests on the offscreen Qt platform |
 | `make coverage` | Runs the tests with the coverage report and threshold |
 | `make check` | Runs everything the CI runs. Run it before every push |
+| `make icons` | Renders the PNG and ICO icons from their SVG masters |
+| `make clean` | Removes the build outputs: `build`, `dist`, `debian` and `.pybuild` |
+| `make desktop-metadata` | Validates the desktop entry and the AppStream metadata |
+| `make deb` | Builds the Debian package into `dist/`, on Debian or Ubuntu |
+| `make rpm` | Builds the Fedora package into `dist/`, on Fedora or in a Fedora container |
+| `make arch` | Builds the Arch Linux package into `dist/`, on Arch Linux or in its container |
+| `make windows` | Builds the Windows installer into `dist/`, on Windows from Git Bash |
 
 ## Labels
 

@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 
 MAKEFILE = Path(__file__).resolve().parent.parent / "Makefile"
+CONTRIBUTING = MAKEFILE.parent / "CONTRIBUTING.md"
 RULE = re.compile(r"^([a-z][a-z-]*):")
 PLATFORM_TARGETS = ("deb", "rpm", "arch", "windows")
 
@@ -65,3 +66,9 @@ def test_make_alone_prints_the_summary_of_the_targets() -> None:
 def test_every_target_is_phony_and_in_the_summary() -> None:
     assert sorted(recipes()) == sorted(phony_targets())
     assert sorted(summarized_targets()) == sorted(set(phony_targets()) - {"help"})
+
+
+def test_the_contributing_guide_describes_every_target() -> None:
+    guide = CONTRIBUTING.read_text(encoding="utf-8")
+    described = re.findall(r"^\| `make ([a-z-]+)` \|", guide, re.MULTILINE)
+    assert sorted(described) == sorted(set(phony_targets()) - {"help"})
