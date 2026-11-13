@@ -234,9 +234,12 @@ Version numbers follow the [versioning policy](docs/versioning.md). The version 
 ### Minor and major releases
 
 1. Check that every issue of the milestone is closed or moved to a later milestone.
-2. Open a pull request from `develop` to `main`, titled `Release X.Y.Z`.
-3. Merge it with **Create a merge commit**. Never rebase or squash a release: `main` must keep the commits of `develop` as they are.
-4. Tag the merge commit and push the tag:
+2. Prepare the release on `develop`, in a pull request titled `Prepare the release X.Y.Z`:
+   - in `CHANGELOG.md`, rename the `[Unreleased]` section to `[X.Y.Z] - YYYY-MM-DD`, with the day of the release;
+   - in `packaging/linux/io.github.c4seus.lacis.metainfo.xml`, make the first `<release>` the version `X.Y.Z`, with the same date and `type="stable"`.
+3. Open a pull request from `develop` to `main`, titled `Release X.Y.Z`.
+4. Merge it with **Create a merge commit**. Never rebase or squash a release: `main` must keep the commits of `develop` as they are.
+5. Tag the merge commit and push the tag:
 
    ```bash
    git switch main && git pull
@@ -244,9 +247,11 @@ Version numbers follow the [versioning policy](docs/versioning.md). The version 
    git push origin vX.Y.Z
    ```
 
-5. The release workflow builds the packages and attaches them to the GitHub release.
+6. The release workflow checks that the tag is on `main` and matches the version of the package, the changelog and the AppStream metadata. It then builds and tests the source archive and every package. Only when they all pass does it publish the GitHub release, with every package, a `SHA256SUMS` file and the notes of the changelog.
 
-A pre-release follows the same steps with a tag such as `v0.2.0rc1`.
+If a check or a package fails, nothing is published. After a passing failure, such as a network error, re-run the failed jobs. Otherwise, fix the cause and publish the next patch version: a pushed tag is never moved.
+
+A pre-release follows the same steps with a tag such as `v0.2.0rc1`, without the second step: its notes are the `[Unreleased]` section of the changelog, and it is published as a GitHub pre-release.
 
 ### Patch releases
 
@@ -259,7 +264,7 @@ A pre-release follows the same steps with a tag such as `v0.2.0rc1`.
    git switch -c fix/N-short-description
    ```
 
-2. Commit the fix and its tests, then open a pull request against `main`.
+2. Commit the fix and its tests, prepare the release as in the second step of a minor release, then open a pull request against `main`.
 3. Merge it with **Create a merge commit**.
 4. Tag the merge commit `vX.Y.Z` with the next patch version, and push the tag, as for a minor release.
 5. Bring the same commits to `develop`, through a pull request merged with **Rebase and merge**:

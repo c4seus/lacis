@@ -19,5 +19,6 @@
 - [ ] User-facing text is in French; code, commits and this description are in English
 - [ ] New interactive widgets have an accessible name and keyboard access
 - [ ] Screenshots attached for visible changes
+- [ ] A change that users can notice has a line in the `[Unreleased]` section of `CHANGELOG.md`
 
 Closes #
