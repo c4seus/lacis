@@ -84,7 +84,7 @@ jobs:
       SHORTCUT: Microsoft\Windows\Start Menu\Programs\Lacis.lnk
       UNINSTALL_KEY: Software\Microsoft\Windows\CurrentVersion\Uninstall\io.github.c4seus.lacis_is1
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: windows-installer
           path: dist
