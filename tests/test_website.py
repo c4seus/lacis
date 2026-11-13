@@ -2,6 +2,8 @@ import re
 import tomllib
 from pathlib import Path
 
+from workflows import workflow_jobs
+
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
 APPLICATION_ICON = ROOT / "packaging/icons/hicolor/scalable/apps/io.github.c4seus.lacis.svg"
@@ -36,3 +38,22 @@ def test_the_website_pins_the_major_version_of_node() -> None:
 def test_the_source_archive_of_the_package_leaves_the_website_out() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["exclude"] == ["/site"]
+
+
+def test_the_ci_builds_the_website_with_its_version_of_node_and_checks_its_links() -> None:
+    website = workflow_jobs("ci.yml")["website"]
+    assert "node-version-file: site/.node-version\n" in website
+    assert "cache-dependency-path: site/package-lock.json\n" in website
+    assert "run: make site\n" in website
+    assert "uses: lycheeverse/lychee-action@" in website
+    assert "args: --config site/lychee.toml --no-progress site/dist\n" in website
+
+
+def test_a_failure_of_the_website_fails_the_ci() -> None:
+    assert "      - website\n" in workflow_jobs("ci.yml")["ci-passed"]
+
+
+def test_the_external_link_check_leaves_the_pages_of_the_website_to_its_build() -> None:
+    link_check = tomllib.loads((SITE / "lychee.toml").read_text(encoding="utf-8"))
+    assert link_check["base_url"] == "https://c4seus.github.io/"
+    assert "^https://c4seus\\.github\\.io/" in link_check["exclude"]

@@ -1,0 +1,5 @@
+base_url = "https://c4seus.github.io/"
+scheme = ["https", "http"]
+exclude = ["^https://c4seus\\.github\\.io/", "^https://github\\.com/c4seus/lacis/edit/"]
+max_retries = 3
+accept = ["200..=299", "429"]

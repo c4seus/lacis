@@ -98,6 +98,23 @@ jobs:
       - name: Validate the desktop entry, the metainfo and the installed tree
         run: make desktop-metadata
 
+  website:
+    name: Website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: site/.node-version
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Build the website and check its internal links
+        run: make site
+      - name: Check the external links of the website
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config site/lychee.toml --no-progress site/dist
+
   debian-package:
     name: Debian package
     uses: ./.github/workflows/debian-package.yml
@@ -139,6 +156,7 @@ jobs:
       - types
       - tests
       - desktop-metadata
+      - website
       - debian-package
       - fedora-package
       - arch-package
