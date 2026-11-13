@@ -15,6 +15,17 @@ hero:
       variant: secondary
 ---
 
+import ThemedScreenshot from "../../components/ThemedScreenshot.astro";
+import darkWindow from "../../assets/main-window-dark.webp";
+import lightWindow from "../../assets/main-window-light.webp";
+
+<ThemedScreenshot
+    light={lightWindow}
+    dark={darkWindow}
+    alt="La fenêtre d'enquête de Lacis : la file « À examiner » à gauche, le graphe des liens au centre, et à droite la fiche de l'entreprise DUPONT SERVICES avec son signal de schéma phénix et ses annonces BODACC."
+    caption="Une enquête du mode démonstration. Les entreprises et les personnes affichées sont toutes fictives."
+/>
+
 Partez d'une entreprise et Lacis tire les fils : qui la dirige, quelles autres entreprises ces personnes dirigent, qui d'autre est domicilié à la même adresse, et ce que le BODACC a publié sur chacune. Des règles explicables signalent ensuite les situations qui méritent un examen.
 
 Chaque fait du graphe renvoie à la réponse publique dont il provient, avec sa date et son empreinte SHA-256. Chaque enquête reste sur votre ordinateur, dans son propre fichier.
