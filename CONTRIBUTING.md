@@ -229,6 +229,7 @@ The website, https://c4seus.github.io/lacis/, presents Lacis and holds its user 
 - **Pages** are Markdown or MDX files in `site/src/content/docs/`. The file `guide/installation.md` becomes the page `/lacis/guide/installation/`.
 - **Node.js.** The website needs the version of Node.js written in `site/.node-version`, and npm. `make site` and `make site-preview` install the dependencies locked in `site/package-lock.json` when they change.
 - **Links** between pages start with the base path and end with a slash, as in `/lacis/guide/installation/`. `make site` fails on a broken internal link, and the CI also checks the external links with [lychee](https://github.com/lycheeverse/lychee), configured in `site/lychee.toml`.
+- **Publication.** The release workflow publishes the website to GitHub Pages after each final release, so the website describes the version that can be downloaded. To publish it between two releases, for example after a fix in the guide, run the `Website` workflow from the Actions tab, on the chosen branch or tag. The `github-pages` environment of the repository lists the branches and tags allowed to publish.
 
 ## Pull requests
 
@@ -257,11 +258,11 @@ Version numbers follow the [versioning policy](docs/versioning.md). The version 
    git push origin vX.Y.Z
    ```
 
-6. The release workflow checks that the tag is on `main` and matches the version of the package, the changelog and the AppStream metadata. It then builds and tests the source archive and every package. Only when they all pass does it publish the GitHub release, with every package, a `SHA256SUMS` file and the notes of the changelog.
+6. The release workflow checks that the tag is on `main` and matches the version of the package, the changelog and the AppStream metadata. It then builds and tests the source archive and every package. Only when they all pass does it publish the GitHub release, with every package, a `SHA256SUMS` file and the notes of the changelog. It then publishes the website, built from the tag.
 
 If a check or a package fails, nothing is published. After a passing failure, such as a network error, re-run the failed jobs. Otherwise, fix the cause and publish the next patch version: a pushed tag is never moved.
 
-A pre-release follows the same steps with a tag such as `v0.2.0rc1`, without the second step: its notes are the `[Unreleased]` section of the changelog, and it is published as a GitHub pre-release.
+A pre-release follows the same steps with a tag such as `v0.2.0rc1`, without the second step: its notes are the `[Unreleased]` section of the changelog, and it is published as a GitHub pre-release. The website is left as it is.
 
 ### Patch releases
 
