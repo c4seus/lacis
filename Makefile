@@ -65,7 +65,8 @@ arch:
 	}
 	$(SYSTEM_PYTHON) scripts/prepare_arch_package.py "$$($(SYSTEM_PYTHON) -m hatchling version)"
 	cd build/arch && env -u VIRTUAL_ENV PATH="$(SYSTEM_PATH)" makepkg --cleanbuild --force
-	namcap build/arch/PKGBUILD build/arch/lacis-*.pkg.tar.zst | tee build/arch/namcap.txt
+	namcap build/arch/PKGBUILD build/arch/lacis-*.pkg.tar.zst > build/arch/namcap.txt
+	cat build/arch/namcap.txt
 	! grep -q " E: " build/arch/namcap.txt
 	mkdir -p dist
 	cp build/arch/lacis-*.pkg.tar.zst dist/
