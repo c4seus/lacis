@@ -4,6 +4,8 @@ from pathlib import Path
 WORKFLOWS = Path(__file__).resolve().parent.parent / ".github" / "workflows"
 REUSABLE_WORKFLOW = re.compile(r"^    uses: \./\.github/workflows/(\S+)$", re.MULTILINE)
 JOB_START = re.compile(r"^  (?=[a-z][a-z-]*:$)", re.MULTILINE)
+README = WORKFLOWS.parent.parent / "README.md"
+PUBLISHED_FILE = re.compile(r"^          path: dist/(\S+)$", re.MULTILINE)
 COMMIT_DATE = 'SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"'
 
 
@@ -62,3 +64,16 @@ def test_the_source_archive_is_built_from_the_date_of_its_commit() -> None:
     source = release_jobs()["source"]
     assert f"{COMMIT_DATE}\n" in source
     assert "export SOURCE_DATE_EPOCH\n" in source
+
+
+def test_the_readme_describes_every_file_of_the_release_and_how_to_verify_it() -> None:
+    published = [
+        pattern
+        for name in [*REUSABLE_WORKFLOW.findall(workflow("release.yml")), "release.yml"]
+        for pattern in PUBLISHED_FILE.findall(workflow(name))
+    ]
+    readme = README.read_text(encoding="utf-8")
+    assert len(published) == len(REUSABLE_WORKFLOW.findall(workflow("release.yml"))) + 1
+    assert [pattern for pattern in published if pattern.rsplit("*", 1)[1] not in readme] == []
+    assert "sha256sum --check --ignore-missing SHA256SUMS" in readme
+    assert "Get-FileHash" in readme
