@@ -2,6 +2,7 @@
 
 export PYBUILD_NAME = lacis
 export PYBUILD_DISABLE = test
+export SETUPTOOLS_SCM_PRETEND_VERSION = @PYTHON_VERSION@
 
 %:
 	dh $@ --buildsystem=pybuild
