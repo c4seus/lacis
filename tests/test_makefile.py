@@ -6,10 +6,24 @@ RULE = re.compile(r"^([a-z][a-z-]*):")
 PLATFORM_TARGETS = ("deb", "rpm", "arch", "windows")
 
 
+def makefile() -> str:
+    return MAKEFILE.read_text(encoding="utf-8")
+
+
+def phony_targets() -> list[str]:
+    found = re.search(r"^\.PHONY: (.+)$", makefile().replace("\\\n", " "), re.MULTILINE)
+    assert found is not None
+    return found.group(1).split()
+
+
+def summarized_targets() -> list[str]:
+    return re.findall(r'^\t@echo "  ([a-z-]+) ', makefile(), re.MULTILINE)
+
+
 def recipes() -> dict[str, list[str]]:
     rules: dict[str, list[str]] = {}
     current: list[str] | None = None
-    for line in MAKEFILE.read_text(encoding="utf-8").splitlines():
+    for line in makefile().splitlines():
         rule = RULE.match(line)
         if rule is not None:
             current = rules.setdefault(rule.group(1), [])
@@ -41,3 +55,13 @@ def test_make_deb_lints_only_the_package_it_has_just_built() -> None:
     assert lint == [
         'lintian --fail-on error "dist/lacis_$$(dpkg-parsechangelog --show-field Version)_all.deb"'
     ]
+
+
+def test_make_alone_prints_the_summary_of_the_targets() -> None:
+    assert re.search(r"^\.DEFAULT_GOAL := help$", makefile(), re.MULTILINE)
+    assert recipes()["help"][0] == '@echo "Usage: make TARGET"'
+
+
+def test_every_target_is_phony_and_in_the_summary() -> None:
+    assert sorted(recipes()) == sorted(phony_targets())
+    assert sorted(summarized_targets()) == sorted(set(phony_targets()) - {"help"})
