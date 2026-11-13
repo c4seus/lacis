@@ -4,11 +4,19 @@ from pathlib import Path
 
 import pytest
 
+from package_versions import is_valid_version, package_version
 from prepare_debian_source import RECIPE_DIRECTORY, changelog, main, prepare
 from qt_imports import imported_qt_modules
 
 REPOSITORY = Path(__file__).resolve().parent.parent
 RELEASED_AT = datetime(2026, 11, 12, 16, 0, tzinfo=UTC)
+RULES = "export SETUPTOOLS_SCM_PRETEND_VERSION = @PYTHON_VERSION@\n"
+
+
+def write_recipe(root: Path) -> None:
+    (root / RECIPE_DIRECTORY).mkdir(parents=True)
+    (root / RECIPE_DIRECTORY / "control").write_text("Source: lacis\n", encoding="utf-8")
+    (root / RECIPE_DIRECTORY / "rules").write_text(RULES, encoding="utf-8")
 
 
 def test_the_changelog_names_the_version_and_the_date() -> None:
@@ -25,19 +33,38 @@ def test_the_changelog_names_the_version_and_the_date() -> None:
 
 
 def test_the_source_directory_is_the_recipe_with_its_changelog(tmp_path: Path) -> None:
-    (tmp_path / RECIPE_DIRECTORY).mkdir(parents=True)
-    (tmp_path / RECIPE_DIRECTORY / "control").write_text("Source: lacis\n", encoding="utf-8")
+    write_recipe(tmp_path)
     (tmp_path / "debian").mkdir()
     (tmp_path / "debian" / "stale").write_text("", encoding="utf-8")
     source = prepare(tmp_path, "0.1.0", RELEASED_AT)
-    assert sorted(path.name for path in source.iterdir()) == ["changelog", "control"]
+    assert sorted(path.name for path in source.iterdir()) == ["changelog", "control", "rules"]
     assert (source / "changelog").read_text(encoding="utf-8").startswith("lacis (0.1.0)")
+
+
+def test_the_rules_give_hatch_vcs_the_python_version_instead_of_the_debian_one(
+    tmp_path: Path,
+) -> None:
+    write_recipe(tmp_path)
+    source = prepare(tmp_path, "0.1.0rc2.dev2+ga42fc78", RELEASED_AT)
+    rules = (source / "rules").read_text(encoding="utf-8")
+    assert rules == "export SETUPTOOLS_SCM_PRETEND_VERSION = 0.1.0rc2.dev2+ga42fc78\n"
+
+
+def test_pybuild_cannot_guess_the_python_version_after_a_release_candidate() -> None:
+    debian_version = package_version("0.1.0rc2.dev2+ga42fc78")
+    assert debian_version == "0.1.0~rc2~dev2+ga42fc78"
+    assert not is_valid_version(debian_version.replace("~", "-", 1))
+
+
+def test_the_rules_of_the_repository_receive_the_python_version() -> None:
+    rules = (REPOSITORY / RECIPE_DIRECTORY / "rules").read_text(encoding="utf-8")
+    assert RULES in rules
 
 
 def test_the_command_takes_the_version_with_or_without_its_v(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (tmp_path / RECIPE_DIRECTORY).mkdir(parents=True)
+    write_recipe(tmp_path)
     assert main(tmp_path, ["v0.1.0rc1"], {"SOURCE_DATE_EPOCH": "0"}) == 0
     assert capsys.readouterr().out == "debian: lacis 0.1.0~rc1\n"
     assert main(tmp_path, [], {}) == 2
@@ -63,7 +90,7 @@ def test_an_invalid_version_stops_before_writing_anything(
 def test_every_version_hatchling_gives_is_accepted(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], version: str
 ) -> None:
-    (tmp_path / RECIPE_DIRECTORY).mkdir(parents=True)
+    write_recipe(tmp_path)
     assert main(tmp_path, [version], {"SOURCE_DATE_EPOCH": "0"}) == 0
     assert (tmp_path / "debian" / "changelog").is_file()
 
