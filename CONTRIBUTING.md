@@ -65,12 +65,14 @@ The demonstration serves the fictional companies of the « faux plombiers » sce
 | `make coverage` | Runs the tests with the coverage report and threshold |
 | `make check` | Runs everything the CI runs. Run it before every push |
 | `make icons` | Renders the PNG and ICO icons from their SVG masters |
-| `make clean` | Removes the build outputs: `build`, `dist`, `debian` and `.pybuild` |
+| `make clean` | Removes the build outputs: `build`, `dist`, `debian`, `.pybuild` and `site/dist` |
 | `make desktop-metadata` | Validates the desktop entry and the AppStream metadata |
 | `make deb` | Builds the Debian package into `dist/`, on Debian or Ubuntu |
 | `make rpm` | Builds the Fedora package into `dist/`, on Fedora or in a Fedora container |
 | `make arch` | Builds the Arch Linux package into `dist/`, on Arch Linux or in its container |
 | `make windows` | Builds the Windows installer into `dist/`, on Windows from Git Bash |
+| `make site` | Builds the website into `site/dist/`, and fails on a broken internal link |
+| `make site-preview` | Serves the website at http://localhost:4321/lacis/, and reloads it on every change |
 
 ## Labels
 
@@ -225,7 +227,8 @@ Established acronyms of the domain stay as they are: `siren`, `siret`, `naf`, `b
 The website, https://c4seus.github.io/lacis/, presents Lacis and holds its user guide. It is built with [Starlight](https://starlight.astro.build/) from the `site/` folder, and written in French with the typography of the interface. The documentation for contributors stays in this repository, and the website links to it.
 
 - **Pages** are Markdown or MDX files in `site/src/content/docs/`. The file `guide/installation.md` becomes the page `/lacis/guide/installation/`.
-- **Links** between pages start with the base path and end with a slash, as in `/lacis/guide/installation/`. The build fails on a broken internal link.
+- **Node.js.** The website needs the version of Node.js written in `site/.node-version`, and npm. `make site` and `make site-preview` install the dependencies locked in `site/package-lock.json` when they change.
+- **Links** between pages start with the base path and end with a slash, as in `/lacis/guide/installation/`. `make site` fails on a broken internal link.
 
 ## Pull requests
 
