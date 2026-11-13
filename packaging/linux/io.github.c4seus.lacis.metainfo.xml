@@ -106,7 +106,7 @@
   </screenshots>
 
   <releases>
-    <release version="0.1.0" date="2026-11-12" type="development">
+    <release version="0.1.0" date="2026-11-13" type="stable">
       <description>
         <p>First release: investigations, company search, pivots, BODACC notices, homonym review, warning signals and the investigation window.</p>
         <p xml:lang="fr">Première version : enquêtes, recherche d'entreprises, rebonds, annonces BODACC, examen des homonymes, signaux d'alerte et fenêtre d'enquête.</p>

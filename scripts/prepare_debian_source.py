@@ -14,6 +14,7 @@ from package_versions import (
 )
 
 RECIPE_DIRECTORY = Path("packaging/debian")
+PYTHON_VERSION_PLACEHOLDER = "@PYTHON_VERSION@"
 SOURCE_DIRECTORY = Path("debian")
 USAGE = "usage: python scripts/prepare_debian_source.py VERSION"
 INVALID_VERSION_HINT = (
@@ -40,6 +41,9 @@ def prepare(root: Path, version: str, date: datetime) -> Path:
         shutil.rmtree(source)
     shutil.copytree(root / RECIPE_DIRECTORY, source)
     (source / "changelog").write_text(changelog(version, date), encoding="utf-8")
+    rules = source / "rules"
+    recipe = rules.read_text(encoding="utf-8")
+    rules.write_text(recipe.replace(PYTHON_VERSION_PLACEHOLDER, version), encoding="utf-8")
     return source
 
 
