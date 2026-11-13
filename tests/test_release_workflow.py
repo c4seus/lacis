@@ -56,8 +56,8 @@ def test_the_tag_is_checked_before_anything_is_built() -> None:
 def test_the_notes_of_the_changelog_and_sha256sums_reach_the_release() -> None:
     publish = release_jobs()["publish"]
     assert "--notes-file artifacts/release-notes/release-notes.md" in publish
-    assert '[ "$directory" = artifacts/release-notes/ ]' in publish
-    assert "sha256sum -- * > SHA256SUMS" in publish
+    assert "python3 scripts/gather_release_files.py artifacts release" in publish
+    assert 'gh release create "$GITHUB_REF_NAME" release/*' in publish
 
 
 def test_the_source_archive_is_built_from_the_date_of_its_commit() -> None:

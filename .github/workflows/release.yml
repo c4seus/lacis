@@ -106,27 +106,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Gather one file from each package artifact and write SHA256SUMS
-        run: |
-          shopt -s nullglob
-          mkdir release
-          for directory in artifacts/*/; do
-            if [ "$directory" = artifacts/release-notes/ ]; then
-              continue
-            fi
-            files=("$directory"*)
-            if [ "${#files[@]}" -ne 1 ]; then
-              echo "::error::$directory holds ${#files[@]} files instead of one package"
-              exit 1
-            fi
-            cp "${files[0]}" release/
-          done
-          cd release
-          sha256sum -- * > SHA256SUMS
-          cat SHA256SUMS
+      - name: Gather one file from each package artifact, under the name GitHub serves it under
+        run: python3 scripts/gather_release_files.py artifacts release
       - name: Publish the release with its packages, SHA256SUMS and the notes of the changelog
         env:
           GH_TOKEN: ${{ github.token }}
