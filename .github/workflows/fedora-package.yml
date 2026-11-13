@@ -27,6 +27,8 @@ jobs:
       - name: Build the package and check it with rpmlint
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          export SOURCE_DATE_EPOCH
           make rpm
       - uses: actions/upload-artifact@v7
         with:

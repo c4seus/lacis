@@ -23,9 +23,12 @@ jobs:
           fetch-depth: 0
       - name: Build the package as an unprivileged user and check it with namcap
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          export SOURCE_DATE_EPOCH
           useradd --create-home builder
           chown -R builder "$GITHUB_WORKSPACE"
-          su builder --command "make arch"
+          su builder --command "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH make arch"
       - uses: actions/upload-artifact@v7
         with:
           name: arch-package
