@@ -2,7 +2,29 @@ PYTHON ?= python
 SYSTEM_PYTHON ?= /usr/bin/python3
 SYSTEM_PATH := $(if $(VIRTUAL_ENV),$(subst $(VIRTUAL_ENV)/bin:,,$(PATH)),$(PATH))
 
-.PHONY: install lint format types test coverage check icons desktop-metadata deb rpm arch windows
+.PHONY: help install lint format types test coverage check icons desktop-metadata deb rpm arch \
+	windows
+.DEFAULT_GOAL := help
+
+help:
+	@echo "Usage: make TARGET"
+	@echo
+	@echo "Development"
+	@echo "  install           Install Lacis and its development tools in the current environment"
+	@echo "  format            Fix what ruff can fix, then format the code"
+	@echo "  lint              Check the code with ruff and look for comments"
+	@echo "  types             Check the types with mypy"
+	@echo "  test              Run the tests"
+	@echo "  coverage          Run the tests and report the coverage"
+	@echo "  check             Run lint, types and coverage, like the CI"
+	@echo "  icons             Render the PNG and ICO icons from their SVG masters"
+	@echo
+	@echo "Packaging (packages are written to dist/)"
+	@echo "  desktop-metadata  Validate the desktop entry and the AppStream metadata"
+	@echo "  deb               Build the Debian package, on Debian or Ubuntu"
+	@echo "  rpm               Build the Fedora package, on Fedora or in a Fedora container"
+	@echo "  arch              Build the Arch Linux package, on Arch Linux or in its container"
+	@echo "  windows           Build the Windows installer, on Windows from Git Bash"
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
