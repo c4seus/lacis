@@ -1,0 +1,181 @@
+name: Windows installer
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  INNO_SETUP_VERSION: "7.1.1"
+  INNO_SETUP_SHA256: 8a5a6711c3766a6e5fb74f280ba0e3551e719ce94538d901fdbd1f8f9920b3f0
+  INNO_SETUP_PUBLISHER: Pyrsys B.V.
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build:
+    name: Build on Windows
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install Lacis and Nuitka
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[windows-installer]"
+      - name: Install Inno Setup for the current user, after checking its fingerprint
+        run: |
+          $tag = "is-" + $env:INNO_SETUP_VERSION.Replace(".", "_")
+          $name = "innosetup-$env:INNO_SETUP_VERSION-x64.exe"
+          $installer = Join-Path $env:RUNNER_TEMP $name
+          $url = "https://github.com/jrsoftware/issrc/releases/download/$tag/$name"
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          $fingerprint = (Get-FileHash -Algorithm SHA256 $installer).Hash
+          if ($fingerprint -ne $env:INNO_SETUP_SHA256) {
+            throw "Unexpected SHA256 $fingerprint for $name"
+          }
+          $signature = Get-AuthenticodeSignature $installer
+          $signer = $signature.SignerCertificate.GetNameInfo("SimpleName", $false)
+          if ($signature.Status -ne "Valid" -or $signer -ne $env:INNO_SETUP_PUBLISHER) {
+            throw "Unexpected signature $($signature.Status) by $signer for $name"
+          }
+          $arguments = "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER"
+          $process = Start-Process $installer -ArgumentList $arguments -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "The installer of Inno Setup failed with exit code $($process.ExitCode)"
+          }
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/nuitka-cache
+          key: nuitka-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}-${{ github.sha }}
+          restore-keys: nuitka-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}-
+      - name: Compile Lacis with Nuitka and build the installer
+        env:
+          NUITKA_CACHE_DIR: ${{ runner.temp }}/nuitka-cache
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $version = python -c "import lacis; print(lacis.__version__)"
+          python scripts/build_windows_installer.py $version
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer
+          path: dist/lacis-*-windows-x64-setup.exe
+          if-no-files-found: error
+
+  install:
+    name: Install, launch and uninstall on Windows
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      INSTALLATION_DIRECTORY: Programs\Lacis
+      DATA_DIRECTORY: Lacis\Lacis
+      INVESTIGATIONS_DIRECTORY: investigations
+      SHORTCUT: Microsoft\Windows\Start Menu\Programs\Lacis.lnk
+      UNINSTALL_KEY: Software\Microsoft\Windows\CurrentVersion\Uninstall\io.github.c4seus.lacis_is1
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: dist
+      - name: Install Lacis with the default choices, for the current user only
+        run: |
+          $installer = (Get-ChildItem dist/lacis-*-windows-x64-setup.exe).FullName
+          $log = Join-Path $env:RUNNER_TEMP "install.log"
+          $arguments = "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$log"
+          $process = Start-Process $installer -ArgumentList $arguments -Wait -PassThru
+          Select-String -Path $log -Pattern "install mode", "root key", "succeeded"
+          if ($process.ExitCode -ne 0) {
+            throw "The installer failed with exit code $($process.ExitCode)"
+          }
+          $mode = "Administrative install mode: No"
+          if (-not (Select-String -Path $log -SimpleMatch $mode -Quiet)) {
+            throw "The installer asked for administrator rights"
+          }
+      - name: Check that Lacis is installed in the profile of the user
+        run: |
+          $application = Join-Path $env:LOCALAPPDATA $env:INSTALLATION_DIRECTORY
+          $expected = @(
+            (Join-Path $application "lacis.exe"),
+            (Join-Path $application "unins000.exe"),
+            (Join-Path $env:APPDATA $env:SHORTCUT),
+            "HKCU:\$env:UNINSTALL_KEY"
+          )
+          foreach ($path in $expected) {
+            if (-not (Test-Path $path)) { throw "Missing after the installation: $path" }
+          }
+          if (Test-Path "HKLM:\$env:UNINSTALL_KEY") {
+            throw "Lacis is registered for all users"
+          }
+      - name: Print the version of Lacis
+        run: |
+          $lacis = Join-Path $env:LOCALAPPDATA $env:INSTALLATION_DIRECTORY "lacis.exe"
+          $output = Join-Path $env:RUNNER_TEMP "version.txt"
+          $options = @{
+            FilePath = $lacis
+            ArgumentList = "--version"
+            RedirectStandardOutput = $output
+            NoNewWindow = $true
+            Wait = $true
+            PassThru = $true
+          }
+          $process = Start-Process @options
+          $version = Get-Content $output -Raw
+          Write-Output $version
+          if ($process.ExitCode -ne 0 -or $version -notmatch "^Lacis \d") {
+            throw "Unexpected version output, exit code $($process.ExitCode)"
+          }
+      - name: Launch the interface of Lacis and check that it starts
+        run: |
+          $lacis = Join-Path $env:LOCALAPPDATA $env:INSTALLATION_DIRECTORY "lacis.exe"
+          $process = Start-Process $lacis -PassThru
+          Start-Sleep -Seconds 20
+          if ($process.HasExited) {
+            throw "Lacis stopped at startup with exit code $($process.ExitCode)"
+          }
+          Stop-Process -Id $process.Id
+          $process.WaitForExit()
+          $data = Join-Path $env:LOCALAPPDATA $env:DATA_DIRECTORY
+          $log = Get-ChildItem $data -Recurse -Filter lacis.log | Select-Object -First 1
+          if ($null -eq $log) { throw "No log file below $data" }
+          Get-Content $log.FullName
+          if (-not (Select-String -Path $log.FullName -Pattern "Lacis \S+ started on" -Quiet)) {
+            throw "The log of Lacis does not show its startup"
+          }
+      - name: Uninstall Lacis and check that the investigations are kept
+        run: |
+          $application = Join-Path $env:LOCALAPPDATA $env:INSTALLATION_DIRECTORY
+          $data = Join-Path $env:LOCALAPPDATA $env:DATA_DIRECTORY
+          $investigation = Join-Path $data $env:INVESTIGATIONS_DIRECTORY "Fictitious investigation"
+          $database = Join-Path $investigation "investigation.sqlite3"
+          New-Item -ItemType Directory -Force $investigation | Out-Null
+          Set-Content $database "fictitious investigation"
+          $uninstaller = Join-Path $application "unins000.exe"
+          $arguments = "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
+          $process = Start-Process $uninstaller -ArgumentList $arguments -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "The uninstaller failed with exit code $($process.ExitCode)"
+          }
+          $deadline = (Get-Date).AddMinutes(2)
+          while ((Test-Path $application) -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 2
+          }
+          $removed = @(
+            $application,
+            (Join-Path $env:APPDATA $env:SHORTCUT),
+            "HKCU:\$env:UNINSTALL_KEY"
+          )
+          foreach ($path in $removed) {
+            if (Test-Path $path) { throw "Still present after uninstalling: $path" }
+          }
+          if (-not (Test-Path $database)) { throw "The uninstaller removed the investigations" }

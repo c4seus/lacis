@@ -52,10 +52,10 @@ def run_git(directory: Path, *arguments: str) -> str:
     ).stdout.strip()
 
 
-def commit(directory: Path, subject: str) -> str:
+def commit(directory: Path, subject: str, *options: str) -> str:
     (directory / "file.txt").write_text(subject, encoding="utf-8")
     run_git(directory, "add", "file.txt")
-    run_git(directory, "commit", "-q", "-m", subject)
+    run_git(directory, "commit", "-q", "-m", subject, *options)
     return run_git(directory, "rev-parse", "HEAD")
 
 
@@ -71,7 +71,17 @@ def repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_commits_between_lists_the_new_commits(repository: Path) -> None:
     base = commit(repository, "docs(1): Add the README")
     head = commit(repository, "ci(1): Add the workflow")
-    assert [item.subject for item in commits_between(base, head)] == ["ci(1): Add the workflow"]
+    assert [(item.author, item.subject) for item in commits_between(base, head)] == [
+        ("Tester", "ci(1): Add the workflow")
+    ]
+
+
+def test_main_skips_the_commits_of_dependabot(repository: Path) -> None:
+    base = commit(repository, "docs(1): Add the README")
+    dependabot = "dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>"
+    commit(repository, "ci: Bump actions/checkout from 4 to 7", f"--author={dependabot}")
+    head = commit(repository, "ci(1): Add the workflow")
+    assert main([base, head]) == 0
 
 
 def test_main_fails_on_a_badly_named_commit(

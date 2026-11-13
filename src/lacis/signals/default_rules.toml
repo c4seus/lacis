@@ -1,0 +1,63 @@
+[rules.mass_domiciliation]
+enabled = true
+severity = "low"
+weight = 1.0
+minimum_companies = 10
+recent_years = 2
+minimum_recent_share = 0.5
+minimum_same_activity_share = 0.5
+
+[rules.foreign_office_transfer]
+enabled = true
+severity = "low"
+weight = 1.0
+recent_years = 5
+
+[rules.short_lived_companies]
+enabled = true
+severity = "medium"
+weight = 1.0
+minimum_companies = 5
+minimum_short_lived = 3
+maximum_lifetime_months = 18
+include_probable = false
+excluded_roles = [
+    "Commissaire aux comptes",
+    "Commissaire aux comptes suppléant",
+    "Administrateur judiciaire",
+    "Mandataire judiciaire",
+    "Liquidateur judiciaire",
+]
+
+[rules.phoenix_scheme]
+enabled = true
+severity = "low"
+weight = 1.0
+window_months = 12
+name_overlap = 0.5
+include_probable = false
+excluded_roles = [
+    "Commissaire aux comptes",
+    "Commissaire aux comptes suppléant",
+    "Administrateur judiciaire",
+    "Mandataire judiciaire",
+    "Liquidateur judiciaire",
+]
+
+[rules.creation_burst]
+enabled = true
+severity = "low"
+weight = 1.0
+minimum_companies = 3
+window_days = 90
+by_activity_and_department = true
+activity_minimum_companies = 5
+activity_window_days = 30
+include_probable = false
+excluded_roles = [
+    "Commissaire aux comptes",
+    "Commissaire aux comptes suppléant",
+    "Administrateur judiciaire",
+    "Mandataire judiciaire",
+    "Liquidateur judiciaire",
+]

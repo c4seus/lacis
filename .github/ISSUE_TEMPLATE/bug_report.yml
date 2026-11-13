@@ -1,6 +1,6 @@
 name: Bug report
 description: Something in Lacis does not work as expected.
-labels: [type:bug, status:triage]
+labels: [bug, triage]
 body:
   - type: markdown
     attributes:

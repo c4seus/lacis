@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Read the version of the package
+        id: version
+        run: |
+          python -m pip install hatchling hatch-vcs
+          version="$(python -m hatchling version)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Check that the tag is on main
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::The tag $GITHUB_REF_NAME is not on main"
+            exit 1
+          fi
+      - name: Check the tag against the version, the changelog and the AppStream metadata
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: python scripts/check_release.py "$GITHUB_REF_NAME" "$VERSION" build/release-notes.md
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: build/release-notes.md
+          if-no-files-found: error
+
+  source:
+    name: Source archive
+    needs: check
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Build the source archive from the date of the commit
+        run: |
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          export SOURCE_DATE_EPOCH
+          python -m pip install build
+          python -m build --sdist --outdir dist
+          test -f "dist/lacis-$VERSION.tar.gz"
+      - name: Install Qt runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
+      - name: Install the source archive in a new environment and launch Lacis
+        run: |
+          python -m venv "$RUNNER_TEMP/lacis"
+          "$RUNNER_TEMP/lacis/bin/python" -m pip install "dist/lacis-$VERSION.tar.gz"
+          lacis="$RUNNER_TEMP/lacis/bin/lacis"
+          QT_QPA_PLATFORM=offscreen "$lacis" --version | grep -Fx "Lacis $VERSION"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: source-archive
+          path: dist/lacis-*.tar.gz
+          if-no-files-found: error
+
+  debian-package:
+    name: Debian package
+    needs: check
+    uses: ./.github/workflows/debian-package.yml
+
+  fedora-package:
+    name: Fedora package
+    needs: check
+    uses: ./.github/workflows/fedora-package.yml
+
+  arch-package:
+    name: Arch Linux package
+    needs: check
+    uses: ./.github/workflows/arch-package.yml
+
+  windows-installer:
+    name: Windows installer
+    needs: check
+    uses: ./.github/workflows/windows-installer.yml
+
+  publish:
+    name: Publish the GitHub release
+    needs: [check, source, debian-package, fedora-package, arch-package, windows-installer]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Gather one file from each package artifact, under the name GitHub serves it under
+        run: python3 scripts/gather_release_files.py artifacts release
+      - name: Publish the release with its packages, SHA256SUMS and the notes of the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+          PRE_RELEASE: ${{ contains(github.ref_name, 'rc') }}
+        run: |
+          options=(--verify-tag --title "Lacis $VERSION")
+          options+=(--notes-file artifacts/release-notes/release-notes.md)
+          if [ "$PRE_RELEASE" = true ]; then
+            options+=(--prerelease)
+          else
+            options+=(--latest)
+          fi
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --repo "$GITHUB_REPOSITORY" "${options[@]}"

@@ -1,0 +1,397 @@
+import sqlite3
+from dataclasses import replace
+from datetime import UTC, date, datetime
+
+import pytest
+
+from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
+from investigation_builder import COLLECTED_AT, COURT, InvestigationBuilder
+from lacis.details import (
+    Badge,
+    BadgeTone,
+    EntityDetails,
+    NoticeLine,
+    Reference,
+    entity_details,
+    raw_response,
+    written_day,
+    written_month,
+)
+from lacis.signals.signal import Severity
+from lacis.storage.entities import CollectedEntity, EntityKind
+from lacis.storage.errors import TamperedResponseError
+from lacis.storage.graph_store import GraphStore
+from lacis.storage.notices import NoticeFamily, NoticeRole
+from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
+
+
+@pytest.fixture
+def builder(investigation_connection: sqlite3.Connection) -> InvestigationBuilder:
+    return InvestigationBuilder(investigation_connection)
+
+
+@pytest.fixture
+def scenario(builder: InvestigationBuilder) -> PlumbersScenario:
+    return plumbers_scenario(builder)
+
+
+def details_of(
+    builder: InvestigationBuilder, identifier: str, scenario: PlumbersScenario | None = None
+) -> EntityDetails:
+    report = phoenix_report(scenario) if scenario is not None else None
+    details = entity_details(builder.connection, identifier, report)
+    assert details is not None
+    return details
+
+
+def siren_of(identifier: str) -> str:
+    return identifier.removeprefix("company:")
+
+
+def spaced(siren: str) -> str:
+    return f"{siren[:3]} {siren[3:6]} {siren[6:]}"
+
+
+def test_a_closed_company_shows_its_status_identifiers_and_dates(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    details = details_of(builder, scenario.dupont_services, scenario)
+    siren = siren_of(scenario.dupont_services)
+    assert (details.kind_label, details.name) == ("Entreprise", "DUPONT SERVICES")
+    assert details.badges == (Badge("Fermée", BadgeTone.CLOSED),)
+    assert details.facts == (
+        f"SIREN {spaced(siren)}",
+        "Créée le 01/06/2019",
+        "Fermée le 15/01/2023",
+    )
+    assert (details.copy_label, details.copy_value) == ("Copier le SIREN", siren)
+    assert details.directory_url == f"https://annuaire-entreprises.data.gouv.fr/entreprise/{siren}"
+    assert details.expandable
+    assert not details.expanded
+    assert details.expanded_on == ""
+
+
+def test_an_active_company_known_only_as_director_says_so(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    acme = details_of(builder, scenario.acme)
+    assert acme.badges == (Badge("Active", BadgeTone.ACTIVE),)
+    assert "NAF" not in " ".join(acme.facts)
+    holding = details_of(builder, scenario.holding)
+    assert holding.badges == (
+        Badge("Active", BadgeTone.ACTIVE),
+        Badge("Connue comme dirigeante seulement", BadgeTone.OUTLINE),
+    )
+
+
+def test_a_company_shows_its_activity(builder: InvestigationBuilder) -> None:
+    company = builder.company("ACME PLOMBERIE", date(2021, 3, 1), "43.22A")
+    assert details_of(builder, company).facts[-1] == "NAF 43.22A"
+
+
+def test_an_establishment_shows_its_siret_and_status(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    closed = details_of(builder, scenario.dupont_office)
+    siret = scenario.dupont_office.removeprefix("establishment:")
+    assert closed.kind_label == "Établissement"
+    assert closed.badges == (
+        Badge("Siège", BadgeTone.OUTLINE),
+        Badge("Fermé", BadgeTone.CLOSED),
+    )
+    assert closed.facts == (
+        f"SIRET {spaced(siret[:9])} {siret[9:]}",
+        "Fermé le 15/01/2023",
+    )
+    assert (closed.copy_label, closed.copy_value) == ("Copier le SIRET", siret)
+    assert closed.directory_url.endswith(f"/etablissement/{siret}")
+    assert not closed.expandable
+
+
+def test_an_open_establishment_says_so(builder: InvestigationBuilder) -> None:
+    company = builder.company("ACME PLOMBERIE")
+    address = builder.address("12 RUE DES LILAS 31000 TOULOUSE", postcode="31000")
+    office = builder.establishment(company, address)
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(
+            office,
+            "Siège — TOULOUSE",
+            {"is_open": True, "creation_date": "2021-03-01", "activity": "43.22A"},
+        ),
+        builder.response,
+    )
+    details = details_of(builder, office)
+    assert Badge("Ouvert", BadgeTone.ACTIVE) in details.badges
+    assert details.facts[-2:] == ("Créé le 01/03/2021", "NAF 43.22A")
+
+
+def test_a_person_shows_birth_and_nationality(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(scenario.jean, "Jean DUPONT", {"nationality": "Française"}),
+        builder.response,
+    )
+    details = details_of(builder, scenario.jean, scenario)
+    assert (details.kind_label, details.badges) == ("Personne", ())
+    assert details.facts == ("Né en 05/1980", "Nationalité Française")
+    assert (details.copy_label, details.copy_value) == ("Copier le nom", "Jean DUPONT")
+    assert details.directory_url.endswith("/rechercher?terme=Jean%20DUPONT")
+
+
+def test_an_address_shows_its_postcode_and_town(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(scenario.address, "12 RUE DES LILAS 31000 TOULOUSE", {"city": "TOULOUSE"}),
+        builder.response,
+    )
+    details = details_of(builder, scenario.address)
+    assert details.facts == ("Code postal 31000", "Commune TOULOUSE")
+    assert details.copy_label == "Copier l'adresse"
+    assert details.directory_url.startswith("https://annuaire-entreprises.data.gouv.fr/rechercher")
+
+
+def test_a_foreign_company_shows_its_country_without_directory(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    details = details_of(builder, scenario.invest)
+    assert details.kind_label == "Entreprise étrangère"
+    assert details.facts == ("Pays Royaume-Uni",)
+    assert details.directory_url == ""
+    assert not details.expandable
+
+
+def test_a_company_without_siren_copies_its_name(builder: InvestigationBuilder) -> None:
+    company = builder.company("ACME PLOMBERIE")
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "ACME PLOMBERIE", {"siren": None}), builder.response
+    )
+    builder.connection.execute(
+        "UPDATE entity SET attributes = '{}' WHERE identifier = ?", (company,)
+    )
+    details = details_of(builder, company)
+    assert (details.copy_label, details.directory_url, details.facts) == (
+        "Copier le nom",
+        "",
+        (),
+    )
+
+
+def test_an_expanded_entity_tells_when(builder: InvestigationBuilder) -> None:
+    person = builder.person("Jean", "DUPONT", expanded=True)
+    details = details_of(builder, person)
+    moment = COLLECTED_AT.astimezone().strftime("%d/%m/%Y à %H:%M")
+    assert details.expanded
+    assert details.expanded_on == f"Étendue le {moment}"
+
+
+def test_the_signals_of_an_entity_name_the_other_entities(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    [card] = details_of(builder, scenario.dupont_services, scenario).signals
+    assert (card.title, card.severity, card.written_score) == (
+        "Schéma phénix",
+        Severity.HIGH,
+        "score 0,85",
+    )
+    assert card.references == (
+        Reference(scenario.acme, EntityKind.COMPANY, "ACME PLOMBERIE"),
+        Reference(scenario.jean, EntityKind.PERSON, "Jean DUPONT"),
+        Reference(scenario.jean_pierre, EntityKind.PERSON, "Jean Pierre DUPONT"),
+    )
+    [evidence] = details_of(builder, scenario.jean, scenario).signals
+    assert [reference.identifier for reference in evidence.references] == [
+        scenario.dupont_services,
+        scenario.acme,
+        scenario.jean_pierre,
+    ]
+    assert details_of(builder, scenario.holding, scenario).signals == ()
+    assert details_of(builder, scenario.jean).signals == ()
+
+
+def test_links_name_the_role_seen_from_the_entity(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    company = details_of(builder, scenario.dupont_services)
+    assert [(line.role, line.reference.label, line.closed) for line in company.links] == [
+        ("Président", "Jean DUPONT", False),
+        ("Siège social", "12 RUE DES LILAS 31000 TOULOUSE", False),
+        ("Établissement", "Siège — TOULOUSE", True),
+    ]
+    person = details_of(builder, scenario.jean)
+    assert [(line.role, line.reference.label) for line in person.links] == [
+        ("Même personne", "Jean Pierre DUPONT"),
+        ("Président de", "DUPONT SERVICES"),
+    ]
+    office = details_of(builder, scenario.acme_office)
+    assert [line.role for line in office.links] == ["Adresse", "Entreprise"]
+    address = details_of(builder, scenario.address)
+    assert {line.role for line in address.links} == {"Siège de", "Établissement"}
+    other = details_of(builder, scenario.jean_pierre)
+    assert ("Même personne", "Jean DUPONT") in [
+        (line.role, line.reference.label) for line in other.links
+    ]
+
+
+def test_the_sources_tell_where_and_when_the_entity_was_collected(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    [source] = details_of(builder, scenario.acme).sources
+    assert source.source_name == "Recherche d'entreprises"
+    assert source.collected_at == COLLECTED_AT
+    assert source.written_date == COLLECTED_AT.astimezone().strftime("%d/%m/%Y à %H:%M")
+    assert len(source.fingerprint) == 64
+    assert source.short_fingerprint == f"{source.fingerprint[:8]}…{source.fingerprint[-8:]}"
+    assert source.url == "https://company_register.example"
+
+
+def test_newer_sources_come_first(builder: InvestigationBuilder) -> None:
+    company = builder.company("ACME PLOMBERIE")
+    later = ResponseStore(builder.connection).save(
+        CollectedResponse(
+            ResponseSource.BODACC,
+            "https://bodacc.example",
+            b"{}",
+            datetime(2026, 11, 12, tzinfo=UTC),
+        )
+    )
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "ACME PLOMBERIE", {}), later
+    )
+    assert [source.source_name for source in details_of(builder, company).sources] == [
+        "BODACC",
+        "Recherche d'entreprises",
+    ]
+
+
+def test_an_unknown_entity_has_no_details(builder: InvestigationBuilder) -> None:
+    assert entity_details(builder.connection, "company:100000000", None) is None
+
+
+def test_a_raw_response_is_shown_readable(builder: InvestigationBuilder) -> None:
+    store = ResponseStore(builder.connection)
+    json_response = store.save(
+        CollectedResponse(
+            ResponseSource.COMPANY_REGISTER,
+            "https://company_register.example",
+            '{"nom": "ACME", "siège": {"ville": "Toulouse"}}'.encode(),
+            COLLECTED_AT,
+        )
+    )
+    assert raw_response(builder.connection, json_response.identifier) == (
+        '{\n  "nom": "ACME",\n  "siège": {\n    "ville": "Toulouse"\n  }\n}'
+    )
+    text_response = store.save(
+        CollectedResponse(
+            ResponseSource.BODACC, "https://bodacc.example", b"pas du JSON \xff", COLLECTED_AT
+        )
+    )
+    assert raw_response(builder.connection, text_response.identifier) == "pas du JSON �"
+
+
+def test_a_tampered_response_is_refused(builder: InvestigationBuilder) -> None:
+    builder.connection.execute(
+        "UPDATE response SET body = ? WHERE identifier = ?", (b'{"faux": 1}', 1)
+    )
+    with pytest.raises(TamperedResponseError):
+        raw_response(builder.connection, 1)
+
+
+def test_dates_are_written_the_french_way() -> None:
+    assert written_day("2023-01-15") == "15/01/2023"
+    assert written_day("pas une date") == ""
+    assert written_day(None) == ""
+    assert written_month("1980-05") == "05/1980"
+    assert written_month(None) == ""
+
+
+def test_a_secondary_establishment_has_no_head_office_badge(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    builder.connection.execute(
+        "UPDATE entity SET attributes = ? WHERE identifier = ?",
+        ('{"is_open": true}', scenario.acme_office),
+    )
+    assert details_of(builder, scenario.acme_office).badges == (Badge("Ouvert", BadgeTone.ACTIVE),)
+
+
+def test_the_notices_of_a_company_come_newest_first(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    removal = builder.notice(
+        scenario.dupont_services, NoticeFamily.REMOVAL, date(2023, 1, 20), "Radiation du RCS"
+    )
+    opening = builder.notice(
+        scenario.dupont_services,
+        NoticeFamily.INSOLVENCY,
+        date(2022, 6, 14),
+        "Ouverture de liquidation judiciaire",
+    )
+    creation = builder.notice(scenario.dupont_services, NoticeFamily.CREATION, date(2019, 6, 3))
+    notices = details_of(builder, scenario.dupont_services).notices
+    assert [notice.identifier for notice in notices] == [removal, opening, creation]
+    first = notices[0]
+    assert (first.written_date, first.family_label, first.summary, first.court) == (
+        "20/01/2023",
+        "Radiation",
+        "Radiation du RCS",
+        COURT,
+    )
+    assert first.is_alert
+    assert not notices[2].is_alert
+    assert (
+        first.url == f"https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=id:{removal}"
+    )
+    assert first.response_identifier == builder.bodacc_response.identifier
+    assert (first.role, first.role_note, first.is_withdrawn, first.withdrawn_text) == (
+        NoticeRole.SUBJECT,
+        "",
+        False,
+        "",
+    )
+    assert details_of(builder, scenario.dupont_services).has_notices
+    assert not details_of(builder, scenario.jean).has_notices
+    assert details_of(builder, scenario.acme).notices == ()
+
+
+def test_a_withdrawn_notice_says_since_when(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    identifier = builder.notice(scenario.acme, NoticeFamily.SALE, date(2024, 3, 1), "Vente")
+    builder.connection.execute(
+        "UPDATE notice SET withdrawn_at = ? WHERE identifier = ?",
+        (datetime(2026, 11, 12, 10, 0, tzinfo=UTC).isoformat(), identifier),
+    )
+    [notice] = details_of(builder, scenario.acme).notices
+    assert notice.is_withdrawn
+    assert notice.withdrawn_text == "Absente du BODACC au rafraîchissement du 12/11/2026"
+
+
+def test_a_notice_shows_its_judgment_and_role_when_they_add_something() -> None:
+    notice = NoticeLine(
+        "A202500000001",
+        NoticeFamily.INSOLVENCY,
+        date(2022, 12, 5),
+        "Clôture pour insuffisance d'actif",
+        COURT,
+        "Jugement de clôture pour insuffisance d'actif",
+        1,
+        NoticeRole.PREVIOUS_OPERATOR,
+    )
+    assert notice.shown_judgment == "Jugement de clôture pour insuffisance d'actif"
+    assert notice.role_note == "En tant qu'ancien exploitant"
+    assert replace(notice, judgment="clôture pour insuffisance").shown_judgment == ""
+    assert replace(notice, judgment="").shown_judgment == ""
+    assert {replace(notice, family=family).family_label for family in NoticeFamily} == {
+        "Création",
+        "Immatriculation",
+        "Modification",
+        "Procédure collective",
+        "Conciliation",
+        "Rétablissement professionnel",
+        "Vente et cession",
+        "Dépôt des comptes",
+        "Radiation",
+        "Divers",
+    }
