@@ -37,12 +37,17 @@ desktop-metadata:
 	appstreamcli validate-tree --no-net --pedantic --strict build/desktop-tree
 
 deb:
+	@command -v dpkg-buildpackage > /dev/null && command -v lintian > /dev/null || { \
+		echo "make deb needs dpkg-buildpackage and lintian: run it on Debian or Ubuntu, with" \
+			"the dpkg-dev and lintian packages"; \
+		exit 1; \
+	}
 	$(SYSTEM_PYTHON) scripts/prepare_debian_source.py "$$($(SYSTEM_PYTHON) -m hatchling version)"
 	env -u VIRTUAL_ENV PATH="$(SYSTEM_PATH)" \
 		dpkg-buildpackage --build=binary --unsigned-source --unsigned-changes
 	mkdir -p dist
 	mv ../lacis_*.deb ../lacis_*.buildinfo ../lacis_*.changes dist/
-	lintian --fail-on error dist/lacis_*.deb
+	lintian --fail-on error "dist/lacis_$$(dpkg-parsechangelog --show-field Version)_all.deb"
 
 rpm:
 	@test -n "$$(rpm --eval '%{?python3_sitelib}')" || { \
