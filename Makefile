@@ -2,8 +2,8 @@ PYTHON ?= python
 SYSTEM_PYTHON ?= /usr/bin/python3
 SYSTEM_PATH := $(if $(VIRTUAL_ENV),$(subst $(VIRTUAL_ENV)/bin:,,$(PATH)),$(PATH))
 
-.PHONY: help install lint format types test coverage check icons desktop-metadata deb rpm arch \
-	windows
+.PHONY: help install lint format types test coverage check icons clean desktop-metadata deb rpm \
+	arch windows
 .DEFAULT_GOAL := help
 
 help:
@@ -18,6 +18,7 @@ help:
 	@echo "  coverage          Run the tests and report the coverage"
 	@echo "  check             Run lint, types and coverage, like the CI"
 	@echo "  icons             Render the PNG and ICO icons from their SVG masters"
+	@echo "  clean             Remove the build outputs: build, dist, debian and .pybuild"
 	@echo
 	@echo "Packaging (packages are written to dist/)"
 	@echo "  desktop-metadata  Validate the desktop entry and the AppStream metadata"
@@ -51,6 +52,9 @@ check: lint types coverage
 
 icons:
 	QT_QPA_PLATFORM=offscreen $(PYTHON) scripts/build_icons.py
+
+clean:
+	rm -rf build dist debian .pybuild
 
 desktop-metadata:
 	desktop-file-validate packaging/linux/io.github.c4seus.lacis.desktop
