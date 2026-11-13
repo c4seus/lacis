@@ -54,7 +54,7 @@ jobs:
           if ($process.ExitCode -ne 0) {
             throw "The installer of Inno Setup failed with exit code $($process.ExitCode)"
           }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/nuitka-cache
           key: nuitka-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}-${{ github.sha }}
