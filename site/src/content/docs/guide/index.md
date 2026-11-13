@@ -11,3 +11,5 @@ Ce guide accompagne l'utilisation de Lacis, de l'installation à la lecture des 
 :::note
 Le guide est en cours de rédaction. En attendant ses pages sur l'installation, vous trouverez les instructions de chaque plateforme dans le [README du dépôt](https://github.com/c4seus/lacis#installation), en anglais.
 :::
+
+Avant votre première enquête, lisez les [règles d'un usage responsable](/lacis/guide/usage-responsable/).

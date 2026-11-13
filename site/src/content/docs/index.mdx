@@ -15,7 +15,7 @@ hero:
       variant: secondary
 ---
 
-import { Card, CardGrid } from "@astrojs/starlight/components";
+import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
 import ThemedScreenshot from "../../components/ThemedScreenshot.astro";
 import darkWindow from "../../assets/main-window-dark.webp";
 import lightWindow from "../../assets/main-window-light.webp";
@@ -72,3 +72,11 @@ Chaque réponse des API publiques est conservée telle quelle, avec sa date et s
         Des paquets pour Debian, Fedora et Arch Linux, et un installateur pour Windows qui ne demande pas de droits d'administrateur.
     </Card>
 </CardGrid>
+
+## Un usage responsable
+
+Lacis travaille sur des données d'entreprises publiques, publiées légalement. Les noms et les mois de naissance des dirigeants restent pourtant des données personnelles : gardez vos enquêtes locales et proportionnées à leur but. Un signal est une piste, pas une accusation : revenez toujours aux sources avant de conclure sur une entreprise ou une personne.
+
+<LinkButton href="/lacis/guide/usage-responsable/" variant="secondary" icon="right-arrow">
+    Les règles d'un usage responsable
+</LinkButton>
