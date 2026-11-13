@@ -18,6 +18,10 @@ export default defineConfig({
                 { icon: "github", label: "GitHub", href: "https://github.com/c4seus/lacis" },
             ],
             editLink: { baseUrl: "https://github.com/c4seus/lacis/edit/develop/site/" },
+            customCss: ["./src/styles/custom.css"],
+            sidebar: [
+                { label: "Guide de l'utilisateur", items: [{ autogenerate: { directory: "guide" } }] },
+            ],
             plugins: [starlightLinksValidator()],
         }),
     ],

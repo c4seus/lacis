@@ -7,6 +7,9 @@ from workflows import workflow, workflow_jobs
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
 APPLICATION_ICON = ROOT / "packaging/icons/hicolor/scalable/apps/io.github.c4seus.lacis.svg"
+WEBSITE_ADDRESS = "https://c4seus.github.io/lacis/"
+LATEST_RELEASE = "https://github.com/c4seus/lacis/releases/latest"
+HOME_PAGE = SITE / "src/content/docs/index.mdx"
 
 
 def site_configuration() -> str:
@@ -88,3 +91,8 @@ def test_the_website_is_published_after_each_final_release_only() -> None:
 def test_dependabot_updates_the_dependencies_of_the_website_on_develop() -> None:
     updates = "  - package-ecosystem: npm\n    directory: /site\n    target-branch: develop\n"
     assert updates in (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
+
+
+def test_the_download_button_of_the_home_page_leads_to_the_latest_release() -> None:
+    home_page = HOME_PAGE.read_text(encoding="utf-8")
+    assert f"    - text: Télécharger Lacis\n      link: {LATEST_RELEASE}\n" in home_page
