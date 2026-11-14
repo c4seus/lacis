@@ -68,6 +68,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+      - name: Exclude the workspace, Python and the temporary folders from Microsoft Defender
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $folders = $env:GITHUB_WORKSPACE, $env:RUNNER_TEMP, $env:TEMP, $env:pythonLocation
+          Add-MpPreference -ExclusionPath $folders
       - name: Install Qt runtime libraries
         if: runner.os == 'Linux'
         run: |
