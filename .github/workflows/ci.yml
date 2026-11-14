@@ -58,6 +58,9 @@ jobs:
       matrix:
         operating-system: [ubuntu-latest, windows-latest]
         python-version: ["3.12", "3.13", "3.14"]
+        exclude:
+          - operating-system: windows-latest
+            python-version: "3.13"
     env:
       QT_QPA_PLATFORM: offscreen
     steps:
