@@ -28,6 +28,10 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+      - name: Exclude the workspace, Python and the temporary folders from Microsoft Defender
+        run: |
+          $folders = $env:GITHUB_WORKSPACE, $env:RUNNER_TEMP, $env:TEMP, $env:pythonLocation
+          Add-MpPreference -ExclusionPath $folders
       - name: Install Lacis and Nuitka
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
