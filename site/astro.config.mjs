@@ -40,7 +40,7 @@ export default defineConfig({
                         "guide",
                         {
                             label: "Prise en main",
-                            items: ["guide/installation", "guide/demonstration"],
+                            items: ["guide/installation", "guide/demonstration", "guide/premiere-enquete"],
                         },
                         "guide/usage-responsable",
                     ],

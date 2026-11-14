@@ -5,7 +5,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QRect, QSize
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 
@@ -22,6 +22,7 @@ from take_screenshots import (
     SITE_SCREENSHOTS,
     THEMES,
     TIME_ZONE,
+    cropped,
     frozen_clock,
     instant_demo_environment,
     main,
@@ -113,6 +114,10 @@ def test_a_changelog_without_release_has_no_version_to_show() -> None:
 
 def test_the_screenshots_of_a_scene_are_named_after_it_and_its_theme() -> None:
     assert expected_screenshots() == [
+        "site/src/assets/screenshots/new-investigation-light.webp",
+        "site/src/assets/screenshots/new-investigation-dark.webp",
+        "site/src/assets/screenshots/register-search-light.webp",
+        "site/src/assets/screenshots/register-search-dark.webp",
         "site/src/assets/screenshots/main-window-light.webp",
         "docs/images/screenshot-light.png",
         "site/src/assets/screenshots/main-window-dark.webp",
@@ -150,6 +155,13 @@ def test_the_readme_gets_the_screenshot_at_the_default_size_of_the_window() -> N
     readme = readme_image(image)
     assert readme.size() == DEFAULT_SIZE
     assert readme.devicePixelRatio() == 1
+
+
+def test_a_scene_keeps_only_its_area_at_the_scale_of_the_screen() -> None:
+    image = QImage(DEFAULT_SIZE * 2, QImage.Format.Format_RGB32)
+    image.setDevicePixelRatio(2)
+    assert cropped(image, QRect(10, 20, 300, 100)).size() == QSize(600, 200)
+    assert cropped(image, None).size() == DEFAULT_SIZE * 2
 
 
 def test_an_image_that_cannot_be_written_stops_the_screenshots(tmp_path: Path) -> None:
