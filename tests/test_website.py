@@ -111,7 +111,7 @@ def lossless_webp_size(path: Path) -> tuple[int, int]:
 
 def test_the_home_page_shows_the_main_window_in_both_themes_at_the_same_size() -> None:
     sizes = {
-        lossless_webp_size(SITE / f"src/assets/main-window-{theme}.webp")
+        lossless_webp_size(SITE / f"src/assets/screenshots/main-window-{theme}.webp")
         for theme in ("light", "dark")
     }
     assert sizes == {(2 * 1440, 2 * 900)}
