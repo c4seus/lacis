@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication
 
 import take_screenshots
 from lacis.collectors import http_client
+from lacis.design.theme_controller import ThemePreference
 from lacis.graph import expansion
 from lacis.signals import recomputation
 from lacis.storage import homonym_decisions, investigations
@@ -18,6 +19,7 @@ from lacis.ui.main_window import DEFAULT_SIZE
 from take_screenshots import (
     FROZEN_MOMENT,
     SCENES,
+    SITE_SCREENSHOTS,
     THEMES,
     TIME_ZONE,
     frozen_clock,
@@ -31,6 +33,8 @@ from take_screenshots import (
     time_zone,
 )
 
+REPOSITORY = Path(__file__).resolve().parent.parent
+METAINFO = REPOSITORY / "packaging/linux/io.github.c4seus.lacis.metainfo.xml"
 CHANGELOG_TEXT = """# Changelog
 
 ## [Unreleased]
@@ -69,6 +73,33 @@ def expected_screenshots() -> list[str]:
             if scene.readme_name is not None:
                 expected.append(readme_screenshot(scene.readme_name, theme).as_posix())
     return expected
+
+
+def test_every_screenshot_of_the_website_comes_from_a_scene_and_is_shown() -> None:
+    committed = sorted(
+        path.relative_to(REPOSITORY).as_posix()
+        for path in (REPOSITORY / SITE_SCREENSHOTS).iterdir()
+    )
+    made = sorted(
+        site_screenshot(scene.name, theme).as_posix() for scene in SCENES for theme in THEMES
+    )
+    assert committed == made
+    pages = "".join(
+        page.read_text(encoding="utf-8")
+        for page in (REPOSITORY / "site/src/content/docs").rglob("*.md*")
+    )
+    assert [screenshot for screenshot in made if Path(screenshot).name not in pages] == []
+
+
+def test_the_readme_and_the_appstream_metadata_show_the_screenshots_of_the_demo() -> None:
+    readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
+    metainfo = METAINFO.read_text(encoding="utf-8")
+    for scene in SCENES:
+        if scene.readme_name is None:
+            continue
+        assert readme_screenshot(scene.readme_name, ThemePreference.LIGHT).as_posix() in readme
+        for theme in THEMES:
+            assert readme_screenshot(scene.readme_name, theme).as_posix() in metainfo
 
 
 def test_the_screenshots_show_the_last_released_version() -> None:
