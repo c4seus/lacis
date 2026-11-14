@@ -38,7 +38,7 @@ cd lacis
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
-ruff check . ; ruff format --check . ; python scripts/check_no_comments.py ; mypy ; pytest --cov
+ruff check . ; ruff format --check . ; python scripts/check_no_comments.py ; mypy ; pytest --numprocesses auto --cov
 ```
 
 ### Running Lacis
@@ -214,6 +214,7 @@ Established acronyms of the domain stay as they are: `siren`, `siret`, `naf`, `b
 - **Test names are sentences.** `test_a_closed_company_keeps_its_directors` says what is checked.
 - **Interface tests use pytest-qt.** They run on the offscreen platform, on Linux and Windows. Interact with widgets through `qtbot`, never with sleeps.
 - **Coverage stays above 85 %** on code outside `src/lacis/ui`. The interface is covered by pytest-qt tests, not by the threshold.
+- **Tests run in parallel** with pytest-xdist, one process per processor, in `make test`, `make coverage` and the CI. A test never depends on another test or on their order, and passes as well alone with `pytest tests/test_module.py::test_name`.
 - **No network in tests.** Collectors are tested against a fake API with fictional data.
 
 ## User interface
