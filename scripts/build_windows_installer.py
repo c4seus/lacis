@@ -74,6 +74,7 @@ def nuitka_command(root: Path, version: str) -> list[str]:
         "--include-package-data=lacis",
         "--include-distribution-metadata=lacis",
         "--windows-console-mode=attach",
+        "--lto=no",
         f"--windows-icon-from-ico={root / ICON}",
         f"--company-name={PUBLISHER}",
         f"--product-name={PRODUCT_NAME}",
