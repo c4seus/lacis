@@ -65,6 +65,7 @@ The demonstration serves the fictional companies of the « faux plombiers » sce
 | `make coverage` | Runs the tests with the coverage report and threshold |
 | `make check` | Runs everything the CI runs. Run it before every push |
 | `make icons` | Renders the PNG and ICO icons from their SVG masters |
+| `make screenshots` | Takes the screenshots of the website and the README from the demo mode, in both themes |
 | `make clean` | Removes the build outputs: `build`, `dist`, `debian`, `.pybuild` and `site/dist` |
 | `make desktop-metadata` | Validates the desktop entry and the AppStream metadata |
 | `make deb` | Builds the Debian package into `dist/`, on Debian or Ubuntu |
@@ -228,6 +229,7 @@ The website, https://c4seus.github.io/lacis/, presents Lacis and holds its user 
 
 - **Pages** are Markdown or MDX files in `site/src/content/docs/`. The file `guide/installation.md` becomes the page `/lacis/guide/installation/`.
 - **Node.js.** The website needs the version of Node.js written in `site/.node-version`, and npm. `make site` and `make site-preview` install the dependencies locked in `site/package-lock.json` when they change.
+- **Screenshots** come from the demo mode and are never edited by hand. `make screenshots` plays the fictional investigations of `scripts/take_screenshots.py` and saves each scene in the light and the dark theme: as lossless WebP at twice the default size of the window in `site/src/assets/screenshots/`, and as PNG at the default size in `docs/images/` for the README and the AppStream metadata. The clock is frozen and the time zone is Paris, so two runs write the same files, and a changed screenshot shows a changed interface. To show a new screen, add a scene to the script.
 - **Links** between pages start with the base path and end with a slash, as in `/lacis/guide/installation/`. `make site` fails on a broken internal link, and the CI also checks the external links with [lychee](https://github.com/lycheeverse/lychee), configured in `site/lychee.toml`.
 - **Publication.** The release workflow publishes the website to GitHub Pages after each final release, so the website describes the version that can be downloaded. To publish it between two releases, for example after a fix in the guide, run the `Website` workflow from the Actions tab, on the chosen branch or tag. The `github-pages` environment of the repository lists the branches and tags allowed to publish.
 

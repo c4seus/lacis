@@ -9,8 +9,8 @@ CHECK_SITE_NODE = case "$$(node --version 2> /dev/null)" in \
 	echo "The website needs Node.js $(SITE_NODE) and npm, see site/.node-version"; \
 	exit 1
 
-.PHONY: help install lint format types test coverage check icons clean desktop-metadata deb rpm \
-	arch windows site site-preview
+.PHONY: help install lint format types test coverage check icons screenshots clean \
+	desktop-metadata deb rpm arch windows site site-preview
 .DEFAULT_GOAL := help
 
 help:
@@ -25,6 +25,7 @@ help:
 	@echo "  coverage          Run the tests and report the coverage"
 	@echo "  check             Run lint, types and coverage, like the CI"
 	@echo "  icons             Render the PNG and ICO icons from their SVG masters"
+	@echo "  screenshots       Take the screenshots of the website and the README in demo mode"
 	@echo "  clean             Remove the build outputs: build, dist, debian, .pybuild and site/dist"
 	@echo
 	@echo "Packaging (packages are written to dist/)"
@@ -63,6 +64,9 @@ check: lint types coverage
 
 icons:
 	QT_QPA_PLATFORM=offscreen $(PYTHON) scripts/build_icons.py
+
+screenshots:
+	$(PYTHON) scripts/take_screenshots.py
 
 clean:
 	rm -rf build dist debian .pybuild site/dist site/.astro
