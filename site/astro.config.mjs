@@ -38,7 +38,10 @@ export default defineConfig({
                     label: "Guide de l'utilisateur",
                     items: [
                         "guide",
-                        { label: "Prise en main", items: ["guide/installation"] },
+                        {
+                            label: "Prise en main",
+                            items: ["guide/installation", "guide/demonstration"],
+                        },
                         "guide/usage-responsable",
                     ],
                 },
