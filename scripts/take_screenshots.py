@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Self
 from unittest.mock import patch
 
-from PySide6.QtCore import QEventLoop, QSettings, Qt, QTimer
+from PySide6.QtCore import QEventLoop, QRect, QSettings, Qt, QTimer
 from PySide6.QtGui import QImage, QImageWriter
 from PySide6.QtWidgets import QPushButton
 
@@ -50,6 +50,7 @@ SETTLING_DELAY_MILLISECONDS = 300
 POLLING_DELAY_MILLISECONDS = 50
 SCENE_TIMEOUT_SECONDS = 60.0
 LOSSLESS_QUALITY = 100
+STEADY_CURSOR = 0
 
 
 class FrozenDatetime(datetime):
@@ -63,6 +64,7 @@ class Scene:
     name: str
     prepare: Callable[[MainWindow], None]
     readme_name: str | None = None
+    area: QRect | None = None
 
 
 def skip_waiting(_duration: float) -> None:
@@ -119,10 +121,26 @@ def settle(window: MainWindow) -> None:
     pause(SETTLING_DELAY_MILLISECONDS)
 
 
-def add_the_plumbers(window: MainWindow) -> dict[str, str]:
+def fill_the_new_investigation(window: MainWindow) -> None:
+    window.home_screen.start_creation()
+    window.home_screen.new_investigation_panel.fields.fill(
+        INVESTIGATION_NAME, INVESTIGATION_QUESTION
+    )
+    settle(window)
+
+
+def search_the_address_of_the_plumbers(window: MainWindow) -> None:
+    window.home_screen.new_investigation_panel.create_investigation()
+    wait_until(
+        lambda: window.current_investigation == INVESTIGATION_NAME, "open the new investigation"
+    )
     window.header_bar.search_field.setText(ADDRESS_QUERY)
     window.register_search.search_now()
     wait_until(lambda: bool(window.search_popup.rows), "find the plumbers of the address")
+    settle(window)
+
+
+def add_the_plumbers(window: MainWindow) -> dict[str, str]:
     rows = [row for row in window.search_popup.rows if row.result.title in PLUMBERS]
     for row in rows:
         window.register_search.choose(row)
@@ -143,9 +161,7 @@ def confirm_the_homonym(window: MainWindow) -> None:
     settle(window)
 
 
-def show_the_plumbers_investigation(window: MainWindow) -> None:
-    window.library.create(INVESTIGATION_NAME, INVESTIGATION_QUESTION)
-    window.open_investigation(INVESTIGATION_NAME)
+def investigate_the_plumbers(window: MainWindow) -> None:
     companies = add_the_plumbers(window)
     for title, identifier in companies.items():
         window.review_actions.expand(identifier, title)
@@ -155,16 +171,20 @@ def show_the_plumbers_investigation(window: MainWindow) -> None:
     settle(window)
     window.investigation_page.show_entity(companies[SELECTED_COMPANY], SELECTED_COMPANY)
     window.investigation_page.graph_view.fit()
+    window.content_area.setFocus()
     settle(window)
 
 
-SCENES = (Scene("main-window", show_the_plumbers_investigation, readme_name="screenshot"),)
+SCENES = (
+    Scene("new-investigation", fill_the_new_investigation, area=QRect(180, 96, 1080, 284)),
+    Scene("register-search", search_the_address_of_the_plumbers, area=QRect(470, 26, 676, 272)),
+    Scene("main-window", investigate_the_plumbers, readme_name="screenshot"),
+)
 
 
 def clear_the_view(window: MainWindow) -> None:
     for notification in window.findChildren(Notification):
         notification.dismiss()
-    window.content_area.setFocus()
     pause(SETTLING_DELAY_MILLISECONDS)
 
 
@@ -175,6 +195,18 @@ def save_image(image: QImage, path: Path, quality: int = -1) -> Path:
     if not writer.write(image):
         raise OSError(f"Cannot write {path}: {writer.errorString()}")
     return path
+
+
+def cropped(image: QImage, area: QRect | None) -> QImage:
+    if area is None:
+        return image
+    scale = image.devicePixelRatio()
+    return image.copy(
+        round(area.x() * scale),
+        round(area.y() * scale),
+        round(area.width() * scale),
+        round(area.height() * scale),
+    )
 
 
 def readme_image(image: QImage) -> QImage:
@@ -192,7 +224,7 @@ def capture(window: MainWindow, themes: ThemeController, scene: Scene, root: Pat
     for theme in THEMES:
         themes.set_preference(theme)
         clear_the_view(window)
-        image = window.grab().toImage()
+        image = cropped(window.grab().toImage(), scene.area)
         written.append(
             save_image(image, root / site_screenshot(scene.name, theme), LOSSLESS_QUALITY)
         )
@@ -266,6 +298,8 @@ def main(root: Path) -> int:
     if not can_write_webp():
         print("Qt cannot write WebP images here: install the image format plugins of Qt")
         return 1
+    flash_time = application.styleHints().cursorFlashTime()
+    application.styleHints().setCursorFlashTime(STEADY_CURSOR)
     with isolated_demo() as settings:
         themes = ThemeController(application, settings)
         window = MainWindow(settings, themes, instant_demo_environment())
@@ -280,6 +314,7 @@ def main(root: Path) -> int:
             )
             application.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
             application.setStyleSheet("")
+            application.styleHints().setCursorFlashTime(flash_time)
     return 0
 
 

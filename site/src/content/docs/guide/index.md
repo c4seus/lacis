@@ -8,7 +8,7 @@ sidebar:
 
 Ce guide accompagne l'utilisation de Lacis, de l'installation à la lecture des signaux d'alerte. Il décrit la dernière version publiée, celle que vous pouvez télécharger.
 
-Pour commencer, [installez Lacis](/lacis/guide/installation/), puis [découvrez-le avec le mode démo](/lacis/guide/demonstration/).
+Pour commencer, [installez Lacis](/lacis/guide/installation/), [découvrez-le avec le mode démo](/lacis/guide/demonstration/), puis [menez une première enquête](/lacis/guide/premiere-enquete/).
 
 :::note
 Le guide est en cours de rédaction. Ses autres pages arrivent avec les prochaines mises à jour du site.
