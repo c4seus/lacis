@@ -55,10 +55,10 @@ types:
 	mypy
 
 test:
-	QT_QPA_PLATFORM=offscreen pytest
+	QT_QPA_PLATFORM=offscreen pytest --numprocesses auto
 
 coverage:
-	QT_QPA_PLATFORM=offscreen pytest --cov --cov-report=term
+	QT_QPA_PLATFORM=offscreen pytest --numprocesses auto --cov --cov-report=term
 
 check: lint types coverage
 
