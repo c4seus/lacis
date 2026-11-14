@@ -34,7 +34,14 @@ export default defineConfig({
                 },
             ],
             sidebar: [
-                { label: "Guide de l'utilisateur", items: [{ autogenerate: { directory: "guide" } }] },
+                {
+                    label: "Guide de l'utilisateur",
+                    items: [
+                        "guide",
+                        { label: "Prise en main", items: ["guide/installation"] },
+                        "guide/usage-responsable",
+                    ],
+                },
             ],
             plugins: [starlightLinksValidator()],
         }),

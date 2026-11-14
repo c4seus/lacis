@@ -8,8 +8,10 @@ sidebar:
 
 Ce guide accompagne l'utilisation de Lacis, de l'installation à la lecture des signaux d'alerte. Il décrit la dernière version publiée, celle que vous pouvez télécharger.
 
+Pour commencer, [installez Lacis](/lacis/guide/installation/).
+
 :::note
-Le guide est en cours de rédaction. En attendant ses pages sur l'installation, vous trouverez les instructions de chaque plateforme dans le [README du dépôt](https://github.com/c4seus/lacis#installation), en anglais.
+Le guide est en cours de rédaction. Ses autres pages arrivent avec les prochaines mises à jour du site.
 :::
 
 Avant votre première enquête, lisez les [règles d'un usage responsable](/lacis/guide/usage-responsable/).
