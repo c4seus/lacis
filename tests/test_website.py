@@ -14,6 +14,8 @@ APPLICATION_ICON = ROOT / "packaging/icons/hicolor/scalable/apps/io.github.c4seu
 WEBSITE_ADDRESS = "https://c4seus.github.io/lacis/"
 LATEST_RELEASE = "https://github.com/c4seus/lacis/releases/latest"
 HOME_PAGE = SITE / "src/content/docs/index.mdx"
+INSTALLATION_PAGE = SITE / "src/content/docs/guide/installation.md"
+CODE_BLOCK = re.compile(r"^```(?:bash|powershell)\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 
 
 def site_configuration() -> str:
@@ -135,3 +137,11 @@ def test_the_structured_data_describes_a_free_application_without_inventing_rati
     assert "aggregateRating" not in software
     assert "review" not in software
     assert "<SoftwareApplication />" in HOME_PAGE.read_text(encoding="utf-8")
+
+
+def test_the_installation_page_of_the_guide_gives_the_commands_of_the_readme() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    installation = readme.split("\n## Installation\n", 1)[1].split("\n## ", 1)[0]
+    guide = INSTALLATION_PAGE.read_text(encoding="utf-8")
+    assert CODE_BLOCK.findall(installation)
+    assert CODE_BLOCK.findall(guide) == CODE_BLOCK.findall(installation)

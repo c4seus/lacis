@@ -127,6 +127,16 @@ pipx installs Lacis and its dependencies, PySide6 included, in an environment of
 
 To run Lacis from a clone of the repository, see the development setup in [CONTRIBUTING.md](CONTRIBUTING.md#development-setup).
 
+### Update
+
+Download the package of the new version and install it with the same command as the first time: apt, dnf and pacman replace the installed version, and the Windows installer replaces the installed Lacis. With pipx, add `--force`:
+
+```bash
+pipx install --force ./lacis-X.Y.Z.tar.gz
+```
+
+Your investigations are kept. `lacis --version` prints the installed version, and so does **Aide › À propos de Lacis**.
+
 ### Verify a download
 
 `SHA256SUMS` lists the SHA-256 fingerprint of every file of the release. Put it in the folder of your download, then compare the fingerprints.
