@@ -10,6 +10,8 @@ Ce guide accompagne l'utilisation de Lacis, de l'installation à la lecture des 
 
 Pour commencer, [installez Lacis](/lacis/guide/installation/), [découvrez-le avec le mode démo](/lacis/guide/demonstration/), puis [menez une première enquête](/lacis/guide/premiere-enquete/).
 
+Les pages « Fonctionnalités » décrivent ensuite chaque outil de Lacis, à commencer par la [recherche dans le registre national](/lacis/guide/recherche/).
+
 :::note
 Le guide est en cours de rédaction. Ses autres pages arrivent avec les prochaines mises à jour du site.
 :::

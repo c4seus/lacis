@@ -1,0 +1,53 @@
+---
+title: Chercher dans le registre national
+description: "Trouver une entreprise par sa dénomination, son SIREN, son SIRET, un dirigeant ou une adresse, puis l'ajouter à l'enquête."
+---
+
+import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
+import registerSearchDark from "../../../assets/screenshots/register-search-dark.webp";
+import registerSearchLight from "../../../assets/screenshots/register-search-light.webp";
+
+Toute enquête commence par une entreprise trouvée dans le registre national. Lacis l'interroge par l'API Recherche d'entreprises de l'État, la source de l'[Annuaire des entreprises](https://annuaire-entreprises.data.gouv.fr/).
+
+## Lancer une recherche
+
+Le champ de recherche se trouve en haut de la fenêtre. Il est actif dès qu'une enquête est ouverte : les résultats s'ajoutent à cette enquête. Placez-y le curseur d'un clic, avec <kbd>Ctrl</kbd>+<kbd>F</kbd> ou avec <kbd>/</kbd>.
+
+Saisissez au moins trois caractères :
+
+- une **dénomination**, comme `ACME PLOMBERIE`, ou une partie de celle-ci ;
+- un **numéro SIREN** de 9 chiffres ou un **numéro SIRET** de 14 chiffres, avec ou sans espaces : Lacis reconnaît le numéro et le cherche tel quel ;
+- le **nom d'un dirigeant**, comme `Jean DUPONT` ;
+- une **adresse**, comme `12 rue des Lilas`.
+
+La recherche part dès que vous arrêtez de taper. Le bouton **Rechercher** la relance aussitôt, sans attendre. <kbd>Échap</kbd> ferme la liste des résultats.
+
+## Lire les résultats
+
+La liste annonce d'abord le nombre d'entreprises trouvées dans le registre. Elle n'en affiche que les 25 premières : si la recherche en trouve davantage, une note vous invite à la préciser.
+
+Chaque résultat donne :
+
+- la dénomination de l'entreprise et son état, **Active** ou **Fermée** ;
+- son SIREN, son code NAF, la ville de son siège et sa date de création.
+
+Pour une entreprise dont le siège est à l'étranger, la ville est celle du siège, hors de France.
+
+<ThemedScreenshot
+    light={registerSearchLight}
+    dark={registerSearchDark}
+    alt="La recherche de « 12 rue des Lilas » : trois résultats, ACME PLOMBERIE, DUPONT SERVICES et LILAS BOULANGERIE, chacun avec son SIREN, son code NAF, sa ville, sa date de création et son bouton Ajouter."
+    caption="Les résultats d'une recherche par adresse."
+/>
+
+## Ajouter une entreprise à l'enquête
+
+Choisissez **Ajouter** sur le résultat voulu. Au clavier, parcourez la liste avec <kbd>↑</kbd> et <kbd>↓</kbd>, puis ajoutez le résultat choisi avec <kbd>Entrée</kbd>. L'entreprise apparaît dans le graphe, sans ses dirigeants ni ses adresses : pour les collecter, étendez-la.
+
+Un résultat déjà présent dans l'enquête est marqué « Déjà dans l'enquête » et propose **Voir** : Lacis sélectionne l'entreprise dans le graphe et ouvre sa fiche.
+
+Chaque recherche est conservée dans l'enquête, avec la réponse du registre et son empreinte. Le journal de collecte la retrace.
+
+## Si la recherche échoue
+
+Sans connexion, ou si le registre ne répond pas, la liste affiche le message d'erreur à la place des résultats. Une même recherche refaite dans les 24 heures est servie par le cache de l'enquête, sans nouvelle requête au registre.

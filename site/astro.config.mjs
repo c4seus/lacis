@@ -42,6 +42,10 @@ export default defineConfig({
                             label: "Prise en main",
                             items: ["guide/installation", "guide/demonstration", "guide/premiere-enquete"],
                         },
+                        {
+                            label: "Fonctionnalités",
+                            items: ["guide/recherche"],
+                        },
                         "guide/usage-responsable",
                     ],
                 },
