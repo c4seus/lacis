@@ -144,6 +144,7 @@ class MainWindow(QMainWindow):
             self.investigation_page.details_panel.entity_sheet.show_running
         )
         self.investigation_page.decision_requested.connect(self.review_actions.decide)
+        self.investigation_page.decision_withdrawal_requested.connect(self.review_actions.withdraw)
         self.investigation_page.expansion_requested.connect(self.review_actions.expand)
         self.investigation_page.entity_selected.connect(self.show_details)
         self.investigation_page.notices_refresh_requested.connect(
