@@ -1,6 +1,6 @@
 ---
 title: Guide de l'utilisateur
-description: "Le guide de l'utilisateur de Lacis : installation, première enquête, fonctionnalités, données et usage responsable."
+description: "Le guide de l'utilisateur de Lacis : installation, première enquête, fonctionnalités, données, usage responsable et dépannage."
 sidebar:
   label: Introduction
   order: 0
@@ -12,8 +12,6 @@ Pour commencer, [installez Lacis](/lacis/guide/installation/), [découvrez-le av
 
 Les pages « Fonctionnalités » décrivent ensuite chaque outil de Lacis, à commencer par la [recherche dans le registre national](/lacis/guide/recherche/).
 
-:::note
-Le guide est en cours de rédaction. Ses autres pages arrivent avec les prochaines mises à jour du site.
-:::
-
 Avant votre première enquête, lisez les [règles d'un usage responsable](/lacis/guide/usage-responsable/).
+
+Les pages « Données et aide » disent enfin [où Lacis range vos données](/lacis/guide/donnees/), comment [résoudre un problème](/lacis/guide/depannage/) et comment [contribuer à Lacis](/lacis/guide/contribuer/).
