@@ -49,6 +49,7 @@ export default defineConfig({
                                 "guide/extension",
                                 "guide/annonces-bodacc",
                                 "guide/homonymes",
+                                "guide/entites-etrangeres",
                             ],
                         },
                         "guide/usage-responsable",
