@@ -20,6 +20,8 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - name: Build the website and check its internal links
         run: make site
+        env:
+          GOATCOUNTER_CODE: c4seus
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site/dist
