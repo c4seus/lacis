@@ -41,7 +41,7 @@ Lacis espace déjà ses requêtes pour respecter les limites de chaque service, 
 
 ### Une entreprise n'a pas de dirigeant ou pas d'adresse
 
-Si elle vient d'être ajoutée, elle n'est pas encore étendue : choisissez **Étendre** sur sa fiche. Si elle l'est déjà, ses dirigeants ou son adresse sont sans doute non diffusibles : certaines personnes ont demandé que leurs informations ne soient pas publiées, et Lacis respecte ce choix.
+Si elle vient d'être ajoutée, elle n'est pas encore étendue : choisissez **Étendre** sur sa fiche. Si elle l'est déjà, ses dirigeants ou son adresse sont sans doute non diffusibles : certaines personnes ont demandé que leurs informations ne soient pas publiées, et Lacis respecte ce choix. Sa fiche donne alors le nombre de dirigeants non diffusibles, par exemple « 1 dirigeant non diffusible », sans rien dire d'eux.
 
 ### Une extension s'est arrêtée avant la fin
 
