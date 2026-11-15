@@ -50,7 +50,7 @@ Dans cette version, deux dirigeants aux mêmes nom, prénoms et mois de naissanc
 
 ## Gravité et score
 
-Chaque signal a une **gravité**, faible, moyenne ou forte. Chaque règle part d'une gravité de base, que les circonstances relèvent. Un schéma phénix est moyen si l'entreprise fermée a été liquidée ou si un indice s'ajoute, comme la même adresse ou un nom proche, et fort si les deux se cumulent.
+Chaque signal a une **gravité**, faible, moyenne ou forte. Chaque règle part d'une gravité de base, que les circonstances relèvent. Un schéma phénix est moyen si l'entreprise fermée a été liquidée ou si un indice s'ajoute, comme la même adresse ou un nom proche, et fort si les deux se cumulent. Une rafale de créations garde la gravité de base, et monte d'un cran quand elle atteint le double du seuil : 6 créations sous un même dirigeant au lieu de 3, par exemple.
 
 Chaque signal a aussi un **score**, de 0 à 1 : la force du constat, multipliée par le poids de la règle. Il départage les signaux de même gravité, et classe les entités dans l'onglet **Entités**.
 
@@ -109,7 +109,8 @@ L'adresse est relevée si l'une des deux parts est atteinte, et le signal est pl
 - `window_days = 90` : la période, en jours, de cette rafale ;
 - `by_activity_and_department = true` : chercher aussi les rafales dans une même activité et un même département ;
 - `activity_minimum_companies = 5` : le nombre de créations d'une rafale par activité et département ;
-- `activity_window_days = 30` : la période, en jours, de cette rafale.
+- `activity_window_days = 30` : la période, en jours, de cette rafale ;
+- `excluded_legal_forms = []` : les formes juridiques écartées de toutes les rafales, par leur code de catégorie juridique de l'Insee, comme `["6540"]` pour les sociétés civiles immobilières. Par défaut, aucune.
 
 ### Les réglages des règles sur les dirigeants
 

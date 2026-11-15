@@ -8,6 +8,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 - A website, https://c4seus.github.io/lacis/, that presents Lacis and holds its user guide, in French. The AppStream metadata, the packages and the notes of each release link to it. The website counts its visits with GoatCounter, without cookies, and its privacy page says what is counted.
 - The details of a company show how many of its directors the register withholds, such as « 1 dirigeant non diffusible », without any detail about them.
+- The `excluded_legal_forms` setting of the `creation_burst` rule leaves the companies of some legal forms, such as the SCI, out of the bursts. None is left out by default.
 
 ### Changed
 
@@ -15,6 +16,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Fixed
 
+- A burst of creations under one director or at one address keeps the severity of the settings, « faible » by default, and is raised one step only from twice the threshold. A holding that creates three SCI on the same day no longer gives a medium signal.
 - An expansion of a person or an address that stops after the first 100 results of the register says so in its notification, and the entity stays among the leads with the reason « Seuls les 100 premiers résultats sur … ont été lus ».
 - The « Transfert du siège à l'étranger » signal reads the country of the new registered office only, so a move within France to a street such as « rue d'Italie » no longer flags it. Investigations created with an older version read their notices again when they are opened.
 
