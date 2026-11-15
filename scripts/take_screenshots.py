@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from PySide6.QtCore import QEventLoop, QRect, QSettings, Qt, QTimer
 from PySide6.QtGui import QImage, QImageWriter
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import QPushButton, QWidget
 
 from check_release import changelog_sections
 from lacis.application import create_application
@@ -62,12 +62,23 @@ class FrozenDatetime(datetime):
         return cls.fromtimestamp(FROZEN_MOMENT.timestamp(), tz)
 
 
+def whole_window(window: MainWindow) -> QWidget:
+    return window
+
+
+def shortcuts_dialog(window: MainWindow) -> QWidget:
+    if window.shortcuts_dialog is None:
+        raise LookupError("The keyboard shortcuts dialog is not open")
+    return window.shortcuts_dialog
+
+
 @dataclass(frozen=True)
 class Scene:
     name: str
     prepare: Callable[[MainWindow], None]
     readme_name: str | None = None
     area: QRect | None = None
+    subject: Callable[[MainWindow], QWidget] = whole_window
 
 
 def skip_waiting(_duration: float) -> None:
@@ -222,6 +233,11 @@ def open_the_collection_log(window: MainWindow) -> None:
     settle(window)
 
 
+def open_the_shortcuts(window: MainWindow) -> None:
+    window.show_shortcuts_dialog()
+    settle(window)
+
+
 SCENES = (
     Scene("new-investigation", fill_the_new_investigation, area=QRect(180, 96, 1080, 284)),
     Scene("register-search", search_the_address_of_the_plumbers, area=QRect(470, 26, 676, 272)),
@@ -234,6 +250,7 @@ SCENES = (
     Scene("provenance", keep_the_view, area=QRect(1020, 600, 405, 300)),
     Scene("foreign-entity", show_the_foreign_company, area=QRect(1020, 176, 420, 300)),
     Scene("collection-log", open_the_collection_log, area=QRect(1020, 138, 410, 250)),
+    Scene("keyboard-shortcuts", open_the_shortcuts, subject=shortcuts_dialog),
 )
 
 
@@ -279,7 +296,7 @@ def capture(window: MainWindow, themes: ThemeController, scene: Scene, root: Pat
     for theme in THEMES:
         themes.set_preference(theme)
         clear_the_view(window)
-        image = cropped(window.grab().toImage(), scene.area)
+        image = cropped(scene.subject(window).grab().toImage(), scene.area)
         written.append(
             save_image(image, root / site_screenshot(scene.name, theme), LOSSLESS_QUALITY)
         )
