@@ -25,8 +25,8 @@ from lacis.storage.graph_store import GraphStore
 from lacis.storage.responses import ResponseStore
 
 SHARED_ADDRESS = address_identifier("12 RUE DES LILAS 31000 TOULOUSE")
-JEAN_DUPONT = person_identifier("DUPONT", "Jean", "1980-05")
-JEAN_PIERRE_DUPONT = person_identifier("DUPONT", "Jean Pierre", "1980-05")
+JEAN_DUPONT = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
+JEAN_PIERRE_DUPONT = person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111")
 
 
 @pytest.fixture

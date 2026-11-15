@@ -98,6 +98,14 @@ class SearchedName:
             birth_month if isinstance(birth_month, str) else None,
         )
 
+    @property
+    def key(self) -> tuple[str, str, str | None]:
+        return (
+            person_name_key(self.last_name),
+            person_name_key(self.first_names),
+            self.birth_month,
+        )
+
     def bears(self, director: NaturalPersonDirector) -> bool:
         last_name = shown(director.last_name)
         if last_name is None or person_name_key(last_name) != person_name_key(self.last_name):
@@ -109,12 +117,11 @@ class SearchedName:
         return None in (birth_month, self.birth_month) or birth_month == self.birth_month
 
     def mandates_in(self, company: Company) -> GraphFragment:
-        company_entity_identifier = company_identifier(company.siren)
         return combined(
             [
                 GraphFragment((company_entity(company),)),
                 *(
-                    director_fragment(company_entity_identifier, director)
+                    director_fragment(company.siren, director)
                     for director in company.directors
                     if isinstance(director, NaturalPersonDirector) and self.bears(director)
                 ),
@@ -248,6 +255,7 @@ class GraphExpander:
         self.entities_found: Callable[[int], None] = ignore_count
         self.recorded_changes: list[GraphChanges] = []
         self.truncated_searches: list[TruncatedSearch] = []
+        self.namesakes: dict[str, tuple[str, ...]] = {}
 
     def expand_company(self, siren: str, *, refresh: bool = False) -> GraphChanges:
         digits = siren_of(siren)
@@ -305,12 +313,13 @@ class GraphExpander:
 
     def mark_searched(
         self, entity: CollectedEntity, search_pages: list[CompanySearchPage]
-    ) -> None:
+    ) -> TruncatedSearch | None:
         truncated = truncated_search_in(entity, search_pages)
         attributes = COMPLETE_SEARCH_ATTRIBUTES if truncated is None else truncated.attributes
         self.mark_expanded(entity, search_pages[-1].response, attributes)
         if truncated is not None:
             self.truncated_searches.append(truncated)
+        return truncated
 
     def expanded(self, entity: CollectedEntity, attributes: Attributes) -> CollectedEntity:
         expanded_attributes = {
@@ -330,13 +339,31 @@ class GraphExpander:
         person = self.entity_to_expand(identifier, EntityKind.PERSON)
         searched_name = SearchedName.of(person)
         changes = []
+        found: dict[str, tuple[CollectedEntity, ResponseSummary]] = {}
         search_pages = self.director_pages(searched_name, refresh)
         for search_page in search_pages:
             for company in search_page.companies:
                 fragment = searched_name.mandates_in(company)
                 if fragment.links:
                     changes.append(self.save_fragment(fragment, search_page.response))
-        self.mark_searched(person, search_pages)
+                    found.update(
+                        (entity.identifier, (entity, search_page.response))
+                        for entity in fragment.entities
+                        if entity.kind is EntityKind.PERSON and entity.identifier != identifier
+                    )
+        found = {
+            namesake: found_entity
+            for namesake, found_entity in found.items()
+            if self.graph_store.entity(namesake) is not None
+        }
+        if self.mark_searched(person, search_pages) is None:
+            for entity, response in found.values():
+                self.mark_expanded(entity, response, COMPLETE_SEARCH_ATTRIBUTES)
+        self.namesakes[identifier] = tuple(
+            namesake
+            for namesake, (entity, _) in found.items()
+            if SearchedName.of(entity).key == searched_name.key
+        )
         return combined_changes(changes)
 
     def director_pages(
@@ -466,7 +493,8 @@ class GraphExpander:
                         raise
                     failures.append(f"{self.label_of(current)} : {failure}")
                     continue
-                next_frontier.extend(self.unexpanded_neighbours(current, visited))
+                for reached in (current, *self.namesakes.pop(current, ())):
+                    next_frontier.extend(self.unexpanded_neighbours(reached, visited))
             frontier = list(dict.fromkeys(next_frontier))
 
     def refresh_notices(self, identifier: str) -> ExpansionReport:

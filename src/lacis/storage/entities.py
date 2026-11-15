@@ -46,11 +46,15 @@ def identifier(kind: EntityKind, key: str) -> str:
     return f"{kind}{IDENTIFIER_SEPARATOR}{key}"
 
 
-def company_identifier(siren: str) -> str:
+def valid_siren(siren: str) -> str:
     cleaned_siren = remove_spaces(siren)
     if not SIREN_PATTERN.fullmatch(cleaned_siren):
         raise InvalidIdentifierError(f"A SIREN has 9 digits, not {siren!r}")
-    return identifier(EntityKind.COMPANY, cleaned_siren)
+    return cleaned_siren
+
+
+def company_identifier(siren: str) -> str:
+    return identifier(EntityKind.COMPANY, valid_siren(siren))
 
 
 def establishment_identifier(siret: str) -> str:
@@ -60,13 +64,20 @@ def establishment_identifier(siret: str) -> str:
     return identifier(EntityKind.ESTABLISHMENT, cleaned_siret)
 
 
-def person_identifier(last_name: str, first_names: str, month_of_birth: str | None) -> str:
+def person_identifier(
+    last_name: str, first_names: str, month_of_birth: str | None, siren: str
+) -> str:
     if month_of_birth is not None and not MONTH_OF_BIRTH_PATTERN.fullmatch(month_of_birth):
         raise InvalidIdentifierError(f"A month of birth reads YYYY-MM, not {month_of_birth!r}")
     if not person_name_key(last_name):
         raise InvalidIdentifierError("A person needs a last name")
     key = KEY_SEPARATOR.join(
-        [person_name_key(last_name), person_name_key(first_names), month_of_birth or ""]
+        [
+            person_name_key(last_name),
+            person_name_key(first_names),
+            month_of_birth or "",
+            valid_siren(siren),
+        ]
     )
     return identifier(EntityKind.PERSON, digest(key))
 

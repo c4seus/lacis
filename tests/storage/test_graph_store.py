@@ -42,7 +42,7 @@ TOULOUSE_ESTABLISHMENT = CollectedEntity(
     {"siret": "22222222200015", "headquarters": True},
 )
 JEAN_DUPONT = CollectedEntity(
-    person_identifier("DUPONT", "Jean", "1980-05"),
+    person_identifier("DUPONT", "Jean", "1980-05", "222222222"),
     "Jean DUPONT",
     {"last_name": "DUPONT", "first_names": "Jean", "month_of_birth": "1980-05"},
 )
@@ -137,7 +137,7 @@ def test_attributes_keep_accents_and_types(graph_store: GraphStore) -> None:
 
 ACME_PLOMBERIE = CollectedEntity(company_identifier("111111111"), "ACME PLOMBERIE")
 JEAN_PIERRE_DUPONT = CollectedEntity(
-    person_identifier("DUPONT", "Jean Pierre", "1980-05"), "Jean Pierre DUPONT"
+    person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111"), "Jean Pierre DUPONT"
 )
 EVERY_LINK_KIND = [
     mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président"),

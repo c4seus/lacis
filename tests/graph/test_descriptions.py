@@ -52,12 +52,12 @@ def test_a_description_lists_the_links_of_the_entity(
 ) -> None:
     assert entity_description(drawing, scenario.jean) == (
         "Jean DUPONT (1980-05), personne, 2 liens, signal de sévérité forte. "
-        "Liens : Président de DUPONT SERVICES ; "
-        "même personne que Jean Pierre DUPONT (1980-05)."
+        "Liens : même personne que Jean Pierre DUPONT (1980-05) ; "
+        "Président de DUPONT SERVICES."
     )
     assert entity_description(drawing, scenario.dupont_services) == (
         "DUPONT SERVICES, entreprise, fermée, 2 liens, signal de sévérité forte. "
-        "Liens : Président : Jean DUPONT (1980-05) ; établissement Siège — TOULOUSE."
+        "Liens : établissement Siège — TOULOUSE ; Président : Jean DUPONT (1980-05)."
     )
 
 
