@@ -26,7 +26,9 @@ from lacis.graph.mapping import (
 )
 from lacis.storage.comparison_keys import person_name_key
 from lacis.storage.entities import (
+    Attributes,
     CollectedEntity,
+    Entity,
     EntityKind,
     company_identifier,
     establishment_of_link,
@@ -53,6 +55,8 @@ class GraphChanges:
 
 
 EXPANDED_AT_ATTRIBUTE = "expanded_at"
+RESULTS_READ_ATTRIBUTE = "search_results_read"
+RESULTS_FOUND_ATTRIBUTE = "search_results_found"
 MAXIMUM_SEARCH_PAGES = 4
 DEFAULT_MAXIMUM_NEW_ENTITIES = 500
 ESTABLISHMENT_PREFIX = f"{EntityKind.ESTABLISHMENT}:"
@@ -118,6 +122,44 @@ class SearchedName:
         )
 
 
+@dataclass(frozen=True)
+class TruncatedSearch:
+    label: str
+    read: int
+    found: int
+
+    @property
+    def reason(self) -> str:
+        return f"Seuls les {self.read} premiers résultats sur {self.found} ont été lus"
+
+    @property
+    def attributes(self) -> Attributes:
+        return {RESULTS_READ_ATTRIBUTE: self.read, RESULTS_FOUND_ATTRIBUTE: self.found}
+
+
+COMPLETE_SEARCH_ATTRIBUTES: Attributes = {
+    RESULTS_READ_ATTRIBUTE: None,
+    RESULTS_FOUND_ATTRIBUTE: None,
+}
+
+
+def truncated_search_of(entity: Entity | CollectedEntity) -> TruncatedSearch | None:
+    read = entity.attributes.get(RESULTS_READ_ATTRIBUTE)
+    found = entity.attributes.get(RESULTS_FOUND_ATTRIBUTE)
+    if isinstance(read, int) and isinstance(found, int):
+        return TruncatedSearch(entity.label, read, found)
+    return None
+
+
+def truncated_search_in(
+    entity: CollectedEntity, search_pages: list[CompanySearchPage]
+) -> TruncatedSearch | None:
+    if not search_pages[-1].has_next_page:
+        return None
+    read = sum(len(search_page.companies) for search_page in search_pages)
+    return TruncatedSearch(entity.label, read, search_pages[-1].total_results)
+
+
 class ExpansionError(Exception):
     pass
 
@@ -128,6 +170,7 @@ class ExpansionReport:
     failures: tuple[str, ...] = ()
     cap: int | None = None
     cancelled: bool = False
+    truncated_searches: tuple[TruncatedSearch, ...] = ()
 
     @property
     def cap_reached(self) -> bool:
@@ -192,6 +235,7 @@ class GraphExpander:
         self.cap_reached = False
         self.entities_found: Callable[[int], None] = ignore_count
         self.recorded_changes: list[GraphChanges] = []
+        self.truncated_searches: list[TruncatedSearch] = []
 
     def expand_company(self, siren: str, *, refresh: bool = False) -> GraphChanges:
         digits = siren_of(siren)
@@ -238,13 +282,31 @@ class GraphExpander:
             )
         )
 
-    def mark_expanded(self, entity: CollectedEntity, response: ResponseSummary) -> None:
+    def mark_expanded(
+        self,
+        entity: CollectedEntity,
+        response: ResponseSummary,
+        attributes: Attributes | None = None,
+    ) -> None:
         if not self.cap_reached:
-            self.graph_store.save_entity(self.expanded(entity), response)
+            self.graph_store.save_entity(self.expanded(entity, attributes or {}), response)
 
-    def expanded(self, entity: CollectedEntity) -> CollectedEntity:
-        attributes = {**entity.attributes, EXPANDED_AT_ATTRIBUTE: self.now().isoformat()}
-        return replace(entity, attributes=attributes)
+    def mark_searched(
+        self, entity: CollectedEntity, search_pages: list[CompanySearchPage]
+    ) -> None:
+        truncated = truncated_search_in(entity, search_pages)
+        attributes = COMPLETE_SEARCH_ATTRIBUTES if truncated is None else truncated.attributes
+        self.mark_expanded(entity, search_pages[-1].response, attributes)
+        if truncated is not None:
+            self.truncated_searches.append(truncated)
+
+    def expanded(self, entity: CollectedEntity, attributes: Attributes) -> CollectedEntity:
+        expanded_attributes = {
+            **entity.attributes,
+            **attributes,
+            EXPANDED_AT_ATTRIBUTE: self.now().isoformat(),
+        }
+        return replace(entity, attributes=expanded_attributes)
 
     def entity_to_expand(self, identifier: str, kind: EntityKind) -> CollectedEntity:
         entity = self.graph_store.entity(identifier)
@@ -262,7 +324,7 @@ class GraphExpander:
                 fragment = searched_name.mandates_in(company)
                 if fragment.links:
                     changes.append(self.save_fragment(fragment, search_page.response))
-        self.mark_expanded(person, search_pages[-1].response)
+        self.mark_searched(person, search_pages)
         return combined_changes(changes)
 
     def director_pages(
@@ -294,7 +356,7 @@ class GraphExpander:
                 fragment = registered_at(company, identifier)
                 if fragment.links:
                     changes.append(self.save_fragment(fragment, search_page.response))
-        self.mark_expanded(address, search_pages[-1].response)
+        self.mark_searched(address, search_pages)
         return combined_changes(changes)
 
     def add_company(self, company: Company, response: ResponseSummary) -> GraphChanges:
@@ -359,6 +421,7 @@ class GraphExpander:
         self.remaining_new_entities = self.maximum_new_entities
         self.cap_reached = False
         self.recorded_changes = []
+        self.truncated_searches = []
         failures: list[str] = []
         cancelled = False
         try:
@@ -369,7 +432,9 @@ class GraphExpander:
             self.remaining_new_entities = None
         cap = self.maximum_new_entities if self.cap_reached else None
         changes = combined_changes(self.recorded_changes)
-        return ExpansionReport(changes, tuple(failures), cap, cancelled)
+        return ExpansionReport(
+            changes, tuple(failures), cap, cancelled, tuple(self.truncated_searches)
+        )
 
     def expand_by_level(
         self, identifier: str, depth: int, refresh: bool, failures: list[str]
