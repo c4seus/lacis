@@ -26,6 +26,7 @@ OPEN_ESTABLISHMENT_TEXT = "Ouvert"
 CLOSED_ESTABLISHMENT_TEXT = "Fermé"
 HEAD_OFFICE_TEXT = "Siège"
 DIRECTOR_ONLY_TEXT = "Connue comme dirigeante seulement"
+FOREIGN_LAW_TEXT = "Droit étranger"
 
 
 class BadgeTone(StrEnum):
@@ -228,6 +229,16 @@ def spaced_siret(siret: str) -> str:
     return f"{spaced_siren(siret[:9])} {siret[9:]}"
 
 
+def country_facts(attributes: Attributes) -> list[str]:
+    country = text_of(attributes, "country")
+    if not country:
+        return []
+    source = text_of(attributes, "country_source")
+    if not source:
+        return [f"Pays {country}"]
+    return [f"Pays {country} ({source[0].lower()}{source[1:]})"]
+
+
 def company_facts(attributes: Attributes) -> list[str]:
     siren = text_of(attributes, "siren")
     facts = [f"SIREN {spaced_siren(siren)}"] if siren else []
@@ -237,6 +248,7 @@ def company_facts(attributes: Attributes) -> list[str]:
     facts += [f"Créée le {created}"] if created else []
     facts += [f"Fermée le {closed}"] if closed else []
     facts += [f"NAF {activity}"] if activity else []
+    facts += country_facts(attributes)
     withheld = withheld_directors(attributes.get("hidden_director_count"))
     facts += [withheld] if withheld else []
     return facts
@@ -292,6 +304,8 @@ def status_badges(graph_store: GraphStore, entity: Entity) -> list[Badge]:
             badges.append(Badge(ACTIVE_TEXT, BadgeTone.ACTIVE))
         elif attributes.get("is_active") is False:
             badges.append(Badge(CLOSED_COMPANY_TEXT, BadgeTone.CLOSED))
+        if attributes.get("is_under_foreign_law") is True:
+            badges.append(Badge(FOREIGN_LAW_TEXT, BadgeTone.OUTLINE))
         if is_known_as_director_only(graph_store, entity):
             badges.append(Badge(DIRECTOR_ONLY_TEXT, BadgeTone.OUTLINE))
     if entity.kind is EntityKind.ESTABLISHMENT:
