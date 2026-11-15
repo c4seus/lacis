@@ -30,12 +30,12 @@ def test_the_help_menu_lists_documentation_shortcuts_problem_reporting_and_about
     assert help_menu.shortcuts_action.shortcut() == QKeySequence("Ctrl+/")
 
 
-def test_f1_opens_the_documentation(qtbot: QtBot, opened_urls: list[QUrl]) -> None:
+def test_f1_opens_the_user_guide_of_the_website(qtbot: QtBot, opened_urls: list[QUrl]) -> None:
     help_menu = HelpMenu()
     qtbot.addWidget(help_menu)
     assert help_menu.documentation_action.shortcut() == QKeySequence("F1")
     help_menu.documentation_action.trigger()
-    assert opened_urls == [QUrl("https://github.com/c4seus/lacis#readme")]
+    assert opened_urls == [QUrl("https://c4seus.github.io/lacis/guide/")]
 
 
 def test_reporting_a_problem_opens_the_issue_forms(qtbot: QtBot, opened_urls: list[QUrl]) -> None:

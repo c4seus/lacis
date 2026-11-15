@@ -8,6 +8,10 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 - A website, https://c4seus.github.io/lacis/, that presents Lacis and holds its user guide, in French. The AppStream metadata, the packages and the notes of each release link to it. The website counts its visits with GoatCounter, without cookies, and its privacy page says what is counted.
 
+### Changed
+
+- Aide › Documentation and F1 open the user guide of the website, in French, instead of the README.
+
 ## [0.1.0] - 2026-11-13
 
 The first release brings the capabilities of the former web prototype to a native desktop application for Linux and Windows.

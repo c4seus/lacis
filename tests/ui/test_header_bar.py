@@ -201,7 +201,7 @@ def test_the_help_button_opens_the_documentation(
     assert header_bar.help_button.accessibleName() == "Aide"
     assert header_bar.help_button.menu() is header_bar.help_menu
     header_bar.help_menu.documentation_action.trigger()
-    assert opened_urls == [QUrl("https://github.com/c4seus/lacis#readme")]
+    assert opened_urls == [QUrl("https://c4seus.github.io/lacis/guide/")]
 
 
 def test_the_theme_button_opens_the_theme_choice(
