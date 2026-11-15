@@ -44,7 +44,12 @@ export default defineConfig({
                         },
                         {
                             label: "Fonctionnalités",
-                            items: ["guide/recherche", "guide/extension", "guide/annonces-bodacc"],
+                            items: [
+                                "guide/recherche",
+                                "guide/extension",
+                                "guide/annonces-bodacc",
+                                "guide/homonymes",
+                            ],
                         },
                         "guide/usage-responsable",
                     ],
