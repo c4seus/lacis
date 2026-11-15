@@ -47,6 +47,10 @@ Si elle vient d'être ajoutée, elle n'est pas encore étendue : choisissez **�
 
 Une extension n'ajoute jamais plus de 500 nouvelles entités, et le signale : « Extension arrêtée à 500 nouvelles entités, la limite fixée. » Étendez ensuite une à une les pistes qui vous intéressent, dans la colonne « À examiner ».
 
+### « Seuls les 100 premiers résultats sur … ont été lus »
+
+Une personne ou une adresse compte plus de 100 résultats dans le registre : un nom très répandu, ou une adresse de domiciliation. Lacis n'en lit que les 100 premiers, et les mandats ou les entreprises au-delà manquent au graphe. L'entité reste parmi les pistes, dans la colonne « À examiner », pour vous le rappeler. Dans cette version, une nouvelle extension relit les mêmes résultats.
+
 ### Les informations semblent dépassées
 
 Lacis garde chaque réponse 24 heures en cache, pour ménager les services publics. Pour une réponse fraîche, choisissez **Étendre à nouveau** sur la fiche de l'entité, ou **Rafraîchir** sur ses annonces BODACC.
