@@ -16,6 +16,8 @@ Ces requêtes contiennent ce que vous cherchez : une dénomination, un numéro 
 
 Le mode démo n'envoie aucune requête.
 
+Ce site, lui, mesure son audience sans cookie ni donnée personnelle : la page [Confidentialité du site](/lacis/confidentialite/) dit ce qu'il compte.
+
 ## Où Lacis range ce qu'il écrit
 
 Sous Linux :
