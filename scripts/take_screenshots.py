@@ -47,6 +47,7 @@ INVESTIGATION_QUESTION = "Qui se cache derrière les plombiers du 12 rue des Lil
 ADDRESS_QUERY = "12 rue des Lilas"
 PLUMBERS = ("ACME PLOMBERIE", "DUPONT SERVICES")
 SELECTED_COMPANY = "DUPONT SERVICES"
+FOREIGN_COMPANY = "DUPONT INVEST LTD"
 SETTLING_DELAY_MILLISECONDS = 300
 POLLING_DELAY_MILLISECONDS = 50
 SCENE_TIMEOUT_SECONDS = 60.0
@@ -210,6 +211,10 @@ def scroll_to_the_notices(window: MainWindow) -> None:
     settle(window)
 
 
+def show_the_foreign_company(window: MainWindow) -> None:
+    show_the_entity(window, FOREIGN_COMPANY)
+
+
 SCENES = (
     Scene("new-investigation", fill_the_new_investigation, area=QRect(180, 96, 1080, 284)),
     Scene("register-search", search_the_address_of_the_plumbers, area=QRect(470, 26, 676, 272)),
@@ -218,6 +223,7 @@ SCENES = (
     Scene("main-window", investigate_the_plumbers, readme_name="screenshot"),
     Scene("graph", keep_the_view, area=QRect(321, 138, 698, 762)),
     Scene("bodacc-notices", scroll_to_the_notices, area=QRect(1020, 256, 405, 330)),
+    Scene("foreign-entity", show_the_foreign_company, area=QRect(1020, 176, 420, 300)),
 )
 
 

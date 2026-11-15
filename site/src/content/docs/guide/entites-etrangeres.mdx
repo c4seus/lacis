@@ -1,0 +1,55 @@
+---
+title: Comprendre les entités étrangères
+description: "Reconnaître une société étrangère qui dirige une entreprise française, et une entreprise de droit étranger immatriculée en France."
+---
+
+import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
+import foreignEntityDark from "../../../assets/screenshots/foreign-entity-dark.webp";
+import foreignEntityLight from "../../../assets/screenshots/foreign-entity-light.webp";
+
+Une société étrangère échappe en grande partie aux sources françaises. Lacis la fait tout de même apparaître dans le graphe, dans deux cas qu'il distingue.
+
+## Une société étrangère qui dirige une entreprise française
+
+Le registre national cite parfois, parmi les dirigeants d'une entreprise, une société qui n'a pas de numéro SIREN : une société étrangère, comme DUPONT INVEST LTD, associée d'ACME PLOMBERIE dans l'enquête d'exemple. Lacis l'ajoute au graphe comme **entreprise étrangère**, sous la forme d'un hexagone violet, que la légende appelle « Étranger ».
+
+Lacis en déduit le pays d'après la forme juridique qui termine son nom :
+
+| Fin du nom | Pays |
+| --- | --- |
+| LTD, LIMITED, PLC, LLP | Royaume-Uni |
+| GMBH | Allemagne |
+| BV | Pays-Bas |
+| BVBA, SPRL | Belgique |
+| SPA | Italie |
+| SL, SLU | Espagne |
+| LDA | Portugal |
+| SP ZOO | Pologne |
+| KFT | Hongrie |
+| OY | Finlande |
+| APS | Danemark |
+| SAGL | Suisse |
+| LLC, INC, CORP | États-Unis |
+
+Les initiales séparées par des points ou des espaces comptent aussi : « B.V. » se lit comme BV. Pour toute autre fin de nom, le pays reste inconnu.
+
+Sa fiche donne ce pays, ses liens avec les entreprises françaises qu'elle dirige, et la réponse du registre d'où elle vient. Une entreprise étrangère n'est pas inscrite au registre national : elle ne peut pas être étendue, et n'a pas d'annonces BODACC.
+
+<ThemedScreenshot
+    light={foreignEntityLight}
+    dark={foreignEntityDark}
+    alt="La fiche de DUPONT INVEST LTD : entreprise étrangère, pays Royaume-Uni, associée d'ACME PLOMBERIE, avec la réponse du registre dont elle provient et son empreinte SHA-256."
+    caption="La fiche d'une société étrangère qui dirige une entreprise française."
+/>
+
+Lacis reconnaît une société étrangère à son nom. Si elle dirige plusieurs entreprises de l'enquête sous le même nom, elle n'apparaît qu'une fois, reliée à chacune : c'est souvent ce lien qui révèle un montage.
+
+## Une entreprise de droit étranger immatriculée en France
+
+Une société étrangère qui exerce en France y est immatriculée, avec un numéro SIREN. Le registre national la décrit alors comme les autres, et Lacis la traite en entreprise : vous pouvez la chercher, l'étendre et lire ses annonces BODACC.
+
+Lacis la tient pour étrangère quand sa catégorie juridique est celle d'une personne morale de droit étranger, ou quand son siège est hors de France. Dans cette version, c'est son siège qui le montre : il apparaît dans le graphe avec son adresse étrangère, pays compris, comme « 10 KING STREET LONDRES ROYAUME-UNI ». Dans les résultats de recherche, la ville affichée est celle de ce siège.
+
+## Filtrer les entités étrangères
+
+Le bouton **Filtres** du graphe masque ou affiche les « Entreprises étrangères ». Pour repérer une entreprise française dont le siège a été transféré à l'étranger, lisez ses annonces BODACC : le signal « Transfert du siège à l'étranger » les relève pour vous.
