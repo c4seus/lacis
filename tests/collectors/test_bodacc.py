@@ -79,9 +79,34 @@ EVERY_FAMILY_NOTICES = tuple(
     )
     for index, (code, (label, _)) in enumerate(EVERY_FAMILY.items())
 )
+MOVING_COMPANY = FictionalCompany(
+    siren="989898989",
+    name="SIEGE NOMADE",
+    establishments=(FictionalEstablishment("00012", SHARED_ADDRESS, "2018-04-02"),),
+    directors=(),
+    creation_date="2018-04-02",
+)
+NEW_ADDRESSES = {
+    "B202500500001": "au 12 rue d'Italie, 13100 Aix-en-Provence",
+    "B202500500002": "au 4 avenue de Belgique, 31000 Toulouse",
+    "B202500500003": "en Belgique, 10 avenue Louise, 1050 Ixelles, à compter du 1er juin 2025",
+    "B202500500004": "au 8 allée des Tilleuls, 31000 Toulouse",
+}
+MOVING_NOTICES = tuple(
+    FictionalNotice(
+        identifier,
+        MOVING_COMPANY,
+        "modification",
+        "Modifications diverses",
+        f"2025-0{index + 2}-10",
+        COURT,
+        {"modificationsgenerales": {"descriptif": f"Transfert du siège social {new_address}."}},
+    )
+    for index, (identifier, new_address) in enumerate(NEW_ADDRESSES.items())
+)
 SCENARIO = FictionalScenario(
-    (*FAKE_PLUMBERS_SCENARIO.companies, EVERY_FAMILY_COMPANY),
-    (*FAKE_PLUMBERS_NOTICES, *EVERY_FAMILY_NOTICES),
+    (*FAKE_PLUMBERS_SCENARIO.companies, EVERY_FAMILY_COMPANY, MOVING_COMPANY),
+    (*FAKE_PLUMBERS_NOTICES, *EVERY_FAMILY_NOTICES, *MOVING_NOTICES),
 )
 
 
@@ -484,6 +509,16 @@ def test_a_collected_notice_keeps_its_transfer_abroad(bodacc: Bodacc) -> None:
 def test_notices_without_transfer_abroad_have_none(bodacc: Bodacc) -> None:
     for siren in ("111111111", "222222222", "777777777"):
         assert all(notice.office_transfer is None for notice in bodacc.notices_of(siren).notices)
+
+
+def test_only_the_move_to_another_country_is_a_transfer_abroad(bodacc: Bodacc) -> None:
+    notices = bodacc.notices_of("989898989").notices
+    assert {notice.identifier: notice.office_transfer for notice in notices} == {
+        "B202500500001": None,
+        "B202500500002": None,
+        "B202500500003": OfficeTransfer("Belgique", date(2025, 6, 1), effective_date_stated=True),
+        "B202500500004": None,
+    }
 
 
 def transfer_of(field_name: str = "modificationsgenerales", **detail: object) -> object:
