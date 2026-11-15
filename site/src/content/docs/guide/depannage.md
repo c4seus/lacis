@@ -57,7 +57,7 @@ Lacis garde chaque réponse 24 heures en cache, pour ménager les services publi
 
 ### J'ai confirmé un homonyme par erreur
 
-Tant que l'enquête est ouverte, **Édition › Annuler la décision d'homonyme**, ou <kbd>Ctrl</kbd>+<kbd>Z</kbd>, défait la décision. Une fois l'enquête fermée, la décision est acquise : cette version de Lacis ne permet plus de l'annuler.
+Tant que l'enquête est ouverte, **Édition › Annuler la décision d'homonyme**, ou <kbd>Ctrl</kbd>+<kbd>Z</kbd>, défait la décision. Pour une décision prise avant de fermer l'enquête, sélectionnez l'une des deux personnes : sa fiche liste ses [décisions d'homonymie](/lacis/guide/homonymes/#retirer-une-décision-depuis-la-fiche), et le bouton **Retirer** défait celle que vous choisissez.
 
 ### Le graphe est illisible
 
