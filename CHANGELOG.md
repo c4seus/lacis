@@ -13,6 +13,10 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 - Aide › Documentation and F1 open the user guide of the website, in French, instead of the README.
 
+### Fixed
+
+- The « Transfert du siège à l'étranger » signal reads the country of the new registered office only, so a move within France to a street such as « rue d'Italie » no longer flags it. Investigations created with an older version read their notices again when they are opened.
+
 ## [0.1.0] - 2026-11-13
 
 The first release brings the capabilities of the former web prototype to a native desktop application for Linux and Windows.
