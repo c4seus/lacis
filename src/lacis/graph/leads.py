@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from lacis.graph.expansion import EXPANDED_AT_ATTRIBUTE, PIVOT_KINDS
+from lacis.graph.expansion import EXPANDED_AT_ATTRIBUTE, PIVOT_KINDS, truncated_search_of
 from lacis.storage.entities import Entity, EntityKind, LinkKind
 from lacis.storage.graph_store import GraphStore
 
@@ -27,6 +27,9 @@ def is_known_as_director_only(graph_store: GraphStore, company: Entity) -> bool:
 
 
 def reason_for(graph_store: GraphStore, entity: Entity) -> str:
+    truncated = truncated_search_of(entity)
+    if truncated is not None:
+        return truncated.reason
     if entity.kind is EntityKind.PERSON:
         return OTHER_MANDATES_POSSIBLE
     if entity.kind is EntityKind.ADDRESS:
@@ -36,10 +39,16 @@ def reason_for(graph_store: GraphStore, entity: Entity) -> str:
     return COMPANY_DETAILS_NOT_FETCHED
 
 
+def is_lead(entity: Entity) -> bool:
+    return entity.kind in PIVOT_KINDS and (
+        EXPANDED_AT_ATTRIBUTE not in entity.attributes or truncated_search_of(entity) is not None
+    )
+
+
 def unexpanded_leads(graph_store: GraphStore) -> list[Lead]:
     leads = [
         Lead(entity.identifier, entity.kind, entity.label, reason_for(graph_store, entity))
         for entity in graph_store.entities()
-        if entity.kind in PIVOT_KINDS and EXPANDED_AT_ATTRIBUTE not in entity.attributes
+        if is_lead(entity)
     ]
     return sorted(leads, key=lambda lead: (KIND_ORDER.index(lead.kind), lead.label.casefold()))

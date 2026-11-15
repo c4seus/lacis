@@ -12,10 +12,15 @@ from lacis.collectors.fake_api import FakeApi
 from lacis.collectors.fake_plumbers import FAKE_PLUMBERS_SCENARIO
 from lacis.collectors.http_client import CollectorHttpClient, CollectorTiming
 from lacis.collectors.rate_limiting import RateLimiters
-from lacis.graph.expansion import GraphExpander
+from lacis.graph.expansion import GraphExpander, TruncatedSearch
 from lacis.graph.leads import Lead, unexpanded_leads
 from lacis.storage.collection_log import CollectionLog
-from lacis.storage.entities import EntityKind, address_identifier, person_identifier
+from lacis.storage.entities import (
+    CollectedEntity,
+    EntityKind,
+    address_identifier,
+    person_identifier,
+)
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.responses import ResponseStore
 
@@ -100,6 +105,20 @@ def test_an_expanded_entity_is_no_longer_a_lead(
     identifiers = [lead.identifier for lead in unexpanded_leads(graph_store)]
     assert SHARED_ADDRESS not in identifiers
     assert "company:333333333" not in identifiers
+
+
+def test_an_expansion_that_stopped_early_stays_a_lead_with_its_reason(
+    plumbers_expanded: GraphExpander, graph_store: GraphStore
+) -> None:
+    plumbers_expanded.expand_person(JEAN_DUPONT)
+    person = graph_store.require_entity(JEAN_DUPONT)
+    truncated = TruncatedSearch(person.label, 100, 312)
+    graph_store.save_entity(
+        CollectedEntity(person.identifier, person.label, truncated.attributes),
+        graph_store.sources_of_entity(JEAN_DUPONT)[-1],
+    )
+    leads = {lead.identifier: lead.reason for lead in unexpanded_leads(graph_store)}
+    assert leads[JEAN_DUPONT] == "Seuls les 100 premiers résultats sur 312 ont été lus"
 
 
 def test_establishments_and_foreign_companies_are_never_leads(
