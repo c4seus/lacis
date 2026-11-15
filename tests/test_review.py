@@ -6,7 +6,7 @@ import pytest
 
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
-from lacis.graph.expansion import ExpansionReport, GraphChanges
+from lacis.graph.expansion import ExpansionReport, GraphChanges, TruncatedSearch
 from lacis.graph.leads import Lead
 from lacis.graph.progress import ExpansionProgress
 from lacis.identity.homonyms import Confidence
@@ -181,6 +181,32 @@ def test_an_expansion_message_tells_what_was_found() -> None:
     assert message.startswith("Extension de HOLDING DUPONT terminée : 1 entité ajoutée. ")
     assert troubled.cap_message in message
     assert message.endswith("(1 source en échec)")
+
+
+def test_an_expansion_message_tells_when_only_the_first_results_were_read() -> None:
+    truncated = ExpansionReport(
+        GraphChanges(new_entities=("company:1",)),
+        truncated_searches=(TruncatedSearch("Jean DUPONT", 100, 312),),
+    )
+    assert expansion_message("Jean DUPONT", truncated) == (
+        "Extension de Jean DUPONT terminée : 1 entité ajoutée. Seuls les 100 premiers "
+        "résultats sur 312 ont été lus pour Jean DUPONT, qui reste parmi les pistes."
+    )
+    assert ExpansionReport(GraphChanges()).truncation_message == ""
+
+
+def test_an_expansion_message_counts_the_entities_whose_results_were_cut() -> None:
+    truncated = ExpansionReport(
+        GraphChanges(),
+        truncated_searches=(
+            TruncatedSearch("Jean DUPONT", 100, 312),
+            TruncatedSearch("12 RUE DES LILAS 31000 TOULOUSE", 100, 140),
+        ),
+    )
+    assert expansion_message("ACME PLOMBERIE", truncated) == (
+        "Extension de ACME PLOMBERIE terminée : rien de nouveau. Seuls les 100 premiers "
+        "résultats ont été lus pour 2 entités, qui restent parmi les pistes."
+    )
 
 
 def test_a_notices_message_tells_what_changed() -> None:

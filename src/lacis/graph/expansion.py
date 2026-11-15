@@ -185,6 +185,18 @@ class ExpansionReport:
             "Étendez les pistes restantes pour continuer."
         )
 
+    @property
+    def truncation_message(self) -> str:
+        if not self.truncated_searches:
+            return ""
+        first = self.truncated_searches[0]
+        if len(self.truncated_searches) == 1:
+            return f"{first.reason} pour {first.label}, qui reste parmi les pistes."
+        return (
+            f"Seuls les {first.read} premiers résultats ont été lus pour "
+            f"{len(self.truncated_searches)} entités, qui restent parmi les pistes."
+        )
+
 
 def ignore_count(count: int) -> None:
     return None
