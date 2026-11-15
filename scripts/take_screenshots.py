@@ -215,6 +215,13 @@ def show_the_foreign_company(window: MainWindow) -> None:
     show_the_entity(window, FOREIGN_COMPANY)
 
 
+def open_the_collection_log(window: MainWindow) -> None:
+    details_panel = window.investigation_page.details_panel
+    details_panel.show_tab(details_panel.journal_index)
+    window.content_area.setFocus()
+    settle(window)
+
+
 SCENES = (
     Scene("new-investigation", fill_the_new_investigation, area=QRect(180, 96, 1080, 284)),
     Scene("register-search", search_the_address_of_the_plumbers, area=QRect(470, 26, 676, 272)),
@@ -224,7 +231,9 @@ SCENES = (
     Scene("graph", keep_the_view, area=QRect(321, 138, 698, 762)),
     Scene("warning-signal", keep_the_view, area=QRect(1020, 172, 405, 388)),
     Scene("bodacc-notices", scroll_to_the_notices, area=QRect(1020, 256, 405, 330)),
+    Scene("provenance", keep_the_view, area=QRect(1020, 600, 405, 300)),
     Scene("foreign-entity", show_the_foreign_company, area=QRect(1020, 176, 420, 300)),
+    Scene("collection-log", open_the_collection_log, area=QRect(1020, 138, 410, 250)),
 )
 
 

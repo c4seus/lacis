@@ -51,6 +51,7 @@ export default defineConfig({
                                 "guide/homonymes",
                                 "guide/entites-etrangeres",
                                 "guide/signaux",
+                                "guide/preuves",
                             ],
                         },
                         "guide/usage-responsable",

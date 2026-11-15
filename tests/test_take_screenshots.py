@@ -132,8 +132,12 @@ def test_the_screenshots_of_a_scene_are_named_after_it_and_its_theme() -> None:
         "site/src/assets/screenshots/warning-signal-dark.webp",
         "site/src/assets/screenshots/bodacc-notices-light.webp",
         "site/src/assets/screenshots/bodacc-notices-dark.webp",
+        "site/src/assets/screenshots/provenance-light.webp",
+        "site/src/assets/screenshots/provenance-dark.webp",
         "site/src/assets/screenshots/foreign-entity-light.webp",
         "site/src/assets/screenshots/foreign-entity-dark.webp",
+        "site/src/assets/screenshots/collection-log-light.webp",
+        "site/src/assets/screenshots/collection-log-dark.webp",
     ]
 
 
