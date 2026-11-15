@@ -15,6 +15,7 @@ from lacis.signals.signal import Severity, Signal
 from lacis.signals.store import SignalReport
 from lacis.storage.entities import Attributes, Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
 from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore
 from lacis.storage.responses import ResponseStore, ResponseSummary
 
@@ -46,6 +47,32 @@ class Reference:
     identifier: str
     kind: EntityKind
     label: str
+
+
+DECISION_TEXTS = {
+    HomonymDecision.SAME_PERSON: "Même personne que",
+    HomonymDecision.DIFFERENT_PERSON: "Personne différente de",
+}
+
+
+@dataclass(frozen=True)
+class DecisionLine:
+    person: Reference
+    other: Reference
+    decision: HomonymDecision
+    decided_at: datetime
+
+    @property
+    def text(self) -> str:
+        return DECISION_TEXTS[self.decision]
+
+    @property
+    def written_date(self) -> str:
+        return f"le {written_moment(self.decided_at)}"
+
+    @property
+    def spoken(self) -> str:
+        return f"{self.text.lower()} {self.other.label}, décision prise {self.written_date}"
 
 
 @dataclass(frozen=True)
@@ -174,6 +201,7 @@ class EntityDetails:
     links: tuple[LinkLine, ...]
     sources: tuple[SourceLine, ...]
     notices: tuple[NoticeLine, ...] = ()
+    decisions: tuple[DecisionLine, ...] = ()
 
     @property
     def kind_label(self) -> str:
@@ -439,6 +467,25 @@ def notice_lines(connection: sqlite3.Connection, identifier: str) -> list[Notice
     return sorted(lines, key=lambda line: (line.published_on, line.identifier), reverse=True)
 
 
+def decision_lines(connection: sqlite3.Connection, identifier: str) -> list[DecisionLine]:
+    references = References(GraphStore(connection))
+    lines = []
+    for recorded in HomonymDecisionStore(connection).decisions():
+        people = (recorded.first_person, recorded.second_person)
+        if identifier not in people:
+            continue
+        other = people[1] if people[0] == identifier else people[0]
+        lines.append(
+            DecisionLine(
+                references.of(identifier),
+                references.of(other),
+                recorded.decision,
+                recorded.decided_at,
+            )
+        )
+    return sorted(lines, key=lambda line: line.decided_at, reverse=True)
+
+
 def entity_details(
     connection: sqlite3.Connection, identifier: str, report: SignalReport | None
 ) -> EntityDetails | None:
@@ -468,6 +515,7 @@ def entity_details(
         links=tuple(link_lines(graph_store, identifier)),
         sources=tuple(reversed(sources)),
         notices=tuple(notice_lines(connection, identifier)),
+        decisions=tuple(decision_lines(connection, identifier)),
     )
 
 
