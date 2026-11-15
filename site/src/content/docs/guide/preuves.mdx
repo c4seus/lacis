@@ -1,0 +1,62 @@
+---
+title: Vérifier les preuves
+description: "Retrouver la réponse dont vient chaque fait, vérifier son empreinte SHA-256 et lire le journal de collecte de l'enquête."
+---
+
+import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
+import collectionLogDark from "../../../assets/screenshots/collection-log-dark.webp";
+import collectionLogLight from "../../../assets/screenshots/collection-log-light.webp";
+import provenanceDark from "../../../assets/screenshots/provenance-dark.webp";
+import provenanceLight from "../../../assets/screenshots/provenance-light.webp";
+
+Ce que montre Lacis doit pouvoir se vérifier. Chaque réponse des sources est donc conservée dans l'enquête, telle qu'elle a été reçue, avec son empreinte SHA-256. Vous pouvez ainsi, pour chaque fait, remonter à la réponse qui l'établit, et prouver qu'elle n'a pas changé depuis.
+
+## La provenance d'une entité
+
+La section « Provenance », en bas de la fiche d'une entité, liste chaque réponse dont l'entité provient, avec :
+
+- la source, « Recherche d'entreprises » pour le registre national ou « BODACC » ;
+- la date et l'heure de la réponse ;
+- le début et la fin de son **empreinte SHA-256**. Survolez-la pour lire l'empreinte entière : elle se sélectionne à la souris pour la copier ;
+- le bouton **Réponse brute**, qui affiche la réponse.
+
+Une même entité peut venir de plusieurs réponses : une entreprise trouvée par une recherche d'adresse, puis étendue, cite les deux.
+
+<ThemedScreenshot
+    light={provenanceLight}
+    dark={provenanceDark}
+    alt="Le bas de la fiche de DUPONT SERVICES : ses trois liens, Jean DUPONT président, le siège social au 12 rue des Lilas et son établissement fermé, puis sa provenance, deux réponses de Recherche d'entreprises du 13/11/2026 à 10:00, chacune avec son empreinte SHA-256 et son bouton Réponse brute."
+    caption="Les liens d'une entreprise et la provenance de ce que Lacis en sait."
+/>
+
+Les annonces BODACC ont chacune leur propre bouton **Réponse brute**, dans la frise des [annonces](/lacis/guide/annonces-bodacc/).
+
+## Lire une réponse brute
+
+La fenêtre « Réponse brute n° » affiche la réponse dans une police à chasse fixe. Une réponse JSON est mise en forme pour la lecture ; ce qui est conservé, et dont l'empreinte est calculée, reste la réponse exacte reçue de la source.
+
+## Le journal de collecte
+
+L'onglet **Journal** du panneau de droite retrace chaque requête de l'enquête : recherches, extensions et rafraîchissements, réussies ou non. Sa première ligne compte les requêtes, et celles qui ont été servies par le cache.
+
+Chaque requête donne :
+
+- son **heure** ;
+- la **requête**, avec sa source et ce qui a été demandé ;
+- son **statut** : le code HTTP de la réponse, un tiret pour une réponse servie par le cache, ou « Échec » si la requête n'a pas abouti ;
+- son **origine** : « réseau » si la source a été interrogée, « cache » si la réponse venait de l'enquête.
+
+Survolez une ligne pour lire le détail : la date, la durée, l'adresse interrogée, ses paramètres, l'empreinte de la réponse et, en cas d'échec, l'erreur. Le bouton **Réponse brute**, ou <kbd>Entrée</kbd> sur une ligne, affiche la réponse de la requête choisie. Une requête qui n'a pas abouti n'a pas de réponse à afficher.
+
+<ThemedScreenshot
+    light={collectionLogLight}
+    dark={collectionLogDark}
+    alt="L'onglet Journal de l'enquête d'exemple : cinq requêtes, aucune servie par le cache. Deux requêtes au BODACC et trois recherches dans le registre, toutes à 10:00:00, avec le statut 200 et l'origine réseau."
+    caption="Le journal de collecte de l'enquête d'exemple."
+/>
+
+## Le cache de l'enquête
+
+Une requête déjà faite dans les 24 heures précédentes est servie par le cache : Lacis reprend la réponse conservée au lieu d'interroger la source à nouveau. Le journal le note, avec l'origine « cache ». Cela ménage les services publics et rend une enquête plus rapide à reprendre.
+
+Pour obtenir une réponse fraîche, choisissez **Étendre à nouveau** sur la fiche d'une entité, ou **Rafraîchir** sur ses annonces BODACC : ces deux actions passent outre le cache.
