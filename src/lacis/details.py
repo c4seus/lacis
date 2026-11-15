@@ -216,6 +216,14 @@ def text_of(attributes: Attributes, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
+def withheld_directors(count: object) -> str:
+    if not isinstance(count, int) or count < 1:
+        return ""
+    if count == 1:
+        return "1 dirigeant non diffusible"
+    return f"{count} dirigeants non diffusibles"
+
+
 def spaced_siret(siret: str) -> str:
     return f"{spaced_siren(siret[:9])} {siret[9:]}"
 
@@ -229,6 +237,8 @@ def company_facts(attributes: Attributes) -> list[str]:
     facts += [f"Créée le {created}"] if created else []
     facts += [f"Fermée le {closed}"] if closed else []
     facts += [f"NAF {activity}"] if activity else []
+    withheld = withheld_directors(attributes.get("hidden_director_count"))
+    facts += [withheld] if withheld else []
     return facts
 
 

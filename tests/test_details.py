@@ -89,6 +89,33 @@ def test_a_company_shows_its_activity(builder: InvestigationBuilder) -> None:
     assert details_of(builder, company).facts[-1] == "NAF 43.22A"
 
 
+@pytest.mark.parametrize(
+    ("count", "fact"),
+    [(1, "1 dirigeant non diffusible"), (2, "2 dirigeants non diffusibles")],
+)
+def test_a_company_shows_the_number_of_its_withheld_directors(
+    builder: InvestigationBuilder, count: int, fact: str
+) -> None:
+    company = builder.company("ACME PLOMBERIE", date(2021, 3, 1), "43.22A")
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "ACME PLOMBERIE", {"hidden_director_count": count}),
+        builder.response,
+    )
+    assert details_of(builder, company).facts[-2:] == ("NAF 43.22A", fact)
+
+
+@pytest.mark.parametrize("count", [0, None])
+def test_a_company_without_withheld_directors_says_nothing_about_them(
+    builder: InvestigationBuilder, count: int | None
+) -> None:
+    company = builder.company("ACME PLOMBERIE", date(2021, 3, 1), "43.22A")
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "ACME PLOMBERIE", {"hidden_director_count": count}),
+        builder.response,
+    )
+    assert details_of(builder, company).facts[-1] == "NAF 43.22A"
+
+
 def test_an_establishment_shows_its_siret_and_status(
     builder: InvestigationBuilder, scenario: PlumbersScenario
 ) -> None:
