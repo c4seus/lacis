@@ -34,3 +34,8 @@ def creation_date(company: Entity) -> date | None:
 def activity(company: Entity) -> str | None:
     value = company.attributes.get("activity")
     return str(value) if value else None
+
+
+def legal_form(company: Entity) -> str | None:
+    value = company.attributes.get("legal_form")
+    return str(value) if value else None
