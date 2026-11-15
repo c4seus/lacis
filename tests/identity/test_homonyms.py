@@ -18,6 +18,7 @@ from lacis.identity.homonyms import (
     Corroboration,
     FirstNameRelation,
     HomonymPair,
+    HomonymProposal,
     PersonIdentity,
     first_name_relation,
     homonym_pair,
@@ -48,6 +49,7 @@ JEAN = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
 JEAN_OF_HOLDING = person_identifier("DUPONT", "Jean", "1980-05", "333333333")
 JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111")
 JEAN_MARC = person_identifier("DUPONT", "Jean Marc", "1980-05", "666666666")
+SIRENS = ("222222222", "333333333")
 
 
 @pytest.fixture
@@ -282,6 +284,77 @@ def test_a_company_linking_the_two_people_is_a_reason_of_the_match(
         "Prénom composé : Jean / Jean Marc",
         "Même mois de naissance (05/1980)",
     )
+
+
+def proposals_by_people(
+    graph_store: GraphStore, decision_store: HomonymDecisionStore
+) -> dict[tuple[str, str], HomonymProposal]:
+    return {
+        proposal.pair.people: proposal
+        for proposal in homonym_proposals(graph_store, decision_store)
+    }
+
+
+def test_namesakes_of_two_companies_are_proposed_and_never_merged(
+    expander: GraphExpander,
+    graph_store: GraphStore,
+    decision_store: HomonymDecisionStore,
+) -> None:
+    expander.expand_company("222222222")
+    expander.expand_person(JEAN)
+    proposal = proposals_by_people(graph_store, decision_store)[both(JEAN, JEAN_OF_HOLDING)]
+    assert proposal.confidence is Confidence.PROBABLE
+    assert proposal.reasons == (
+        "Même nom de famille",
+        "Mêmes prénoms",
+        "Même mois de naissance (05/1980)",
+    )
+
+
+def test_namesakes_without_month_of_birth_are_proposed_as_a_weak_match(
+    graph_store: GraphStore,
+    response: ResponseSummary,
+    decision_store: HomonymDecisionStore,
+) -> None:
+    attributes: Attributes = {"last_name": "MARTIN", "first_names": "Paul"}
+    namesakes = [person_identifier("MARTIN", "Paul", None, siren) for siren in SIRENS]
+    for namesake in namesakes:
+        graph_store.save_entity(CollectedEntity(namesake, "Paul MARTIN", attributes), response)
+    [proposal] = homonym_proposals(graph_store, decision_store)
+    assert proposal.pair.people == both(*namesakes)
+    assert proposal.confidence is Confidence.WEAK
+
+
+def test_a_confirmed_person_lends_the_companies_of_each_namesake_to_the_match(
+    expander: GraphExpander,
+    graph_store: GraphStore,
+    decision_store: HomonymDecisionStore,
+) -> None:
+    expander.expand_company("222222222")
+    expander.expand_company("111111111")
+    expander.expand_person(JEAN)
+    decision_store.record(JEAN, JEAN_OF_HOLDING, HomonymDecision.SAME_PERSON)
+    proposals = proposals_by_people(graph_store, decision_store)
+    assert both(JEAN, JEAN_OF_HOLDING) not in proposals
+    [jean_pierre] = [proposal for people, proposal in proposals.items() if JEAN_PIERRE in people]
+    assert jean_pierre.confidence is Confidence.CERTAIN
+    assert jean_pierre.reasons[3:] == (
+        "HOLDING DUPONT dirige ACME PLOMBERIE",
+        "Entreprises domiciliées à la même adresse : 12 RUE DES LILAS 31000 TOULOUSE",
+    )
+
+
+def test_a_different_person_is_never_proposed_again_with_the_namesakes_of_the_other(
+    expander: GraphExpander,
+    graph_store: GraphStore,
+    decision_store: HomonymDecisionStore,
+) -> None:
+    expander.expand_company("222222222")
+    expander.expand_person(JEAN)
+    decision_store.record(JEAN, JEAN_OF_HOLDING, HomonymDecision.SAME_PERSON)
+    decision_store.record(JEAN_OF_HOLDING, JEAN_PIERRE, HomonymDecision.DIFFERENT_PERSON)
+    proposals = proposals_by_people(graph_store, decision_store)
+    assert not [people for people in proposals if JEAN_PIERRE in people]
 
 
 def test_an_unknown_birth_month_makes_a_match_weak(
