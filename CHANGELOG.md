@@ -7,6 +7,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 ### Added
 
 - A website, https://c4seus.github.io/lacis/, that presents Lacis and holds its user guide, in French. The AppStream metadata, the packages and the notes of each release link to it. The website counts its visits with GoatCounter, without cookies, and its privacy page says what is counted.
+- The details of a company show how many of its directors the register withholds, such as « 1 dirigeant non diffusible », without any detail about them.
 
 ### Changed
 
