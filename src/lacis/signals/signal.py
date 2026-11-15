@@ -15,6 +15,11 @@ class Severity(StrEnum):
     def rank(self) -> int:
         return list(Severity).index(self)
 
+    @property
+    def raised(self) -> "Severity":
+        severities = list(Severity)
+        return severities[min(self.rank + 1, len(severities) - 1)]
+
 
 SEVERITY_LABELS = {Severity.LOW: "Faible", Severity.MEDIUM: "Moyenne", Severity.HIGH: "Forte"}
 
