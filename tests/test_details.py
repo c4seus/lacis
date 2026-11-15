@@ -32,6 +32,7 @@ from lacis.storage.collection_log import CollectionLog
 from lacis.storage.entities import CollectedEntity, EntityKind, company_identifier
 from lacis.storage.errors import TamperedResponseError
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
 from lacis.storage.notices import NoticeFamily, NoticeRole
 from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 
@@ -283,6 +284,33 @@ def test_a_country_without_its_source_is_shown_alone(builder: InvestigationBuild
         builder.response,
     )
     assert details_of(builder, company).facts[-1] == "Pays Royaume-Uni"
+
+
+def test_a_person_lists_the_homonym_decisions_that_concern_them(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    [line] = details_of(builder, scenario.jean).decisions
+    assert line.text == "Même personne que"
+    assert (line.person.identifier, line.other.identifier) == (scenario.jean, scenario.jean_pierre)
+    assert (line.person.label, line.other.label) == ("Jean DUPONT", "Jean Pierre DUPONT")
+    assert line.written_date.startswith("le ")
+    assert (
+        line.spoken == f"même personne que Jean Pierre DUPONT, décision prise {line.written_date}"
+    )
+
+
+def test_the_latest_decisions_come_first(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    marie = builder.person("Marie", "DUPONT")
+    later = HomonymDecisionStore(builder.connection, now=lambda: datetime(2099, 1, 1, tzinfo=UTC))
+    later.record(marie, scenario.jean_pierre, HomonymDecision.DIFFERENT_PERSON)
+    lines = details_of(builder, scenario.jean_pierre).decisions
+    assert [(line.text, line.other.label) for line in lines] == [
+        ("Personne différente de", "Marie DUPONT"),
+        ("Même personne que", "Jean DUPONT"),
+    ]
+    assert details_of(builder, scenario.acme).decisions == ()
 
 
 def test_a_company_without_siren_copies_its_name(builder: InvestigationBuilder) -> None:
