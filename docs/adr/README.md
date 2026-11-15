@@ -6,6 +6,7 @@ This folder records the decisions that shape Lacis, with their context, the opti
 |---|---|---|
 | [0001](0001-technology.md) | Python, PySide6 and Qt Widgets for the desktop application | Accepted |
 | [0002](0002-packaging.md) | Native Linux packages, and Nuitka with an installer for Windows | Accepted |
+| [0003](0003-person-identity.md) | A person is a director of one company, and only the investigator joins people | Accepted |
 
 ## Writing a new record
 
