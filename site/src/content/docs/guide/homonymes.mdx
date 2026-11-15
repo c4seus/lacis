@@ -1,0 +1,58 @@
+---
+title: Vérifier les homonymes
+description: "Comprendre pourquoi Lacis rapproche deux personnes, décider si elles sont la même, et annuler ou rétablir une décision."
+---
+
+import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
+import homonymReviewDark from "../../../assets/screenshots/homonym-review-dark.webp";
+import homonymReviewLight from "../../../assets/screenshots/homonym-review-light.webp";
+
+Le registre national ne donne pas d'identifiant aux dirigeants : il donne leur nom, leurs prénoms et leur mois de naissance. Une même personne peut donc apparaître deux fois dans le graphe, par exemple « Jean DUPONT » d'un côté et « Jean Pierre DUPONT » de l'autre. Lacis repère ces homonymes, mais c'est vous qui décidez.
+
+## Quand Lacis rapproche deux personnes
+
+Lacis propose de rapprocher deux personnes du graphe quand :
+
+- elles ont le même nom de famille ;
+- leurs mois de naissance sont identiques, ou l'un des deux est inconnu ;
+- leurs prénoms sont identiques, ou les uns commencent les autres, comme « Jean » et « Jean Pierre », ou l'un des deux est inconnu.
+
+Chaque proposition rejoint les « Homonymes à vérifier » de la colonne « À examiner », avec les raisons qui la fondent. Les premières disent ce que l'on sait de l'identité : « Même nom de famille », « Mêmes prénoms » ou « Prénom composé », « Même mois de naissance », ou ce qui manque d'un côté. Les suivantes sont des indices tirés du graphe :
+
+- « Dirigeants tous deux de » une même entreprise ;
+- une entreprise dirigée par l'une qui « dirige » une entreprise dirigée par l'autre ;
+- des « Entreprises domiciliées à la même adresse ».
+
+## Lire le degré de confiance
+
+Chaque proposition porte un degré de confiance :
+
+- **Certain** : les prénoms et le mois de naissance concordent, et au moins deux indices du graphe la confirment ;
+- **Probable** : l'identité concorde avec moins de deux indices, ou elle est incomplète mais au moins deux indices la confirment ;
+- **Faible** : l'identité est incomplète et les indices manquent.
+
+Les propositions certaines viennent en tête. Même certaine, une proposition reste une proposition : Lacis ne fusionne jamais deux personnes sans votre décision.
+
+<ThemedScreenshot
+    light={homonymReviewLight}
+    dark={homonymReviewDark}
+    alt="La colonne À examiner de l'enquête d'exemple : un homonyme à vérifier, Jean DUPONT (1980-05) et Jean Pierre DUPONT (1980-05), jugé probable. Ses raisons : même nom de famille, prénom composé Jean / Jean Pierre, même mois de naissance (05/1980), entreprises domiciliées à la même adresse, le 12 rue des Lilas. En dessous, les boutons Même personne et Personne différente."
+    caption="Un homonyme probable, avec ses raisons et les deux décisions possibles."
+/>
+
+## Décider
+
+Avant de décider, sélectionnez chacune des deux personnes pour lire sa fiche et ses mandats. Puis choisissez :
+
+- **Même personne** : les deux personnes sont reliées par un lien « même personne » dans le graphe, et comptent pour une seule dans les signaux d'alerte. Le compteur « homonyme confirmé » de l'enquête augmente ;
+- **Personne différente** : la proposition disparaît et ne revient plus.
+
+Dans les deux cas, la décision est enregistrée dans l'enquête, avec sa date, et une notification la confirme.
+
+Dans l'enquête d'exemple, confirmer que Jean DUPONT et Jean Pierre DUPONT sont la même personne fait apparaître un schéma phénix : la même personne dirige la plomberie liquidée et celle qui lui succède.
+
+## Annuler ou rétablir une décision
+
+Une décision se défait : **Édition › Annuler la décision d'homonyme**, ou <kbd>Ctrl</kbd>+<kbd>Z</kbd>, remet la proposition dans la liste. **Édition › Rétablir**, ou <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>Z</kbd>, la rejoue. Les décisions s'annulent dans l'ordre inverse où vous les avez prises.
+
+Cet historique dure tant que l'enquête reste ouverte. Une fois l'enquête fermée, ses décisions sont acquises : elles restent enregistrées, mais ne s'annulent plus.

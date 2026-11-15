@@ -118,6 +118,8 @@ def test_the_screenshots_of_a_scene_are_named_after_it_and_its_theme() -> None:
         "site/src/assets/screenshots/new-investigation-dark.webp",
         "site/src/assets/screenshots/register-search-light.webp",
         "site/src/assets/screenshots/register-search-dark.webp",
+        "site/src/assets/screenshots/homonym-review-light.webp",
+        "site/src/assets/screenshots/homonym-review-dark.webp",
         "site/src/assets/screenshots/unexpanded-leads-light.webp",
         "site/src/assets/screenshots/unexpanded-leads-dark.webp",
         "site/src/assets/screenshots/main-window-light.webp",
