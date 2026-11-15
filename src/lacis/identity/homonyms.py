@@ -4,10 +4,11 @@ from enum import StrEnum
 from itertools import combinations
 from typing import Self
 
+from lacis.identity.groups import PersonGroups
 from lacis.storage.comparison_keys import person_name_key
 from lacis.storage.entities import Entity, EntityKind, LinkKind
 from lacis.storage.graph_store import GraphStore
-from lacis.storage.homonym_decisions import HomonymDecisionStore
+from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
 
 
 class FirstNameRelation(StrEnum):
@@ -141,8 +142,9 @@ def identity_reasons(pair: HomonymPair) -> list[str]:
 
 
 class Corroboration:
-    def __init__(self, graph_store: GraphStore) -> None:
+    def __init__(self, graph_store: GraphStore, groups: PersonGroups | None = None) -> None:
         self.graph_store = graph_store
+        self.groups = groups or PersonGroups()
 
     def label(self, identifier: str) -> str:
         entity = self.graph_store.entity(identifier)
@@ -151,8 +153,9 @@ class Corroboration:
     def companies_directed_by(self, identifier: str) -> set[str]:
         return {
             link.target
-            for link in self.graph_store.links_of(identifier)
-            if link.kind is LinkKind.MANDATE and link.source == identifier
+            for member in self.groups.group_of(identifier)
+            for link in self.graph_store.links_of(member)
+            if link.kind is LinkKind.MANDATE and link.source == member
         }
 
     def addresses_of(self, companies: set[str]) -> set[str]:
@@ -197,14 +200,33 @@ def confidence_of(pair: HomonymPair, corroborations: list[str]) -> Confidence:
     return Confidence.PROBABLE if well_corroborated else Confidence.WEAK
 
 
+def one_per_pair_of_groups(
+    proposals: list[HomonymProposal], groups: PersonGroups
+) -> list[HomonymProposal]:
+    proposed: set[tuple[str, str]] = set()
+    kept = []
+    for proposal in proposals:
+        pair_of_groups = groups.pair_of(*proposal.pair.people)
+        if pair_of_groups not in proposed:
+            proposed.add(pair_of_groups)
+            kept.append(proposal)
+    return kept
+
+
 def homonym_proposals(
     graph_store: GraphStore, decision_store: HomonymDecisionStore
 ) -> list[HomonymProposal]:
-    corroboration = Corroboration(graph_store)
-    decided_pairs = decision_store.decided_pairs()
+    groups = PersonGroups()
+    groups.join_decisions(decision_store)
+    corroboration = Corroboration(graph_store, groups)
+    different_groups = {
+        groups.pair_of(recorded.first_person, recorded.second_person)
+        for recorded in decision_store.decisions()
+        if recorded.decision is HomonymDecision.DIFFERENT_PERSON
+    }
     proposals = []
     for pair in homonym_pairs(graph_store):
-        if pair.people in decided_pairs:
+        if groups.same_person(*pair.people) or groups.pair_of(*pair.people) in different_groups:
             continue
         corroborations = corroboration.reasons(pair)
         proposals.append(
@@ -214,4 +236,7 @@ def homonym_proposals(
                 (*identity_reasons(pair), *corroborations),
             )
         )
-    return sorted(proposals, key=lambda proposal: CONFIDENCE_ORDER.index(proposal.confidence))
+    return one_per_pair_of_groups(
+        sorted(proposals, key=lambda proposal: CONFIDENCE_ORDER.index(proposal.confidence)),
+        groups,
+    )
