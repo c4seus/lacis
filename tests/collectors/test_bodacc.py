@@ -549,6 +549,11 @@ def test_a_removal_after_a_transfer_abroad_is_recognised() -> None:
     [
         {"descriptif": "Transfert du siège social au 5 avenue du Port 13002 Marseille."},
         {"descriptif": "Transfert du siège social.", "pays": "France"},
+        {
+            "descriptif": "Transfert du siège social au 12 rue d'Italie, 13100 Aix-en-Provence.",
+            "pays": "FRANCE",
+        },
+        {"descriptif": "Transfert du siège social hors de France.", "pays": "France"},
         {"descriptif": "Nouveau gérant domicilié en Belgique."},
         {"descriptif": "Transfert d'un établissement en Belgique."},
     ],
@@ -559,14 +564,53 @@ def test_a_domestic_transfer_or_another_change_is_not_a_transfer_abroad(
     assert transfer_of(**detail) is None
 
 
-def test_the_country_of_the_persons_counts_for_a_transfer() -> None:
+def transfer_with_persons(descriptif: str, persons: object) -> object:
     record = raw_notice(
         "modification",
-        modificationsgenerales={"descriptif": "Transfert du siège social."},
-        listepersonnes={"personne": {"adresseSiegeSocial": {"pays": "Belgique"}}},
+        modificationsgenerales={"descriptif": descriptif},
+        listepersonnes={"personne": persons},
     )
-    transfer = notice_from(record, RESPONSE).office_transfer
+    return notice_from(record, RESPONSE).office_transfer
+
+
+@pytest.mark.parametrize(
+    "persons",
+    [
+        {"adresseSiegeSocial": {"pays": "Belgique"}},
+        [{"denomination": "SIEGE NOMADE"}, {"adresseSiegeSocial": {"pays": "Belgique"}}],
+    ],
+)
+def test_the_country_of_the_registered_office_of_the_persons_counts_for_a_transfer(
+    persons: object,
+) -> None:
+    transfer = transfer_with_persons("Transfert du siège social.", persons)
     assert transfer == OfficeTransfer("Belgique", date(2025, 3, 4), effective_date_stated=False)
+
+
+@pytest.mark.parametrize(
+    "persons",
+    [
+        {"adresseSiegeSocial": {"ville": "Aix-en-Provence", "pays": "France"}},
+        {
+            "adresseSiegeSocial": {"ville": "Aix-en-Provence", "pays": "France"},
+            "adresseEtablissementPrincipal": {"ville": "Bruxelles", "pays": "Belgique"},
+        },
+    ],
+)
+def test_a_registered_office_stated_in_france_is_not_a_transfer_abroad(
+    persons: dict[str, object],
+) -> None:
+    transfer = transfer_with_persons(
+        "Transfert du siège social au 12 rue d'Italie, 13100 Aix-en-Provence.", persons
+    )
+    assert transfer is None
+
+
+def test_the_country_of_another_address_of_the_persons_does_not_count() -> None:
+    transfer = transfer_with_persons(
+        "Transfert du siège social.", {"adresseEtablissementPrincipal": {"pays": "Belgique"}}
+    )
+    assert transfer is None
 
 
 def test_a_detail_that_is_not_valid_json_is_read_as_plain_text() -> None:

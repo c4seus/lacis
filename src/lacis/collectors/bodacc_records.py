@@ -51,6 +51,7 @@ COUNTRIES = (
 )
 COUNTRY_OF_NORMALISED_NAME = {normalise_text(country): country for country in COUNTRIES}
 DOMESTIC_COUNTRY = "FRANCE"
+OFFICE_ADDRESS_KEY = "adresseSiegeSocial"
 EFFECTIVE_DATE_KEYS = (
     "dateEffet",
     "dateCessationActivitePM",
@@ -141,12 +142,23 @@ def date_in_text(text: str) -> date | None:
     return next((found for found in dates_in_text(text) if found is not None), None)
 
 
-def country_in(details: list[object], texts: list[str]) -> str | None:
-    for detail in details:
-        for country in values_of(detail, "pays"):
-            normalised_country = normalise_text(country)
-            if normalised_country != DOMESTIC_COUNTRY:
-                return COUNTRY_OF_NORMALISED_NAME.get(normalised_country, country)
+def objects_of(value: object, key: str) -> Iterator[object]:
+    if isinstance(value, dict):
+        for name, item in value.items():
+            if name == key:
+                yield item
+            else:
+                yield from objects_of(item, key)
+    elif isinstance(value, list):
+        for item in value:
+            yield from objects_of(item, key)
+
+
+def stated_country(sources: list[object]) -> str | None:
+    return next((country for source in sources for country in values_of(source, "pays")), None)
+
+
+def country_in(texts: list[str]) -> str | None:
     candidates = [group for text in texts for group in PARENTHESISED_TEXT.findall(text)]
     candidates.extend(texts)
     for candidate in candidates:
@@ -175,9 +187,16 @@ def office_transfer_in(record: dict[str, Any], published_on: date) -> OfficeTran
     words = f" {normalise_text(' '.join(texts))} "
     if " TRANSFERT " not in words or " SIEGE " not in words:
         return None
-    country = country_in([*details, decoded(record.get("listepersonnes"))], texts)
-    if country is None and not any(word in words for word in ABROAD_WORDS):
+    persons = decoded(record.get("listepersonnes"))
+    stated = stated_country([*details, *objects_of(persons, OFFICE_ADDRESS_KEY)])
+    if stated is None:
+        country = country_in(texts)
+        if country is None and not any(word in words for word in ABROAD_WORDS):
+            return None
+    elif normalise_text(stated) == DOMESTIC_COUNTRY:
         return None
+    else:
+        country = COUNTRY_OF_NORMALISED_NAME.get(normalise_text(stated), stated)
     effective_on = effective_date_in(details, texts)
     if effective_on is None:
         return OfficeTransfer(country, published_on, effective_date_stated=False)
