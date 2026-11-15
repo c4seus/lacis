@@ -1,8 +1,9 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 
 from lacis.signals.context import InvestigationContext
-from lacis.signals.facts import activity, creation_date, french_date
+from lacis.signals.facts import activity, creation_date, french_date, legal_form
 from lacis.signals.rule_settings import RuleSettings, Threshold, ThresholdKind
 from lacis.signals.rules.directors import EXCLUDED_ROLES, INCLUDE_PROBABLE, directed_companies
 from lacis.signals.signal import Finding, Severity
@@ -15,6 +16,7 @@ ACTIVITY_MINIMUM_COMPANIES = Threshold(
     "activity_minimum_companies", ThresholdKind.WHOLE_NUMBER, minimum=2
 )
 ACTIVITY_WINDOW_DAYS = Threshold("activity_window_days", ThresholdKind.WHOLE_NUMBER, minimum=1)
+EXCLUDED_LEGAL_FORMS = Threshold("excluded_legal_forms", ThresholdKind.TEXTS)
 POSTCODE_LENGTH = 5
 CORSICA_PREFIX = "20"
 SOUTH_CORSICA_LAST_POSTCODE = 20199
@@ -65,6 +67,11 @@ def densest_burst(companies: list[Entity], limits: BurstLimits) -> Burst | None:
         return None
     chosen = dated[best[0] : best[1] + 1]
     return Burst(tuple(company for _, company in chosen), chosen[0][0], chosen[-1][0])
+
+
+def counted_companies(companies: Iterable[Entity], settings: RuleSettings) -> list[Entity]:
+    excluded = frozenset(settings.texts(EXCLUDED_LEGAL_FORMS.name))
+    return [company for company in companies if legal_form(company) not in excluded]
 
 
 def department_of(postcode: object) -> str | None:
@@ -130,6 +137,7 @@ class CreationBurstRule:
         BY_ACTIVITY_AND_DEPARTMENT,
         ACTIVITY_MINIMUM_COMPANIES,
         ACTIVITY_WINDOW_DAYS,
+        EXCLUDED_LEGAL_FORMS,
         INCLUDE_PROBABLE,
         EXCLUDED_ROLES,
     )
@@ -156,7 +164,7 @@ class CreationBurstRule:
     ) -> list[Finding]:
         findings = []
         for identity, directed in sorted(directed_companies(context, settings).items()):
-            burst = densest_burst(list(directed.companies.values()), limits)
+            burst = densest_burst(counted_companies(directed.companies.values(), settings), limits)
             if burst is not None:
                 where = f"sous la direction de {directed.director.label}"
                 findings.append(finding_of(identity, burst, limits, where, settings.severity))
@@ -172,7 +180,7 @@ class CreationBurstRule:
             companies = context.neighbours(
                 address.identifier, LinkKind.REGISTERED_OFFICE, EntityKind.COMPANY
             )
-            burst = densest_burst(companies, limits)
+            burst = densest_burst(counted_companies(companies, settings), limits)
             if burst is not None:
                 findings.append(
                     finding_of(
@@ -185,7 +193,7 @@ class CreationBurstRule:
         self, context: InvestigationContext, settings: RuleSettings, limits: BurstLimits
     ) -> list[Finding]:
         groups: dict[tuple[str, str], list[Entity]] = {}
-        for company in context.entities_of(EntityKind.COMPANY):
+        for company in counted_companies(context.entities_of(EntityKind.COMPANY), settings):
             company_activity = activity(company)
             department = company_department(context, company)
             if company_activity is not None and department is not None:
