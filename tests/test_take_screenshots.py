@@ -138,6 +138,8 @@ def test_the_screenshots_of_a_scene_are_named_after_it_and_its_theme() -> None:
         "site/src/assets/screenshots/foreign-entity-dark.webp",
         "site/src/assets/screenshots/collection-log-light.webp",
         "site/src/assets/screenshots/collection-log-dark.webp",
+        "site/src/assets/screenshots/keyboard-shortcuts-light.webp",
+        "site/src/assets/screenshots/keyboard-shortcuts-dark.webp",
     ]
 
 

@@ -52,6 +52,7 @@ export default defineConfig({
                                 "guide/entites-etrangeres",
                                 "guide/signaux",
                                 "guide/preuves",
+                                "guide/raccourcis-clavier",
                             ],
                         },
                         "guide/usage-responsable",
