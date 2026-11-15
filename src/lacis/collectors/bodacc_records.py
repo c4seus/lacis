@@ -219,3 +219,20 @@ def office_transfer_in(record: dict[str, Any], published_on: date) -> OfficeTran
     if effective_on is None:
         return OfficeTransfer(country, published_on, effective_date_stated=False)
     return OfficeTransfer(country, effective_on, effective_date_stated=True)
+
+
+def notice_record_in(body: bytes | str, identifier: str) -> dict[str, Any] | None:
+    try:
+        records = json.loads(body)["results"]
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not isinstance(records, list):
+        return None
+    return next(
+        (
+            record
+            for record in records
+            if isinstance(record, dict) and str(record.get("id", "")).strip() == identifier
+        ),
+        None,
+    )

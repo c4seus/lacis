@@ -14,6 +14,7 @@ from lacis.collectors.bodacc import (
     family_of,
     notice_from,
 )
+from lacis.collectors.bodacc_records import notice_record_in
 from lacis.collectors.company_register import InvalidQueryError
 from lacis.collectors.fake_api import FakeApi
 from lacis.collectors.fake_plumbers import (
@@ -676,6 +677,25 @@ def test_a_detail_that_is_not_valid_json_is_read_as_plain_text() -> None:
 def test_a_transfer_described_in_a_list_of_texts_is_recognised() -> None:
     transfer = transfer_of(descriptif=["", "Transfert du siège social en Italie."])
     assert transfer == OfficeTransfer("Italie", date(2025, 3, 4), effective_date_stated=False)
+
+
+def test_a_stored_page_gives_back_the_record_of_a_notice() -> None:
+    record = raw_notice("modification")
+    body = notice_page([{"id": "A202500990002"}, record]).decode()
+    assert notice_record_in(body, "A202500990001") == record
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"{texte",
+        b"[]",
+        b'{"results": {"id": "A202500990001"}}',
+        b'{"results": ["A202500990001", {"id": "A202500990002"}]}',
+    ],
+)
+def test_a_page_without_the_record_of_a_notice_gives_none(body: bytes) -> None:
+    assert notice_record_in(body, "A202500990001") is None
 
 
 def test_numbers_that_are_not_sirens_give_no_company() -> None:
