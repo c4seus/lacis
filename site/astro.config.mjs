@@ -57,7 +57,7 @@ export default defineConfig({
                         },
                         {
                             label: "Données et aide",
-                            items: ["guide/donnees", "guide/usage-responsable"],
+                            items: ["guide/donnees", "guide/usage-responsable", "guide/depannage"],
                         },
                     ],
                 },
