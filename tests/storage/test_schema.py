@@ -16,6 +16,7 @@ from lacis.storage.schema import (
     NewerSchemaError,
     create_investigation_table,
     migrate,
+    reread_office_transfers,
     schema_version,
 )
 
@@ -206,7 +207,8 @@ def save_transfers(connection: sqlite3.Connection) -> None:
 def test_opening_an_older_investigation_reads_its_transfers_abroad_again(
     tmp_path: Path,
 ) -> None:
-    older_library = InvestigationLibrary(tmp_path, migrations=MIGRATIONS[:-1])
+    before = MIGRATIONS.index(reread_office_transfers)
+    older_library = InvestigationLibrary(tmp_path, migrations=MIGRATIONS[:before])
     older_library.create("ancienne", "")
     with older_library.open("ancienne") as opened:
         save_transfers(opened.connection)
