@@ -96,6 +96,20 @@ def test_the_script_of_the_audience_measurement_is_pinned_by_its_integrity() -> 
     assert "`https://${goatCounterCode}.goatcounter.com/count`" in configuration
 
 
+def test_every_page_links_the_privacy_page_from_its_footer() -> None:
+    assert 'components: { Footer: "./src/components/Footer.astro" },' in site_configuration()
+    footer = (SITE / "src/components/Footer.astro").read_text(encoding="utf-8")
+    assert 'import Default from "@astrojs/starlight/components/Footer.astro";' in footer
+    assert '<a href="/lacis/confidentialite/">' in footer
+    assert (SITE / "src/content/docs/confidentialite.md").is_file()
+
+
+def test_the_privacy_page_names_what_the_website_sends_and_keeps() -> None:
+    privacy = (SITE / "src/content/docs/confidentialite.md").read_text(encoding="utf-8")
+    for name in ("`gc.zgo.at`", "`goatcounter.com`", "`starlight-theme`", "`sl-sidebar-state`"):
+        assert name in privacy
+
+
 def test_only_the_deployment_of_the_website_can_write_to_github_pages() -> None:
     assert "\npermissions:\n  contents: read\n" in workflow("website.yml")
     writers = [name for name, job in workflow_jobs("website.yml").items() if "pages: write" in job]

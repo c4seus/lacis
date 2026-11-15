@@ -37,6 +37,7 @@ export default defineConfig({
             ],
             editLink: { baseUrl: "https://github.com/c4seus/lacis/edit/develop/site/" },
             customCss: ["./src/styles/custom.css"],
+            components: { Footer: "./src/components/Footer.astro" },
             head: [
                 { tag: "meta", attrs: { property: "og:image", content: sharingImage } },
                 { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
@@ -79,6 +80,7 @@ export default defineConfig({
                                 "guide/usage-responsable",
                                 "guide/depannage",
                                 "guide/contribuer",
+                                "confidentialite",
                             ],
                         },
                     ],
