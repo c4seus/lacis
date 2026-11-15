@@ -105,12 +105,8 @@ def explanation_of(burst: Burst, where: str) -> str:
     return f"{burst.count} entreprises créées {period} {where} : {names}."
 
 
-def raised_once(severity: Severity | None) -> Severity:
-    return Severity.MEDIUM if severity is None else Severity.HIGH
-
-
 def finding_of(
-    subject: str, burst: Burst, limits: BurstLimits, where: str, severity: Severity | None
+    subject: str, burst: Burst, limits: BurstLimits, where: str, configured: Severity
 ) -> Finding:
     doubled = burst.count >= 2 * limits.minimum_companies
     return Finding(
@@ -120,7 +116,7 @@ def finding_of(
         justifying_entities=tuple(
             company.identifier for company in burst.companies if company.identifier != subject
         ),
-        severity=raised_once(severity) if doubled else severity,
+        severity=configured.raised if doubled else None,
     )
 
 
@@ -145,14 +141,14 @@ class CreationBurstRule:
         )
         findings = [
             *self.director_bursts(context, settings, limits),
-            *self.address_bursts(context, limits),
+            *self.address_bursts(context, settings, limits),
         ]
         if settings.switch(BY_ACTIVITY_AND_DEPARTMENT.name):
             activity_limits = BurstLimits(
                 settings.whole_number(ACTIVITY_MINIMUM_COMPANIES.name),
                 settings.whole_number(ACTIVITY_WINDOW_DAYS.name),
             )
-            findings.extend(self.activity_bursts(context, activity_limits))
+            findings.extend(self.activity_bursts(context, settings, activity_limits))
         return findings
 
     def director_bursts(
@@ -163,10 +159,12 @@ class CreationBurstRule:
             burst = densest_burst(list(directed.companies.values()), limits)
             if burst is not None:
                 where = f"sous la direction de {directed.director.label}"
-                findings.append(finding_of(identity, burst, limits, where, Severity.MEDIUM))
+                findings.append(finding_of(identity, burst, limits, where, settings.severity))
         return findings
 
-    def address_bursts(self, context: InvestigationContext, limits: BurstLimits) -> list[Finding]:
+    def address_bursts(
+        self, context: InvestigationContext, settings: RuleSettings, limits: BurstLimits
+    ) -> list[Finding]:
         findings = []
         for address in sorted(
             context.entities_of(EntityKind.ADDRESS), key=lambda address: address.identifier
@@ -178,12 +176,14 @@ class CreationBurstRule:
             if burst is not None:
                 findings.append(
                     finding_of(
-                        address.identifier, burst, limits, "à cette adresse", Severity.MEDIUM
+                        address.identifier, burst, limits, "à cette adresse", settings.severity
                     )
                 )
         return findings
 
-    def activity_bursts(self, context: InvestigationContext, limits: BurstLimits) -> list[Finding]:
+    def activity_bursts(
+        self, context: InvestigationContext, settings: RuleSettings, limits: BurstLimits
+    ) -> list[Finding]:
         groups: dict[tuple[str, str], list[Entity]] = {}
         for company in context.entities_of(EntityKind.COMPANY):
             company_activity = activity(company)
@@ -196,6 +196,8 @@ class CreationBurstRule:
             if burst is not None:
                 where = f"dans l'activité {company_activity} du département {department}"
                 findings.append(
-                    finding_of(burst.companies[0].identifier, burst, limits, where, None)
+                    finding_of(
+                        burst.companies[0].identifier, burst, limits, where, settings.severity
+                    )
                 )
         return findings

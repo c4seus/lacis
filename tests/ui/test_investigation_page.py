@@ -446,7 +446,7 @@ def queue_rows(main_window: MainWindow) -> list[QueueRow]:
 def test_the_queue_shows_signals_homonyms_and_leads(main_window: MainWindow) -> None:
     review_list = main_window.investigation_page.queue_column.review_list
     assert review_list.group_titles == [
-        "Rafale de créations · moyenne",
+        "Rafale de créations · faible",
         "Homonymes à vérifier",
         "Pistes non étendues",
     ]
