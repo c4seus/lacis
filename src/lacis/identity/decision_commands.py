@@ -65,12 +65,16 @@ class WithdrawDecisionCommand(QUndoCommand):
             raise HomonymDecisionNotFoundError
         self.decision_store = decision_store
         self.withdrawn = withdrawn
+        self.applied = False
 
     def redo(self) -> None:
-        self.decision_store.withdraw(self.withdrawn.first_person, self.withdrawn.second_person)
+        if not self.applied:
+            self.decision_store.withdraw(self.withdrawn.first_person, self.withdrawn.second_person)
+            self.applied = True
 
     def undo(self) -> None:
         self.decision_store.restore(self.withdrawn)
+        self.applied = False
 
 
 class ReportedCommand(QUndoCommand):

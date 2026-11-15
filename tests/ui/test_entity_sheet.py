@@ -8,6 +8,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QLabel, QWidget
 from pytestqt.qtbot import QtBot
 
+from accessibility_checks import interactive_widgets_without_accessible_name
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
@@ -298,3 +299,34 @@ def test_the_raw_response_dialog_shows_the_text(qtbot: QtBot) -> None:
     assert dialog.text_view.toPlainText() == '{\n  "nom": "ACME"\n}'
     assert dialog.text_view.isReadOnly()
     assert dialog.text_view.accessibleName() == "Contenu de la réponse"
+
+
+def test_a_person_sheet_lists_its_decisions_and_withdraws_one_with_the_keyboard(
+    qtbot: QtBot,
+    sheet: EntitySheet,
+    builder: InvestigationBuilder,
+    scenario: PlumbersScenario,
+) -> None:
+    shown(sheet, builder, scenario, scenario.jean)
+    assert "DÉCISIONS D'HOMONYMIE" in [title.title_label.text() for title in sheet.section_titles]
+    [row] = sheet.decision_rows
+    assert row.text_label.text() == "Même personne que"
+    assert row.chip.reference.identifier == scenario.jean_pierre
+    assert row.withdraw_button.accessibleName().startswith(
+        "Retirer la décision : même personne que Jean Pierre DUPONT, décision prise le "
+    )
+    assert interactive_widgets_without_accessible_name(sheet) == []
+    row.withdraw_button.setFocus()
+    with qtbot.waitSignal(sheet.decision_withdrawal_requested) as withdrawal:
+        QTest.keyClick(row.withdraw_button, Qt.Key.Key_Space)
+    assert withdrawal.args == [
+        (scenario.jean, scenario.jean_pierre),
+        ("Jean DUPONT", "Jean Pierre DUPONT"),
+    ]
+
+
+def test_a_company_sheet_lists_no_decision(
+    sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.acme)
+    assert sheet.decision_rows == []

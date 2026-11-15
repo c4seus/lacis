@@ -13,7 +13,11 @@ from lacis.graph.background import (
 from lacis.graph.expansion import ExpansionReport
 from lacis.graph.progress import ExpansionProgress
 from lacis.history import InvestigationHistory
-from lacis.identity.decision_commands import RecordDecisionCommand, ReportedCommand
+from lacis.identity.decision_commands import (
+    RecordDecisionCommand,
+    ReportedCommand,
+    WithdrawDecisionCommand,
+)
 from lacis.identity.library_decisions import LibraryDecisionStore
 from lacis.review import (
     RunningCollection,
@@ -50,6 +54,13 @@ def failure_message(failure: Exception) -> str:
 
 def decision_message(first_label: str, second_label: str, decision: HomonymDecision) -> str:
     return f"{first_label} et {second_label} : {DECISION_TEXTS[decision]}. {UNDO_HINT}"
+
+
+def withdrawal_message(first_label: str, second_label: str) -> str:
+    return (
+        f"Décision retirée : {first_label} et {second_label} reviennent parmi les homonymes "
+        f"à vérifier. {UNDO_HINT}"
+    )
 
 
 class ReviewActions(QObject):
@@ -113,6 +124,19 @@ class ReviewActions(QObject):
             return
         self.history.record(ReportedCommand(command, DECISION_FAILURES, self.report_failure))
         self.notify(decision_message(*labels, decision), NotificationKind.SUCCESS)
+
+    def withdraw(self, people: tuple[str, str], labels: tuple[str, str]) -> None:
+        if self.settings is None:
+            return
+        store = LibraryDecisionStore(self.settings.library, self.settings.investigation_name)
+        try:
+            command = WithdrawDecisionCommand(store, *people)
+            command.redo()
+        except DECISION_FAILURES as failure:
+            self.report_failure(failure)
+            return
+        self.history.record(ReportedCommand(command, DECISION_FAILURES, self.report_failure))
+        self.notify(withdrawal_message(*labels), NotificationKind.SUCCESS)
 
     def expand(self, identifier: str, label: str, depth: int = 1, refresh: bool = False) -> None:
         if self.settings is None:

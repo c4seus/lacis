@@ -17,7 +17,14 @@ from PySide6.QtWidgets import (
 )
 
 from lacis.design.icons import IconFactory
-from lacis.details import EntityDetails, LinkLine, Reference, SignalCard, SourceLine
+from lacis.details import (
+    DecisionLine,
+    EntityDetails,
+    LinkLine,
+    Reference,
+    SignalCard,
+    SourceLine,
+)
 from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
 from lacis.signals.facts import counted
 from lacis.ui.flow_layout import FlowLayout
@@ -36,6 +43,9 @@ SIGNALS_TITLE = "Signaux d'alerte"
 NOTICES_TITLE = "Annonces BODACC"
 REFRESH_NOTICES_TEXT = "Rafraîchir"
 LINKS_TITLE = "Liens"
+DECISIONS_TITLE = "Décisions d'homonymie"
+WITHDRAW_TEXT = "Retirer"
+WITHDRAW_ACCESSIBLE_PREFIX = "Retirer la décision : "
 SOURCES_TITLE = "Provenance"
 RAW_RESPONSE_TEXT = "Réponse brute"
 FINGERPRINT_PREFIX = "Empreinte SHA-256 "
@@ -174,6 +184,41 @@ class LinkRow(QWidget):
             layout.addWidget(badge("Fermé", "closed", self))
 
 
+class DecisionRow(QWidget):
+    withdrawal_requested = Signal(object, object)
+
+    def __init__(self, line: DecisionLine, sheet: "EntitySheet") -> None:
+        super().__init__(sheet.content)
+        self.line = line
+        self.text_label = QLabel(line.text, self)
+        self.text_label.setProperty("tone", "muted")
+        self.chip = sheet.reference_chip(line.other, self)
+        self.date_label = QLabel(line.written_date, self)
+        self.date_label.setProperty("tone", "faint")
+        self.withdraw_button = QPushButton(WITHDRAW_TEXT, self)
+        self.withdraw_button.setProperty("compact", True)
+        self.withdraw_button.setAccessibleName(f"{WITHDRAW_ACCESSIBLE_PREFIX}{line.spoken}")
+        self.withdraw_button.clicked.connect(self.withdraw)
+        head = QHBoxLayout()
+        head.setSpacing(8)
+        head.addWidget(self.text_label)
+        head.addWidget(self.chip)
+        head.addStretch(1)
+        head.addWidget(self.withdraw_button)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 2, 0, 2)
+        layout.setSpacing(2)
+        layout.addLayout(head)
+        layout.addWidget(self.date_label)
+        self.setAccessibleName(line.spoken)
+
+    def withdraw(self) -> None:
+        self.withdrawal_requested.emit(
+            (self.line.person.identifier, self.line.other.identifier),
+            (self.line.person.label, self.line.other.label),
+        )
+
+
 class SourceRow(QFrame):
     raw_requested = Signal(int)
 
@@ -216,6 +261,7 @@ class EntitySheet(QScrollArea):
     raw_requested = Signal(int)
     copied = Signal(str)
     notices_refresh_requested = Signal(str, str)
+    decision_withdrawal_requested = Signal(object, object)
     expandable_changed = Signal(bool)
 
     def __init__(
@@ -241,6 +287,7 @@ class EntitySheet(QScrollArea):
         self.chips: list[ReferenceChip] = []
         self.signal_cards: list[SignalCardView] = []
         self.link_rows: list[LinkRow] = []
+        self.decision_rows: list[DecisionRow] = []
         self.source_rows: list[SourceRow] = []
         self.section_titles: list[SectionTitle] = []
         self.show_details(None)
@@ -265,6 +312,7 @@ class EntitySheet(QScrollArea):
         self.chips = []
         self.signal_cards = []
         self.link_rows = []
+        self.decision_rows = []
         self.source_rows = []
         self.section_titles = []
         self.timeline = None
@@ -277,6 +325,7 @@ class EntitySheet(QScrollArea):
             self.add_signals(details)
             self.add_notices(details)
             self.add_links(details)
+            self.add_decisions(details)
             self.add_sources(details)
         self.content_layout.addStretch(1)
         self.setWidget(self.content)
@@ -417,6 +466,16 @@ class EntitySheet(QScrollArea):
         for line in details.links:
             row = LinkRow(line, self)
             self.link_rows.append(row)
+            self.content_layout.addWidget(row)
+
+    def add_decisions(self, details: EntityDetails) -> None:
+        if not details.decisions:
+            return
+        self.add_section_title(DECISIONS_TITLE, str(len(details.decisions)))
+        for line in details.decisions:
+            row = DecisionRow(line, self)
+            row.withdrawal_requested.connect(self.decision_withdrawal_requested)
+            self.decision_rows.append(row)
             self.content_layout.addWidget(row)
 
     def add_sources(self, details: EntityDetails) -> None:
