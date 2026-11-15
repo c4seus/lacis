@@ -222,6 +222,7 @@ SCENES = (
     Scene("unexpanded-leads", keep_the_view, area=QRect(0, 440, 320, 310)),
     Scene("main-window", investigate_the_plumbers, readme_name="screenshot"),
     Scene("graph", keep_the_view, area=QRect(321, 138, 698, 762)),
+    Scene("warning-signal", keep_the_view, area=QRect(1020, 172, 405, 388)),
     Scene("bodacc-notices", scroll_to_the_notices, area=QRect(1020, 256, 405, 330)),
     Scene("foreign-entity", show_the_foreign_company, area=QRect(1020, 176, 420, 300)),
 )

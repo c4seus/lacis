@@ -128,6 +128,8 @@ def test_the_screenshots_of_a_scene_are_named_after_it_and_its_theme() -> None:
         "docs/images/screenshot-dark.png",
         "site/src/assets/screenshots/graph-light.webp",
         "site/src/assets/screenshots/graph-dark.webp",
+        "site/src/assets/screenshots/warning-signal-light.webp",
+        "site/src/assets/screenshots/warning-signal-dark.webp",
         "site/src/assets/screenshots/bodacc-notices-light.webp",
         "site/src/assets/screenshots/bodacc-notices-dark.webp",
         "site/src/assets/screenshots/foreign-entity-light.webp",
