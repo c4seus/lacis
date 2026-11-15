@@ -1,6 +1,6 @@
 import sqlite3
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -113,6 +113,31 @@ def test_a_company_without_withheld_directors_says_nothing_about_them(
         CollectedEntity(company, "ACME PLOMBERIE", {"hidden_director_count": count}),
         builder.response,
     )
+    assert details_of(builder, company).facts[-1] == "NAF 43.22A"
+
+
+def collect_withheld_directors(
+    builder: InvestigationBuilder, company: str, count: int, collected_at: datetime
+) -> None:
+    response = ResponseStore(builder.connection).save(
+        CollectedResponse(
+            ResponseSource.COMPANY_REGISTER, "https://register.example", b"{}", collected_at, {}
+        )
+    )
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "ACME PLOMBERIE", {"hidden_director_count": count}), response
+    )
+
+
+def test_the_number_of_withheld_directors_follows_the_latest_collection(
+    builder: InvestigationBuilder,
+) -> None:
+    company = builder.company("ACME PLOMBERIE", date(2021, 3, 1), "43.22A")
+    collect_withheld_directors(builder, company, 1, COLLECTED_AT)
+    assert details_of(builder, company).facts[-1] == "1 dirigeant non diffusible"
+    collect_withheld_directors(builder, company, 0, COLLECTED_AT + timedelta(days=30))
+    assert details_of(builder, company).facts[-1] == "NAF 43.22A"
+    collect_withheld_directors(builder, company, 2, COLLECTED_AT - timedelta(days=30))
     assert details_of(builder, company).facts[-1] == "NAF 43.22A"
 
 
