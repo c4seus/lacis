@@ -22,6 +22,7 @@ from lacis.collectors.http_client import CollectorTiming
 from lacis.collectors.rate_limiting import RateLimiters
 from lacis.design.theme_controller import ThemeController, ThemePreference
 from lacis.storage.locations import CONFIGURATION_DIRECTORY_VARIABLE, DATA_DIRECTORY_VARIABLE
+from lacis.ui.entity_sheet import NOTICES_TITLE
 from lacis.ui.header_bar import displayed_version
 from lacis.ui.main_window import DEFAULT_SIZE, MainWindow
 from lacis.ui.notifications import Notification
@@ -51,6 +52,7 @@ POLLING_DELAY_MILLISECONDS = 50
 SCENE_TIMEOUT_SECONDS = 60.0
 LOSSLESS_QUALITY = 100
 STEADY_CURSOR = 0
+SECTION_MARGIN = 16
 
 
 class FrozenDatetime(datetime):
@@ -195,12 +197,26 @@ def investigate_the_plumbers(window: MainWindow) -> None:
     settle(window)
 
 
+def scroll_to_the_notices(window: MainWindow) -> None:
+    sheet = window.investigation_page.details_panel.entity_sheet
+    titles = [
+        title
+        for title in sheet.section_titles
+        if title.title_label.text() == NOTICES_TITLE.upper()
+    ]
+    if not titles:
+        raise LookupError("The demo mode showed no BODACC notice")
+    sheet.verticalScrollBar().setValue(titles[0].y() - SECTION_MARGIN)
+    settle(window)
+
+
 SCENES = (
     Scene("new-investigation", fill_the_new_investigation, area=QRect(180, 96, 1080, 284)),
     Scene("register-search", search_the_address_of_the_plumbers, area=QRect(470, 26, 676, 272)),
     Scene("unexpanded-leads", expand_the_plumbers, area=QRect(0, 440, 320, 310)),
     Scene("main-window", investigate_the_plumbers, readme_name="screenshot"),
     Scene("graph", keep_the_view, area=QRect(321, 138, 698, 762)),
+    Scene("bodacc-notices", scroll_to_the_notices, area=QRect(1020, 256, 405, 330)),
 )
 
 

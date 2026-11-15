@@ -1,0 +1,44 @@
+---
+title: Lire les annonces BODACC
+description: "Lire les annonces BODACC d'une entreprise : leur nature, le greffe, le jugement, le lien vers bodacc.fr, la réponse brute et le rafraîchissement."
+---
+
+import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
+import bodaccNoticesDark from "../../../assets/screenshots/bodacc-notices-dark.webp";
+import bodaccNoticesLight from "../../../assets/screenshots/bodacc-notices-light.webp";
+
+Le Bulletin officiel des annonces civiles et commerciales, le BODACC, publie les événements de la vie des entreprises : création, modification, vente, procédure collective, radiation. Lacis collecte les annonces de chaque entreprise que vous [étendez](/lacis/guide/extension/), par son numéro SIREN.
+
+## Lire la frise des annonces
+
+Les annonces d'une entreprise forment la section « Annonces BODACC » de sa fiche, de la plus récente à la plus ancienne. Chaque annonce donne :
+
+- sa date de publication et sa **nature**, l'une de ces dix familles : Création, Immatriculation, Modification, Procédure collective, Conciliation, Rétablissement professionnel, Vente et cession, Dépôt des comptes, Radiation et Divers ;
+- son résumé, puis le greffe du tribunal qui l'a transmise ;
+- le jugement, précédé de « Jugement : », quand le résumé ne le reprend pas déjà ;
+- **bodacc.fr ↗**, qui ouvre l'annonce sur le site officiel ;
+- **Réponse brute**, qui affiche la réponse de l'API du BODACC dont l'annonce provient.
+
+Les familles qui marquent une difficulté, Procédure collective, Rétablissement professionnel et Radiation, sont en rouge, comme le point de l'annonce sur la frise, tant que l'annonce n'est pas retirée.
+
+<ThemedScreenshot
+    light={bodaccNoticesLight}
+    dark={bodaccNoticesDark}
+    alt="Les trois annonces BODACC de DUPONT SERVICES, de la plus récente à la plus ancienne : la radiation du 20/01/2023, la clôture pour insuffisance d'actif du 05/12/2022 et l'ouverture de la liquidation judiciaire du 14/06/2022, chacune avec son greffe, son lien bodacc.fr et sa réponse brute."
+    caption="Les annonces BODACC de DUPONT SERVICES, avec leur nature, leur greffe et leurs liens."
+/>
+
+## Les annonces qui ne visent pas l'entreprise
+
+Une annonce peut citer l'entreprise sans la viser. Elle est alors suivie d'une note :
+
+- « En tant qu'ancien exploitant » ou « En tant qu'ancien propriétaire », pour la vente d'un fonds de commerce que l'entreprise exploitait ou possédait ;
+- « Mentionnée dans l'annonce », pour une autre mention.
+
+## Rafraîchir les annonces
+
+Le BODACC publie chaque jour. **Rafraîchir**, en tête de la section, interroge à nouveau le BODACC pour cette entreprise, sans passer par le cache. Une notification compte les nouvelles annonces et les annonces retirées.
+
+Une annonce que le BODACC ne renvoie plus n'est pas effacée : elle reste sur la frise, marquée **Retirée**, avec la mention « Absente du BODACC au rafraîchissement du » suivie de la date. Vous gardez ainsi la trace de ce qui a été publié.
+
+Une entreprise étendue sans annonce affiche « Aucune annonce collectée pour cette entreprise. »
