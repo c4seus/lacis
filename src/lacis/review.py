@@ -160,6 +160,8 @@ def expansion_message(label: str, report: ExpansionReport) -> str:
     message = f"Extension de {label} terminée : {found}"
     if report.cap_reached:
         message = f"{message}. {report.cap_message}"
+    if report.truncated_searches:
+        message = f"{message}. {report.truncation_message}"
     if report.failures:
         failures = counted(len(report.failures), "source en échec", "sources en échec")
         message = f"{message} ({failures})"
