@@ -7,6 +7,8 @@ PRODUCT_DESCRIPTION = (
     "Cartographie des entreprises françaises, de leurs dirigeants et de leurs adresses."
 )
 REPOSITORY_URL = "https://github.com/c4seus/lacis"
+WEBSITE_URL = "https://c4seus.github.io/lacis/"
+GUIDE_URL = f"{WEBSITE_URL}guide/"
 LICENSE_NAME = "GNU General Public License v3.0 ou ultérieure"
 LICENSE_URL = "https://www.gnu.org/licenses/gpl-3.0.html"
 RESOURCE_DIRECTORY = Path(__file__).resolve().parent / "resources"
