@@ -161,15 +161,35 @@ def confirm_the_homonym(window: MainWindow) -> None:
     settle(window)
 
 
-def investigate_the_plumbers(window: MainWindow) -> None:
+def entity_identifier(window: MainWindow, label: str) -> str:
+    node_items = window.investigation_page.graph_view.graph_scene.node_items
+    for identifier, item in node_items.items():
+        if item.node.label == label:
+            return identifier
+    raise LookupError(f"The demo mode has no entity named {label}")
+
+
+def show_the_entity(window: MainWindow, label: str) -> None:
+    window.investigation_page.show_entity(entity_identifier(window, label), label)
+    settle(window)
+
+
+def keep_the_view(window: MainWindow) -> None:
+    settle(window)
+
+
+def expand_the_plumbers(window: MainWindow) -> None:
     companies = add_the_plumbers(window)
     for title, identifier in companies.items():
         window.review_actions.expand(identifier, title)
         settle(window)
+
+
+def investigate_the_plumbers(window: MainWindow) -> None:
     confirm_the_homonym(window)
     window.lay_out_again()
     settle(window)
-    window.investigation_page.show_entity(companies[SELECTED_COMPANY], SELECTED_COMPANY)
+    show_the_entity(window, SELECTED_COMPANY)
     window.investigation_page.graph_view.fit()
     window.content_area.setFocus()
     settle(window)
@@ -178,7 +198,9 @@ def investigate_the_plumbers(window: MainWindow) -> None:
 SCENES = (
     Scene("new-investigation", fill_the_new_investigation, area=QRect(180, 96, 1080, 284)),
     Scene("register-search", search_the_address_of_the_plumbers, area=QRect(470, 26, 676, 272)),
+    Scene("unexpanded-leads", expand_the_plumbers, area=QRect(0, 440, 320, 310)),
     Scene("main-window", investigate_the_plumbers, readme_name="screenshot"),
+    Scene("graph", keep_the_view, area=QRect(321, 138, 698, 762)),
 )
 
 

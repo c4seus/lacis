@@ -44,7 +44,7 @@ export default defineConfig({
                         },
                         {
                             label: "Fonctionnalités",
-                            items: ["guide/recherche"],
+                            items: ["guide/recherche", "guide/extension"],
                         },
                         "guide/usage-responsable",
                     ],

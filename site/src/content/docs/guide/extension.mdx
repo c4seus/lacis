@@ -1,0 +1,85 @@
+---
+title: Étendre le graphe
+description: "Étendre une entreprise, une personne ou une adresse, choisir la profondeur, suivre et annuler une extension, puis explorer le graphe."
+---
+
+import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
+import graphDark from "../../../assets/screenshots/graph-dark.webp";
+import graphLight from "../../../assets/screenshots/graph-light.webp";
+import unexpandedLeadsDark from "../../../assets/screenshots/unexpanded-leads-dark.webp";
+import unexpandedLeadsLight from "../../../assets/screenshots/unexpanded-leads-light.webp";
+
+Étendre une entité, c'est demander aux sources publiques ce qui s'y rattache, puis l'ajouter au graphe de l'enquête. Chaque extension part d'une entité déjà dans le graphe, le plus souvent une entreprise [trouvée dans le registre national](/lacis/guide/recherche/).
+
+## Ce que collecte une extension
+
+Ce qu'une extension ajoute dépend du type de l'entité étendue :
+
+- une **entreprise** : son siège et ses établissements, leurs adresses, ses dirigeants, personnes ou sociétés, et ses annonces BODACC ;
+- une **personne** : les autres entreprises dont le registre la donne pour dirigeante. Lacis cherche ses nom et prénoms dans le registre, et ne garde que les mandats dont le mois de naissance ne contredit pas le sien ;
+- une **adresse** : les autres entreprises qui y ont leur siège ou un établissement, avec cet établissement ;
+- un **établissement** : l'entreprise à laquelle il appartient, étendue comme ci-dessus.
+
+Une société étrangère qui dirige une entreprise française n'est pas inscrite au registre : elle entre dans le graphe, mais ne peut pas être étendue.
+
+Pour une personne ou une adresse, Lacis parcourt au plus les 100 premiers résultats du registre.
+
+## Lancer une extension
+
+Sélectionnez l'entité dans le graphe : sa fiche s'ouvre dans le panneau de droite, avec le bouton **Étendre**. <kbd>Ctrl</kbd>+<kbd>E</kbd> étend l'entité sélectionnée.
+
+La flèche à droite du bouton choisit la **profondeur**, de 1 à 3 :
+
+- à la profondeur 1, Lacis étend l'entité seule ;
+- à la profondeur 2, il étend aussi chaque entreprise, personne et adresse trouvée au premier niveau ;
+- à la profondeur 3, il descend d'un niveau de plus.
+
+Chaque niveau multiplie les requêtes : commencez par la profondeur 1, et n'allez plus loin que pour les pistes qui comptent pour votre question.
+
+Une fois l'entité étendue, sa fiche indique la date de l'extension, et le bouton devient **Étendre à nouveau**. Une nouvelle extension interroge alors les sources sans passer par le cache, pour tenir compte de leurs changements.
+
+## Suivre et annuler une extension
+
+Une extension se déroule en arrière-plan : vous pouvez continuer à lire le graphe et les fiches. Le panneau des collectes en cours affiche chaque extension avec le nombre de requêtes faites et d'entités trouvées, et un bouton **Annuler**. Une extension annulée garde ce qu'elle a déjà trouvé.
+
+Une notification annonce la fin de l'extension et le nombre d'entités ajoutées. Si une source échoue au-delà du premier niveau, l'extension continue et la notification compte les sources en échec.
+
+Une extension n'ajoute jamais plus de **500 nouvelles entités**. À cette limite, elle s'arrête et le signale : étendez ensuite, une à une, les pistes qui vous intéressent.
+
+## Reprendre les pistes non étendues
+
+Les entreprises, personnes et adresses du graphe qui n'ont pas encore été étendues forment les « Pistes non étendues », en bas de la colonne « À examiner ». Chaque piste dit pourquoi elle mérite peut-être une extension :
+
+- « Connue comme dirigeante seulement » : une société n'apparaît que comme dirigeante d'une autre ;
+- « Établissements, dirigeants et annonces pas encore recherchés » : l'entreprise a été ajoutée sans être étendue ;
+- « D'autres mandats peuvent exister » : une personne peut diriger d'autres entreprises ;
+- « D'autres entreprises peuvent y être domiciliées » : une adresse peut en abriter d'autres.
+
+Le bouton **Étendre** de la piste l'étend à la profondeur 1.
+
+<ThemedScreenshot
+    light={unexpandedLeadsLight}
+    dark={unexpandedLeadsDark}
+    alt="Les pistes non étendues de l'enquête d'exemple : HOLDING DUPONT, connue comme dirigeante seulement, Jean DUPONT et Jean Pierre DUPONT, dont d'autres mandats peuvent exister, et le 12 rue des Lilas, où d'autres entreprises peuvent être domiciliées. Chacune a son bouton Étendre."
+    caption="Les pistes non étendues, après l'extension des deux plomberies."
+/>
+
+## Explorer le graphe
+
+Le graphe montre chaque entité avec la forme et la couleur de son type, rappelées par la légende : entreprise, personne, adresse, établissement et entreprise étrangère. Les liens distinguent les mandats, en flèche du dirigeant vers l'entreprise, les rattachements d'un établissement à son entreprise et à son adresse, et les personnes reconnues comme la même.
+
+Une entité fermée a un fond pâle et une bordure en tirets de sa couleur. Une société connue comme dirigeante seulement a une bordure grise en tirets. Un anneau rouge, orange ou jaune signale une entité visée par un signal d'alerte fort, moyen ou faible.
+
+<ThemedScreenshot
+    light={graphLight}
+    dark={graphDark}
+    alt="Le graphe de l'enquête d'exemple : les deux plomberies, leurs dirigeants, la société étrangère DUPONT INVEST LTD, leurs sièges et leur adresse commune. Jean DUPONT et Jean Pierre DUPONT sont reliés comme la même personne. En haut, le bouton Filtres ; en bas, la légende et les boutons de zoom."
+    caption="Le graphe, avec ses filtres, sa légende et ses boutons de navigation."
+/>
+
+Pour s'y retrouver :
+
+- la molette et les boutons en bas à droite zooment, dézooment, ajustent le graphe à la fenêtre et le réorganisent ;
+- une entité se déplace en la faisant glisser, et Lacis retient sa place ;
+- le bouton **Filtres** masque des types d'entités, ou ne garde que les entités signalées. **Tout afficher** retire les filtres ;
+- au clavier, les flèches passent d'une entité à sa voisine.
