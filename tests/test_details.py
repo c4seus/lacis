@@ -1,11 +1,20 @@
 import sqlite3
+from collections.abc import Iterator
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
+import httpx
 import pytest
 
+from fake_time import FakeTime
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import COLLECTED_AT, COURT, InvestigationBuilder
+from lacis.collectors.bodacc import Bodacc
+from lacis.collectors.company_register import CompanyRegister
+from lacis.collectors.fake_api import FakeApi
+from lacis.collectors.fake_plumbers import FAKE_PLUMBERS_SCENARIO
+from lacis.collectors.http_client import CollectorHttpClient, CollectorTiming
+from lacis.collectors.rate_limiting import RateLimiters
 from lacis.details import (
     Badge,
     BadgeTone,
@@ -17,8 +26,10 @@ from lacis.details import (
     written_day,
     written_month,
 )
+from lacis.graph.expansion import GraphExpander
 from lacis.signals.signal import Severity
-from lacis.storage.entities import CollectedEntity, EntityKind
+from lacis.storage.collection_log import CollectionLog
+from lacis.storage.entities import CollectedEntity, EntityKind, company_identifier
 from lacis.storage.errors import TamperedResponseError
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.notices import NoticeFamily, NoticeRole
@@ -212,6 +223,66 @@ def test_a_foreign_company_shows_its_country_without_directory(
     assert details.facts == ("Pays Royaume-Uni",)
     assert details.directory_url == ""
     assert not details.expandable
+
+
+@pytest.fixture
+def demo_expander(builder: InvestigationBuilder) -> Iterator[GraphExpander]:
+    fake_time = FakeTime()
+    client = CollectorHttpClient(
+        ResponseStore(builder.connection),
+        CollectionLog(builder.connection),
+        httpx.MockTransport(FakeApi(FAKE_PLUMBERS_SCENARIO)),
+        CollectorTiming(
+            rate_limiters=RateLimiters(clock=fake_time.clock, sleep=fake_time.sleep),
+            monotonic=fake_time.clock,
+        ),
+    )
+    yield GraphExpander(builder.connection, CompanyRegister(client), Bodacc(client))
+    client.close()
+
+
+def test_a_company_under_foreign_law_shows_it_with_its_country(
+    builder: InvestigationBuilder, demo_expander: GraphExpander
+) -> None:
+    demo_expander.expand_company("121212121")
+    details = details_of(builder, company_identifier("121212121"))
+    assert Badge("Droit étranger", BadgeTone.OUTLINE) in details.badges
+    assert "Pays Royaume-Uni (adresse du siège)" in details.facts
+
+
+def test_a_french_company_shows_neither_foreign_law_nor_a_country(
+    builder: InvestigationBuilder, demo_expander: GraphExpander
+) -> None:
+    demo_expander.expand_company("111111111")
+    details = details_of(builder, company_identifier("111111111"))
+    assert Badge("Droit étranger", BadgeTone.OUTLINE) not in details.badges
+    assert not [fact for fact in details.facts if fact.startswith("Pays")]
+
+
+def test_the_country_found_in_the_legal_form_names_it(builder: InvestigationBuilder) -> None:
+    company = builder.company("THAMES TRADING LIMITED")
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(
+            company,
+            "THAMES TRADING LIMITED",
+            {
+                "is_under_foreign_law": True,
+                "country": "Royaume-Uni",
+                "country_source": "Forme juridique LIMITED",
+            },
+        ),
+        builder.response,
+    )
+    assert details_of(builder, company).facts[-1] == "Pays Royaume-Uni (forme juridique LIMITED)"
+
+
+def test_a_country_without_its_source_is_shown_alone(builder: InvestigationBuilder) -> None:
+    company = builder.company("THAMES TRADING LIMITED")
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "THAMES TRADING LIMITED", {"country": "Royaume-Uni"}),
+        builder.response,
+    )
+    assert details_of(builder, company).facts[-1] == "Pays Royaume-Uni"
 
 
 def test_a_company_without_siren_copies_its_name(builder: InvestigationBuilder) -> None:
