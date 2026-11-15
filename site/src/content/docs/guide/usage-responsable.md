@@ -17,7 +17,7 @@ Une enquête Lacis contient des données personnelles :
 
 Qu'une information soit publique ne permet pas de l'utiliser dans n'importe quel but. La CNIL le rappelle : des données accessibles à tous restent des données personnelles, que l'on ne peut pas réutiliser librement.
 
-Certaines personnes ont demandé que leurs informations ne soient pas diffusées. Lacis respecte ce choix : il n'affiche pas les dirigeants non diffusibles, ni l'adresse d'un établissement non diffusible, et une entreprise non diffusible apparaît sous la mention « Entreprise non diffusible » suivie de son SIREN. Ne cherchez pas à contourner cette protection par d'autres sources.
+Certaines personnes ont demandé que leurs informations ne soient pas diffusées. Lacis respecte ce choix : il n'affiche pas les dirigeants non diffusibles, dont la fiche de l'entreprise ne donne que le nombre, ni l'adresse d'un établissement non diffusible, et une entreprise non diffusible apparaît sous la mention « Entreprise non diffusible » suivie de son SIREN. Ne cherchez pas à contourner cette protection par d'autres sources.
 
 ## Partir d'un but défini
 
