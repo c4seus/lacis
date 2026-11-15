@@ -4,6 +4,7 @@ from datetime import date
 
 from lacis.collectors.bodacc_records import notice_record_in, office_transfer_in
 from lacis.storage.notices import office_transfer_columns
+from lacis.storage.people_by_company import split_people_by_company
 
 Migration = Callable[[sqlite3.Connection], None]
 
@@ -277,6 +278,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     track_revisions_and_signals,
     create_entity_position_table,
     reread_office_transfers,
+    split_people_by_company,
 )
 
 
