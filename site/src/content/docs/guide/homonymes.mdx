@@ -9,6 +9,12 @@ import homonymReviewLight from "../../../assets/screenshots/homonym-review-light
 
 Le registre national ne donne pas d'identifiant aux dirigeants : il donne leur nom, leurs prénoms et leur mois de naissance. Une même personne peut donc apparaître deux fois dans le graphe, par exemple « Jean DUPONT » d'un côté et « Jean Pierre DUPONT » de l'autre. Lacis repère ces homonymes, mais c'est vous qui décidez.
 
+:::caution[Une limite de cette version]
+Lacis confond aujourd'hui en une seule personne deux dirigeants qui ont exactement le même nom, les mêmes prénoms et le même mois de naissance, sans vous le proposer. Quand le registre ne donne pas le mois de naissance, ce qui arrive souvent pour les entrepreneurs individuels, le nom et les prénoms suffisent à les confondre.
+
+Deux personnes différentes peuvent ainsi apparaître comme une seule, et les [signaux d'alerte](/lacis/guide/signaux/) compter leurs mandats ensemble. Avant de conclure sur une personne qui dirige plusieurs entreprises, vérifiez sur la fiche de chacune, dans le registre, qu'il s'agit bien de la même. Cette limite sera corrigée : son suivi est dans le [signalement n° 223](https://github.com/c4seus/lacis/issues/223).
+:::
+
 ## Quand Lacis rapproche deux personnes
 
 Lacis propose de rapprocher deux personnes du graphe quand :
@@ -31,7 +37,7 @@ Chaque proposition porte un degré de confiance :
 - **Probable** : l'identité concorde avec moins de deux indices, ou elle est incomplète mais au moins deux indices la confirment ;
 - **Faible** : l'identité est incomplète et les indices manquent.
 
-Les propositions certaines viennent en tête. Même certaine, une proposition reste une proposition : Lacis ne fusionne jamais deux personnes sans votre décision.
+Les propositions certaines viennent en tête. Même certaine, une proposition reste une proposition : Lacis ne relie jamais deux personnes qu'il vous propose sans votre décision. Seuls les homonymes parfaits échappent aujourd'hui à cette règle, comme l'explique l'avertissement en haut de cette page.
 
 <ThemedScreenshot
     light={homonymReviewLight}
