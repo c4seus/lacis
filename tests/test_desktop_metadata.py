@@ -1,4 +1,5 @@
 import configparser
+import re
 import tomllib
 from pathlib import Path
 from xml.etree import ElementTree
@@ -13,6 +14,11 @@ LINUX_DIRECTORY = REPOSITORY / "packaging" / "linux"
 DESKTOP_ENTRY = LINUX_DIRECTORY / f"{APPLICATION_ID}.desktop"
 METAINFO = LINUX_DIRECTORY / f"{APPLICATION_ID}.metainfo.xml"
 SCREENSHOT_PREFIX = "https://raw.githubusercontent.com/c4seus/lacis/main/"
+PACKAGE_HOMEPAGES = {
+    "debian/control": re.compile(r"^Homepage: (\S+)$", re.MULTILINE),
+    "arch/PKGBUILD.in": re.compile(r"^url='([^']+)'$", re.MULTILINE),
+    "fedora/lacis.spec.in": re.compile(r"^URL:\s+(\S+)$", re.MULTILINE),
+}
 
 
 def desktop_entry() -> configparser.SectionProxy:
@@ -46,6 +52,34 @@ def test_the_metainfo_describes_the_same_application() -> None:
     assert component.findtext("project_license") == project()["license"]
     assert component.findtext("name") == desktop_entry()["Name"]
     assert component.findtext("provides/binary") == desktop_entry()["Exec"]
+
+
+def project_urls() -> dict[str, str]:
+    urls = project()["urls"]
+    assert isinstance(urls, dict)
+    return urls
+
+
+def test_the_metainfo_links_the_website_the_guide_and_the_repository() -> None:
+    urls = project_urls()
+    links = {
+        url.attrib["type"]: url.text
+        for url in ElementTree.parse(METAINFO).getroot().findall("url")
+    }
+    assert links == {
+        "homepage": urls["Homepage"],
+        "help": urls["Documentation"],
+        "bugtracker": urls["Issues"],
+        "vcs-browser": urls["Repository"],
+    }
+
+
+def test_every_package_points_to_the_website() -> None:
+    for path, homepage in PACKAGE_HOMEPAGES.items():
+        text = (REPOSITORY / "packaging" / path).read_text(encoding="utf-8")
+        found = homepage.search(text)
+        assert found is not None
+        assert found[1] == project_urls()["Homepage"]
 
 
 def test_the_screenshots_are_in_the_repository_at_their_declared_size() -> None:

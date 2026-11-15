@@ -2,6 +2,12 @@
 
 All notable changes to Lacis are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow the [versioning policy](docs/versioning.md).
 
+## [Unreleased]
+
+### Added
+
+- A website, https://c4seus.github.io/lacis/, that presents Lacis and holds its user guide, in French. The AppStream metadata, the packages and the notes of each release link to it.
+
 ## [0.1.0] - 2026-11-13
 
 The first release brings the capabilities of the former web prototype to a native desktop application for Linux and Windows.

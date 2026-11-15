@@ -60,7 +60,8 @@
     <binary>lacis</binary>
   </provides>
 
-  <url type="homepage">https://github.com/c4seus/lacis</url>
+  <url type="homepage">https://c4seus.github.io/lacis/</url>
+  <url type="help">https://c4seus.github.io/lacis/guide/</url>
   <url type="bugtracker">https://github.com/c4seus/lacis/issues</url>
   <url type="vcs-browser">https://github.com/c4seus/lacis</url>
 

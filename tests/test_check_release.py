@@ -18,10 +18,12 @@ from check_release import (
     release_notes,
     release_problems,
     repository_url,
+    website_url,
 )
 from lacis.product import REPOSITORY_URL
 
 REPOSITORY = Path(__file__).resolve().parent.parent
+WEBSITE_ADDRESS = "https://c4seus.github.io/lacis/"
 CHANGELOG_TEXT = """# Changelog
 
 Introduction.
@@ -63,7 +65,9 @@ def write_repository(root: Path, changelog: str = CHANGELOG_TEXT) -> None:
     (root / METAINFO).write_text(METAINFO_TEXT, encoding="utf-8")
     (root / CHANGELOG).write_text(changelog, encoding="utf-8")
     (root / PYPROJECT).write_text(
-        '[project.urls]\nHomepage = "https://example.org/lacis"\n', encoding="utf-8"
+        '[project.urls]\nHomepage = "https://example.org/"\n'
+        'Repository = "https://example.org/lacis"\n',
+        encoding="utf-8",
     )
 
 
@@ -168,19 +172,27 @@ def test_a_pre_release_is_told_apart_by_its_candidate_number() -> None:
 
 
 def test_the_notes_come_from_the_section_of_the_release() -> None:
-    notes = release_notes("v0.2.0", sections(), "https://example.org/lacis")
+    notes = release_notes(
+        "v0.2.0", sections(), "https://example.org/lacis", "https://example.org/"
+    )
     assert notes == (
         "### Fixed\n\n- A crash when opening an empty investigation\n\n"
+        "The [website of Lacis](https://example.org/) presents it and holds its user guide, "
+        "in French.\n\n"
         "To install Lacis and verify a download with `SHA256SUMS`, follow the "
         "[installation instructions](https://example.org/lacis#installation).\n"
     )
-    assert release_notes("v0.3.0rc1", sections(), "https://example.org/lacis").startswith(
-        "### Added\n\n- Exports to GEXF\n\n"
-    )
+    assert release_notes(
+        "v0.3.0rc1", sections(), "https://example.org/lacis", "https://example.org/"
+    ).startswith("### Added\n\n- Exports to GEXF\n\n")
 
 
-def test_the_repository_url_is_the_homepage_of_the_project() -> None:
+def test_the_repository_url_is_the_repository_of_the_project() -> None:
     assert repository_url(REPOSITORY) == REPOSITORY_URL
+
+
+def test_the_website_url_is_the_homepage_of_the_project() -> None:
+    assert website_url(REPOSITORY) == WEBSITE_ADDRESS
 
 
 def test_the_command_writes_the_notes_of_a_consistent_release(
@@ -192,6 +204,7 @@ def test_the_command_writes_the_notes_of_a_consistent_release(
         "v0.2.0: release of lacis 0.2.0, notes in build/release-notes.md\n"
     )
     notes = (tmp_path / "build" / "release-notes.md").read_text(encoding="utf-8")
+    assert "[website of Lacis](https://example.org/)" in notes
     assert notes.endswith("(https://example.org/lacis#installation).\n")
 
 
