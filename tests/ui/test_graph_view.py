@@ -482,7 +482,7 @@ def test_screen_readers_hear_the_selected_entity_its_kind_and_its_links(
     ]
     assert spoken_description(view) == (
         "DUPONT SERVICES, entreprise, fermée, 2 liens, signal de sévérité forte. "
-        "Liens : Président : Jean DUPONT (1980-05) ; établissement Siège — TOULOUSE."
+        "Liens : établissement Siège — TOULOUSE ; Président : Jean DUPONT (1980-05)."
     )
     view.select(scenario.dupont_services)
     assert len(heard) == 1

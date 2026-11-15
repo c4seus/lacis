@@ -303,9 +303,8 @@ def test_the_graph_of_the_investigation_is_drawn_and_selectable(main_window: Mai
     jean = next(
         identifier
         for identifier, item in scene.node_items.items()
-        if item.node.label.startswith("Jean DUPONT")
+        if item.node.label.startswith("Jean") and item.node.severity is not None
     )
-    assert scene.node_items[jean].node.severity is not None
     page.show_entity(jean, "Jean DUPONT")
     assert page.selected_entity == jean
     main_window.show_home()

@@ -308,8 +308,8 @@ def test_the_phoenix_signal_of_the_design_target_appears_on_the_fake_plumbers(
 ) -> None:
     expander.expand_company("111111111")
     expander.expand_company("222222222")
-    jean = person_identifier("DUPONT", "Jean", "1980-05")
-    jean_pierre = person_identifier("DUPONT", "Jean Pierre", "1980-05")
+    jean = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
+    jean_pierre = person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111")
     HomonymDecisionStore(investigation_connection).record(
         jean, jean_pierre, HomonymDecision.SAME_PERSON
     )

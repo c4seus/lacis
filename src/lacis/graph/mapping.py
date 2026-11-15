@@ -179,7 +179,7 @@ def registered_office_fragment(company: Company) -> GraphFragment:
     return GraphFragment(fragment.entities, (*fragment.links, office_link))
 
 
-def person_entity(director: NaturalPersonDirector) -> CollectedEntity | None:
+def person_entity(director: NaturalPersonDirector, siren: str) -> CollectedEntity | None:
     last_name = shown(director.last_name)
     if last_name is None or not director.diffusible:
         return None
@@ -189,7 +189,7 @@ def person_entity(director: NaturalPersonDirector) -> CollectedEntity | None:
         birth_month = None
     label = " ".join(part for part in (first_names, last_name.upper()) if part)
     return CollectedEntity(
-        person_identifier(last_name, first_names, birth_month),
+        person_identifier(last_name, first_names, birth_month, siren),
         label,
         {
             "last_name": last_name,
@@ -222,14 +222,15 @@ def legal_person_entity(director: LegalPersonDirector) -> CollectedEntity | None
     )
 
 
-def director_entity(director: Director) -> CollectedEntity | None:
+def director_entity(director: Director, siren: str) -> CollectedEntity | None:
     if isinstance(director, NaturalPersonDirector):
-        return person_entity(director)
+        return person_entity(director, siren)
     return legal_person_entity(director)
 
 
-def director_fragment(company: str, director: Director) -> GraphFragment:
-    entity = director_entity(director)
+def director_fragment(siren: str, director: Director) -> GraphFragment:
+    company = company_identifier(siren)
+    entity = director_entity(director, siren)
     if entity is None or entity.identifier == company:
         return GraphFragment()
     role = director_role(director.role).value
@@ -249,6 +250,6 @@ def company_fragment(company: Company) -> GraphFragment:
             GraphFragment((company_entity(company),)),
             registered_office_fragment(company),
             *(establishment_fragment(identifier, item) for item in other_establishments),
-            *(director_fragment(identifier, director) for director in company.directors),
+            *(director_fragment(company.siren, director) for director in company.directors),
         ]
     )

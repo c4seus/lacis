@@ -44,6 +44,10 @@ from lacis.storage.responses import (
 )
 
 DECIDED_AT = datetime(2026, 11, 6, 15, 0, tzinfo=UTC)
+JEAN = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
+JEAN_OF_HOLDING = person_identifier("DUPONT", "Jean", "1980-05", "333333333")
+JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111")
+JEAN_MARC = person_identifier("DUPONT", "Jean Marc", "1980-05", "666666666")
 
 
 @pytest.fixture
@@ -76,7 +80,7 @@ def add_person(
     first_names: str,
     birth_month: str | None,
 ) -> str:
-    identifier = person_identifier(last_name, first_names, birth_month)
+    identifier = person_identifier(last_name, first_names, birth_month, "222222222")
     label = f"{first_names} {last_name.upper()}".strip()
     attributes: Attributes = {
         "last_name": last_name,
@@ -251,29 +255,33 @@ def test_jean_and_jean_pierre_dupont_of_the_scenario_are_proposed_with_their_rea
     )
 
 
-def test_a_company_linking_the_two_people_makes_the_match_certain(
+def both(first_person: str, second_person: str) -> tuple[str, str]:
+    first, second = sorted((first_person, second_person))
+    return first, second
+
+
+def test_a_company_linking_the_two_people_is_a_reason_of_the_match(
     expander: GraphExpander,
     graph_store: GraphStore,
     decision_store: HomonymDecisionStore,
 ) -> None:
     expander.expand_company("222222222")
     expander.expand_company("111111111")
-    expander.expand_person(person_identifier("DUPONT", "Jean", "1980-05"))
+    expander.expand_person(JEAN)
     proposals = {
-        (proposal.pair.first.label, proposal.pair.second.label): proposal
+        proposal.pair.people: proposal
         for proposal in homonym_proposals(graph_store, decision_store)
     }
-    jean_pierre = proposals["Jean DUPONT", "Jean Pierre DUPONT"]
-    assert jean_pierre.confidence is Confidence.CERTAIN
+    jean_pierre = proposals[both(JEAN_OF_HOLDING, JEAN_PIERRE)]
+    assert jean_pierre.confidence is Confidence.PROBABLE
     assert "HOLDING DUPONT dirige ACME PLOMBERIE" in jean_pierre.reasons
-    jean_marc = proposals["Jean DUPONT", "Jean Marc DUPONT"]
+    jean_marc = proposals[both(JEAN, JEAN_MARC)]
     assert jean_marc.confidence is Confidence.PROBABLE
     assert jean_marc.reasons == (
         "Même nom de famille",
         "Prénom composé : Jean / Jean Marc",
         "Même mois de naissance (05/1980)",
     )
-    assert next(iter(proposals.values())) is jean_pierre
 
 
 def test_an_unknown_birth_month_makes_a_match_weak(

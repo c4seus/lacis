@@ -21,9 +21,9 @@ from lacis.storage.responses import (
 )
 
 DECIDED_AT = datetime(2026, 11, 6, 15, 0, tzinfo=UTC)
-JEAN = person_identifier("DUPONT", "Jean", "1980-05")
-JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05")
-JEAN_MARC = person_identifier("DUPONT", "Jean Marc", "1980-05")
+JEAN = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
+JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111")
+JEAN_MARC = person_identifier("DUPONT", "Jean Marc", "1980-05", "666666666")
 
 
 @pytest.fixture
@@ -123,7 +123,7 @@ def test_only_two_different_people_can_be_decided_on(
 def test_a_decision_needs_people_of_the_investigation(
     decision_store: HomonymDecisionStore,
 ) -> None:
-    stranger = person_identifier("MARTIN", "Paul", "1990-01")
+    stranger = person_identifier("MARTIN", "Paul", "1990-01", "555555555")
     with pytest.raises(sqlite3.IntegrityError):
         decision_store.record(JEAN, stranger, HomonymDecision.DIFFERENT_PERSON)
 

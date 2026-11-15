@@ -21,7 +21,9 @@ from lacis.storage.responses import (
 )
 
 DUPONT_SERVICES = CollectedEntity(company_identifier("222222222"), "DUPONT SERVICES")
-JEAN_DUPONT = CollectedEntity(person_identifier("DUPONT", "Jean", "1980-05"), "Jean DUPONT")
+JEAN_DUPONT = CollectedEntity(
+    person_identifier("DUPONT", "Jean", "1980-05", "222222222"), "Jean DUPONT"
+)
 PRESIDENT = mandate_link(JEAN_DUPONT.identifier, DUPONT_SERVICES.identifier, "Président")
 
 

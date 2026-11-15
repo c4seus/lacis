@@ -246,7 +246,7 @@ def test_a_notice_only_concerns_companies() -> None:
             "B4",
             NoticeFamily.SALE,
             date(2022, 5, 1),
-            {person_identifier("DUPONT", "Jean", "1980-05"): NoticeRole.SUBJECT},
+            {person_identifier("DUPONT", "Jean", "1980-05", "222222222"): NoticeRole.SUBJECT},
         )
 
 
