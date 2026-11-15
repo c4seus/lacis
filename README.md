@@ -10,6 +10,8 @@
 
 Start from one company and Lacis pulls the threads: who runs it, which other companies those people run, who else is registered at the same address, and what the BODACC published about each of them. Explainable rules then flag the patterns that deserve a review, such as mass domiciliation, serial short-lived companies or phoenix schemes. Every fact in the graph links back to the exact response it came from, with its date and its SHA-256 fingerprint.
 
+The [website of Lacis](https://c4seus.github.io/lacis/) presents it and holds its [user guide](https://c4seus.github.io/lacis/guide/), in French, like its interface.
+
 > [!NOTE]
 > **Lacis is in its `0.y` phase.** The interface, the investigation format and the rule configuration can still change between minor versions, as described in the [versioning policy](docs/versioning.md).
 
@@ -78,7 +80,7 @@ Each [GitHub release](https://github.com/c4seus/lacis/releases) carries a packag
 | Windows 10 (version 1809 or later) and Windows 11, 64-bit | `lacis-X.Y.Z-windows-x64-setup.exe` |
 | Other platforms | `lacis-X.Y.Z.tar.gz`, the source archive |
 
-`X.Y.Z` stands for the version of Lacis, and `NN` for the Fedora release. The reasons behind these formats are in [ADR 0002](docs/adr/0002-packaging.md).
+`X.Y.Z` stands for the version of Lacis, and `NN` for the Fedora release. The reasons behind these formats are in [ADR 0002](docs/adr/0002-packaging.md). The user guide describes the same steps in French, in [Installer Lacis](https://c4seus.github.io/lacis/guide/installation/).
 
 ### Debian and derivatives
 
@@ -162,7 +164,7 @@ The check detects a damaged or altered download, as long as `SHA256SUMS` comes f
 
 ## Responsible use
 
-Lacis works on public, legally published company data. It helps investigators, journalists, compliance teams and citizens understand who is behind a company. Signals are leads, not accusations: always check the sources before drawing a conclusion about a company or a person, and respect the rules that apply to personal data in your country.
+Lacis works on public, legally published company data. It helps investigators, journalists, compliance teams and citizens understand who is behind a company. Signals are leads, not accusations: always check the sources before drawing a conclusion about a company or a person, and respect the rules that apply to personal data in your country. The user guide details these rules in [Usage responsable](https://c4seus.github.io/lacis/guide/usage-responsable/), in French.
 
 ## Contributing
 

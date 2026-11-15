@@ -20,6 +20,7 @@ INSTALLATION_NOTE = (
     "To install Lacis and verify a download with `SHA256SUMS`, follow the "
     "[installation instructions]({url}#installation)."
 )
+WEBSITE_NOTE = "The [website of Lacis]({url}) presents it and holds its user guide, in French."
 EXPECTED_ARGUMENTS = ("TAG", "VERSION", "NOTES")
 NOT_A_RELEASE_TAG = (
     "{tag} is not a release tag: use vMAJOR.MINOR.PATCH, or vMAJOR.MINOR.PATCHrcN "
@@ -138,17 +139,30 @@ def is_pre_release(tag: str) -> bool:
     return found is not None and found["candidate"] is not None
 
 
-def release_notes(tag: str, sections: list[ChangelogSection], repository_url: str) -> str:
+def release_notes(
+    tag: str, sections: list[ChangelogSection], repository_url: str, website_url: str
+) -> str:
     found = RELEASE_TAG.fullmatch(tag)
     name = found["release"] if found is not None and not is_pre_release(tag) else UNRELEASED
     section = section_named(sections, name)
     notes = section.notes if section is not None else ""
-    return f"{notes}\n\n{INSTALLATION_NOTE.format(url=repository_url)}\n"
+    return (
+        f"{notes}\n\n{WEBSITE_NOTE.format(url=website_url)}\n\n"
+        f"{INSTALLATION_NOTE.format(url=repository_url)}\n"
+    )
+
+
+def project_url(root: Path, label: str) -> str:
+    project = tomllib.loads((root / PYPROJECT).read_text(encoding="utf-8"))
+    return str(project["project"]["urls"][label])
 
 
 def repository_url(root: Path) -> str:
-    project = tomllib.loads((root / PYPROJECT).read_text(encoding="utf-8"))
-    return str(project["project"]["urls"]["Homepage"])
+    return project_url(root, "Repository")
+
+
+def website_url(root: Path) -> str:
+    return project_url(root, "Homepage")
 
 
 def main(root: Path, arguments: list[str]) -> int:
@@ -165,7 +179,9 @@ def main(root: Path, arguments: list[str]) -> int:
         return 1
     target = root / notes
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(release_notes(tag, sections, repository_url(root)), encoding="utf-8")
+    target.write_text(
+        release_notes(tag, sections, repository_url(root), website_url(root)), encoding="utf-8"
+    )
     kind = "pre-release" if is_pre_release(tag) else "release"
     print(f"{tag}: {kind} of lacis {version}, notes in {notes}")
     return 0
