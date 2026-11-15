@@ -6,12 +6,12 @@ from pathlib import Path
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QImage
 
+from lacis.product import WEBSITE_URL
 from workflows import workflow, workflow_jobs
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
 APPLICATION_ICON = ROOT / "packaging/icons/hicolor/scalable/apps/io.github.c4seus.lacis.svg"
-WEBSITE_ADDRESS = "https://c4seus.github.io/lacis/"
 LATEST_RELEASE = "https://github.com/c4seus/lacis/releases/latest"
 HOME_PAGE = SITE / "src/content/docs/index.mdx"
 INSTALLATION_PAGE = SITE / "src/content/docs/guide/installation.md"
@@ -153,7 +153,7 @@ def test_the_home_page_shows_the_main_window_in_both_themes_at_the_same_size() -
 def test_the_sharing_image_is_served_at_the_size_that_social_networks_expect() -> None:
     assert QImage(str(SITE / "public/sharing-image.png")).size() == QSize(1200, 630)
     configuration = site_configuration()
-    assert f'const sharingImage = "{WEBSITE_ADDRESS}sharing-image.png";\n' in configuration
+    assert f'const sharingImage = "{WEBSITE_URL}sharing-image.png";\n' in configuration
     og_image = '{ tag: "meta", attrs: { property: "og:image", content: sharingImage } },'
     assert og_image in configuration
 
@@ -161,7 +161,7 @@ def test_the_sharing_image_is_served_at_the_size_that_social_networks_expect() -
 def test_the_structured_data_describes_a_free_application_without_inventing_ratings() -> None:
     software = json.loads((SITE / "src/software-application.json").read_text(encoding="utf-8"))
     assert software["@type"] == "SoftwareApplication"
-    assert software["url"] == WEBSITE_ADDRESS
+    assert software["url"] == WEBSITE_URL
     assert software["downloadUrl"] == LATEST_RELEASE
     assert software["operatingSystem"] == "Linux, Windows"
     assert software["offers"]["price"] == 0

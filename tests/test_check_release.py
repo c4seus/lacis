@@ -15,15 +15,15 @@ from check_release import (
     is_pre_release,
     latest_appstream_release,
     main,
+    project_url,
     release_notes,
     release_problems,
     repository_url,
     website_url,
 )
-from lacis.product import REPOSITORY_URL
+from lacis.product import GUIDE_URL, REPOSITORY_URL, WEBSITE_URL
 
 REPOSITORY = Path(__file__).resolve().parent.parent
-WEBSITE_ADDRESS = "https://c4seus.github.io/lacis/"
 CHANGELOG_TEXT = """# Changelog
 
 Introduction.
@@ -192,7 +192,11 @@ def test_the_repository_url_is_the_repository_of_the_project() -> None:
 
 
 def test_the_website_url_is_the_homepage_of_the_project() -> None:
-    assert website_url(REPOSITORY) == WEBSITE_ADDRESS
+    assert website_url(REPOSITORY) == WEBSITE_URL
+
+
+def test_the_guide_url_is_the_documentation_of_the_project() -> None:
+    assert project_url(REPOSITORY, "Documentation") == GUIDE_URL
 
 
 def test_the_command_writes_the_notes_of_a_consistent_release(
