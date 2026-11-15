@@ -55,7 +55,10 @@ export default defineConfig({
                                 "guide/raccourcis-clavier",
                             ],
                         },
-                        "guide/usage-responsable",
+                        {
+                            label: "Données et aide",
+                            items: ["guide/donnees", "guide/usage-responsable"],
+                        },
                     ],
                 },
             ],
