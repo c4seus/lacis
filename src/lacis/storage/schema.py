@@ -1,5 +1,9 @@
 import sqlite3
 from collections.abc import Callable, Sequence
+from datetime import date
+
+from lacis.collectors.bodacc_records import notice_record_in, office_transfer_in
+from lacis.storage.notices import office_transfer_columns
 
 Migration = Callable[[sqlite3.Connection], None]
 
@@ -231,6 +235,33 @@ def create_entity_position_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def reread_office_transfers(connection: sqlite3.Connection) -> None:
+    rows = connection.execute(
+        """
+        SELECT notice.identifier, notice.published_on, notice.office_transfer_country,
+            notice.office_transfer_effective_on, notice.office_transfer_date_stated, response.body
+        FROM notice JOIN response ON response.identifier = notice.response_identifier
+        WHERE notice.office_transfer_effective_on IS NOT NULL
+        """
+    ).fetchall()
+    for identifier, published_on, *stored_columns, body in rows:
+        record = notice_record_in(body, identifier)
+        if record is None:
+            continue
+        columns = office_transfer_columns(
+            office_transfer_in(record, date.fromisoformat(published_on))
+        )
+        if list(columns) != stored_columns:
+            connection.execute(
+                """
+                UPDATE notice SET office_transfer_country = ?, office_transfer_effective_on = ?,
+                    office_transfer_date_stated = ?
+                WHERE identifier = ?
+                """,
+                (*columns, identifier),
+            )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     create_investigation_table,
     create_entity_table,
@@ -245,6 +276,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     add_notice_office_transfer,
     track_revisions_and_signals,
     create_entity_position_table,
+    reread_office_transfers,
 )
 
 
