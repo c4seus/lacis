@@ -527,6 +527,18 @@ def transfer_of(field_name: str = "modificationsgenerales", **detail: object) ->
             {"descriptif": "Transfert du siège le 2 brumaire 2025 hors de France."},
             OfficeTransfer(None, date(2025, 3, 4), effective_date_stated=False),
         ),
+        (
+            {"descriptif": "Transfert du siège social au 10 avenue Louise, Bruxelles, Belgique."},
+            OfficeTransfer("Belgique", date(2025, 3, 4), effective_date_stated=False),
+        ),
+        (
+            {"descriptif": "TRANSFERT DU SIÈGE SOCIAL AUX PAYS-BAS."},
+            OfficeTransfer("Pays-Bas", date(2025, 3, 4), effective_date_stated=False),
+        ),
+        (
+            {"descriptif": "Transfert du siège social à Monaco, 2 boulevard des Moulins."},
+            OfficeTransfer("Monaco", date(2025, 3, 4), effective_date_stated=False),
+        ),
     ],
 )
 def test_a_transfer_abroad_is_recognised_in_its_forms(
@@ -554,6 +566,14 @@ def test_a_removal_after_a_transfer_abroad_is_recognised() -> None:
             "pays": "FRANCE",
         },
         {"descriptif": "Transfert du siège social hors de France.", "pays": "France"},
+        {"descriptif": "Transfert du siège social au 12 rue d'Italie, 13100 Aix-en-Provence."},
+        {"descriptif": "Transfert du siège social au 4 avenue de Belgique, 31000 Toulouse."},
+        {"descriptif": "Transfert du siège social au 3 place du Luxembourg, 31000 Toulouse."},
+        {"descriptif": "Transfert du siège social au 2 rue Suisse (bâtiment Italie), Toulouse."},
+        {"descriptif": "Transfert du siège social au 5 rue Ozenne, 31000 Toulouse, France."},
+        {"descriptif": "Gérant domicilié en Belgique. Transfert du siège social à Toulouse."},
+        {"descriptif": "Transfert du siège social à Albi. Le gérant réside à l'étranger."},
+        {"descriptif": "Transfert d'un établissement en Belgique et du siège social à Albi."},
         {"descriptif": "Nouveau gérant domicilié en Belgique."},
         {"descriptif": "Transfert d'un établissement en Belgique."},
     ],

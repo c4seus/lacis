@@ -9,6 +9,7 @@ from lacis.storage.notices import OfficeTransfer
 
 TRANSFER_FIELDS = ("modificationsgenerales", "radiationaurcs", "divers", "acte")
 ABROAD_WORDS = (" ETRANGER ", " HORS DE FRANCE ")
+DESTINATION_WORDS = ("A", "AU", "AUX", "EN", "VERS")
 COUNTRIES = (
     "Allemagne",
     "Andorre",
@@ -77,7 +78,9 @@ MONTH_OF_NAME = {normalise_text(month): number for number, month in enumerate(MO
 WRITTEN_DATE = re.compile(r"\b(\d{1,2})(?:er)? ([A-Za-zéû]+) (\d{4})\b")
 NUMERIC_DATE = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
 ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
-PARENTHESISED_TEXT = re.compile(r"\(([^()]+)\)")
+ADDRESS_PARTS = re.compile(r"[,()]")
+TRANSFER_OF_OFFICE = re.compile(r"\btransfert\b.*?\bsi[eèé]ge\b", re.IGNORECASE)
+SENTENCE_END = re.compile(r"(?<=[.;])\s+|\n")
 
 
 def decoded(value: object) -> object:
@@ -158,15 +161,30 @@ def stated_country(sources: list[object]) -> str | None:
     return next((country for source in sources for country in values_of(source, "pays")), None)
 
 
-def country_in(texts: list[str]) -> str | None:
-    candidates = [group for text in texts for group in PARENTHESISED_TEXT.findall(text)]
-    candidates.extend(texts)
-    for candidate in candidates:
-        words = f" {normalise_text(candidate)} "
-        for normalised_country, country in COUNTRY_OF_NORMALISED_NAME.items():
-            if f" {normalised_country} " in words:
-                return country
+def new_addresses_in(texts: list[str]) -> list[str]:
+    return [
+        sentence[transfer.end() :]
+        for text in texts
+        for sentence in SENTENCE_END.split(text)
+        if (transfer := TRANSFER_OF_OFFICE.search(sentence)) is not None
+    ]
+
+
+def country_in(new_address: str) -> str | None:
+    for part in ADDRESS_PARTS.split(new_address):
+        country = COUNTRY_OF_NORMALISED_NAME.get(normalise_text(part))
+        if country is not None:
+            return country
+    words = f" {normalise_text(new_address)} "
+    for normalised_country, country in COUNTRY_OF_NORMALISED_NAME.items():
+        if any(f" {word} {normalised_country} " in words for word in DESTINATION_WORDS):
+            return country
     return None
+
+
+def is_abroad(new_address: str) -> bool:
+    words = f" {normalise_text(new_address)} "
+    return any(word in words for word in ABROAD_WORDS)
 
 
 def effective_date_in(details: list[object], texts: list[str]) -> date | None:
@@ -184,14 +202,14 @@ def effective_date_in(details: list[object], texts: list[str]) -> date | None:
 def office_transfer_in(record: dict[str, Any], published_on: date) -> OfficeTransfer | None:
     details = [decoded(record.get(field_name)) for field_name in TRANSFER_FIELDS]
     texts = [text for detail in details for text in strings_in(detail)]
-    words = f" {normalise_text(' '.join(texts))} "
-    if " TRANSFERT " not in words or " SIEGE " not in words:
+    new_addresses = new_addresses_in(texts)
+    if not new_addresses:
         return None
     persons = decoded(record.get("listepersonnes"))
     stated = stated_country([*details, *objects_of(persons, OFFICE_ADDRESS_KEY)])
     if stated is None:
-        country = country_in(texts)
-        if country is None and not any(word in words for word in ABROAD_WORDS):
+        country = next(filter(None, map(country_in, new_addresses)), None)
+        if country is None and not any(map(is_abroad, new_addresses)):
             return None
     elif normalise_text(stated) == DOMESTIC_COUNTRY:
         return None
