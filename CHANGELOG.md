@@ -6,6 +6,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Added
 
+- The details of a person list the homonym decisions that concern them, with their date, and the « Retirer » button withdraws one at any time, even after the investigation was closed. The proposal comes back to the review queue, and the signals are computed again.
 - A website, https://c4seus.github.io/lacis/, that presents Lacis and holds its user guide, in French. The AppStream metadata, the packages and the notes of each release link to it. The website counts its visits with GoatCounter, without cookies, and its privacy page says what is counted.
 - The details of a company show how many of its directors the register withholds, such as « 1 dirigeant non diffusible », without any detail about them.
 - The `excluded_legal_forms` setting of the `creation_burst` rule leaves the companies of some legal forms, such as the SCI, out of the bursts. None is left out by default.
