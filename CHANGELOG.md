@@ -16,6 +16,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Fixed
 
+- Two directors with the same name are never one person without a decision of the investigator. Each company lists its directors as separate people, and exact homonyms, with the same name and month of birth or without a month of birth, become homonym proposals. A confirmed person lends the companies of each of its members to the proposals of the group. Investigations created with 0.1.0 split their people by company when they are opened, and keep the decisions that can be attributed, as [ADR 0003](docs/adr/0003-person-identity.md) explains.
 - A burst of creations under one director or at one address keeps the severity of the settings, « faible » by default, and is raised one step only from twice the threshold. A holding that creates three SCI on the same day no longer gives a medium signal.
 - An expansion of a person or an address that stops after the first 100 results of the register says so in its notification, and the entity stays among the leads with the reason « Seuls les 100 premiers résultats sur … ont été lus ».
 - The « Transfert du siège à l'étranger » signal reads the country of the new registered office only, so a move within France to a street such as « rue d'Italie » no longer flags it. Investigations created with an older version read their notices again when they are opened.
