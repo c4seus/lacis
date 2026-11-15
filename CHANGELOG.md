@@ -15,6 +15,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Fixed
 
+- An expansion of a person or an address that stops after the first 100 results of the register says so in its notification, and the entity stays among the leads with the reason « Seuls les 100 premiers résultats sur … ont été lus ».
 - The « Transfert du siège à l'étranger » signal reads the country of the new registered office only, so a move within France to a street such as « rue d'Italie » no longer flags it. Investigations created with an older version read their notices again when they are opened.
 
 ## [0.1.0] - 2026-11-13

@@ -22,7 +22,7 @@ Ce qu'une extension ajoute dépend du type de l'entité étendue :
 
 Une [société étrangère](/lacis/guide/entites-etrangeres/) qui dirige une entreprise française n'est pas inscrite au registre : elle entre dans le graphe, mais ne peut pas être étendue.
 
-Pour une personne ou une adresse, Lacis parcourt au plus les 100 premiers résultats du registre.
+Pour une personne ou une adresse, Lacis parcourt au plus les 100 premiers résultats du registre. S'il y en a davantage, la notification de fin d'extension le dit, et l'entité reste parmi les [pistes non étendues](#reprendre-les-pistes-non-étendues) : les mandats ou les entreprises au-delà manquent au graphe.
 
 ## Lancer une extension
 
@@ -48,12 +48,13 @@ Une extension n'ajoute jamais plus de **500 nouvelles entités**. À cette limit
 
 ## Reprendre les pistes non étendues
 
-Les entreprises, personnes et adresses du graphe qui n'ont pas encore été étendues forment les « Pistes non étendues », en bas de la colonne « À examiner ». Chaque piste dit pourquoi elle mérite peut-être une extension :
+Les entreprises, personnes et adresses du graphe qui n'ont pas encore été étendues, ou pas entièrement, forment les « Pistes non étendues », en bas de la colonne « À examiner ». Chaque piste dit pourquoi elle mérite peut-être une extension :
 
 - « Connue comme dirigeante seulement » : une société n'apparaît que comme dirigeante d'une autre ;
 - « Établissements, dirigeants et annonces pas encore recherchés » : l'entreprise a été ajoutée sans être étendue ;
 - « D'autres mandats peuvent exister » : une personne peut diriger d'autres entreprises ;
 - « D'autres entreprises peuvent y être domiciliées » : une adresse peut en abriter d'autres.
+- « Seuls les 100 premiers résultats sur 312 ont été lus » : la personne ou l'adresse compte plus de résultats dans le registre que Lacis n'en lit. Dans cette version, une nouvelle extension relit les mêmes résultats.
 
 Le bouton **Étendre** de la piste l'étend à la profondeur 1.
 
