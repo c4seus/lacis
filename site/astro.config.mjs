@@ -3,6 +3,22 @@ import { defineConfig } from "astro/config";
 import starlightLinksValidator from "starlight-links-validator";
 
 const sharingImage = "https://c4seus.github.io/lacis/sharing-image.png";
+const goatCounterCode = process.env.GOATCOUNTER_CODE;
+const audienceMeasurement = goatCounterCode
+    ? [
+          {
+              tag: "script",
+              attrs: {
+                  "data-goatcounter": `https://${goatCounterCode}.goatcounter.com/count`,
+                  async: true,
+                  src: "https://gc.zgo.at/count.v5.js",
+                  crossorigin: "anonymous",
+                  integrity:
+                      "sha384-atnOLvQb9t+jTSipvd75X2yginT4PjVbqDdlJAmxMm+wYElFmeR6EmLP5bYeoRVQ",
+              },
+          },
+      ]
+    : [];
 
 export default defineConfig({
     site: "https://c4seus.github.io",
@@ -32,6 +48,7 @@ export default defineConfig({
                         content: "Lacis, logiciel libre d'OSINT, et sa fenêtre d'enquête",
                     },
                 },
+                ...audienceMeasurement,
             ],
             sidebar: [
                 {

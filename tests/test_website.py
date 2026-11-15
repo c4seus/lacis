@@ -79,6 +79,23 @@ def test_the_published_website_is_built_like_in_the_ci() -> None:
     assert "path: site/dist\n" in build
 
 
+def test_only_the_published_website_measures_its_audience() -> None:
+    build = workflow_jobs("website.yml")["build"]
+    assert "        run: make site\n        env:\n          GOATCOUNTER_CODE: c4seus\n" in build
+    assert "GOATCOUNTER_CODE" not in workflow("ci.yml")
+    assert "GOATCOUNTER_CODE" not in (ROOT / "Makefile").read_text(encoding="utf-8")
+    assert "const goatCounterCode = process.env.GOATCOUNTER_CODE;\n" in site_configuration()
+    assert "                ...audienceMeasurement,\n" in site_configuration()
+
+
+def test_the_script_of_the_audience_measurement_is_pinned_by_its_integrity() -> None:
+    configuration = site_configuration()
+    assert 'src: "https://gc.zgo.at/count.v5.js",' in configuration
+    assert 'crossorigin: "anonymous",' in configuration
+    assert re.search(r'integrity:\s+"sha384-[A-Za-z0-9+/]{64}",', configuration)
+    assert "`https://${goatCounterCode}.goatcounter.com/count`" in configuration
+
+
 def test_only_the_deployment_of_the_website_can_write_to_github_pages() -> None:
     assert "\npermissions:\n  contents: read\n" in workflow("website.yml")
     writers = [name for name, job in workflow_jobs("website.yml").items() if "pages: write" in job]
