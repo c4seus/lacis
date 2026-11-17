@@ -330,3 +330,39 @@ def test_a_company_sheet_lists_no_decision(
 ) -> None:
     shown(sheet, builder, scenario, scenario.acme)
     assert sheet.decision_rows == []
+
+
+def test_the_provenance_of_a_link_opens_with_the_keyboard(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    row = sheet.link_rows[0]
+    assert row.provenance_button.accessibleName() == (
+        "Provenance du lien Président Jean DUPONT : 1 réponse"
+    )
+    assert not row.provenance.isVisibleTo(sheet)
+    row.provenance_button.setFocus()
+    QTest.keyClick(row.provenance_button, Qt.Key.Key_Space)
+    assert row.provenance_button.isChecked()
+    assert row.provenance.isVisibleTo(sheet)
+    [source] = row.source_rows
+    assert source.raw_button.isVisibleTo(sheet)
+    assert source.fingerprint_label.text().startswith("Empreinte SHA-256 ")
+    with qtbot.waitSignal(sheet.raw_requested) as requested:
+        QTest.keyClick(source.raw_button, Qt.Key.Key_Space)
+    assert requested.args == [source.line.response_identifier]
+    QTest.keyClick(row.provenance_button, Qt.Key.Key_Space)
+    assert not row.provenance.isVisibleTo(sheet)
+
+
+def test_a_same_person_link_comes_from_the_decision_of_the_investigator(
+    sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.jean)
+    [row] = [row for row in sheet.link_rows if row.line.role == "Même personne"]
+    assert row.source_rows == []
+    assert row.decision_label.text().startswith("Décision de l'enquêteur, le ")
+    assert row.provenance_button.accessibleName() == (
+        "Provenance du lien Même personne Jean Pierre DUPONT : Décision de l'enquêteur"
+    )
+    assert interactive_widgets_without_accessible_name(sheet) == []
