@@ -1,7 +1,7 @@
 from typing import override
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QKeyEvent, QMouseEvent
+from PySide6.QtGui import QKeyEvent, QMouseEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -26,6 +26,7 @@ from lacis.review import (
 )
 from lacis.storage.homonym_decisions import HomonymDecision
 from lacis.ui.accessibility import ScoreLabel
+from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.graph_legend import KindSwatch
 
 QUEUE_LIST_ACCESSIBLE_NAME = "Éléments à examiner"
@@ -36,6 +37,7 @@ DIFFERENT_PERSON_TEXT = "Personne différente"
 EXPAND_TEXT = "Étendre"
 EXPANDING_TEXT = "Extension…"
 SCORE_PREFIX = "score "
+FIRST_LINE_SPACING = 8
 ACTIVATING_KEYS = {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}
 
 
@@ -85,17 +87,60 @@ class QueueRow(QFrame):
         self.score_label.setProperty("tone", "queue-score")
         self.score_label.setVisible(entity.score is not None)
         self.detail_label = detail_label(entity.explanation, self)
+        self.swatch = KindSwatch(entity.kind, colours_provider, self)
         self.first_line = QHBoxLayout()
-        self.first_line.setSpacing(8)
-        self.first_line.addWidget(KindSwatch(entity.kind, colours_provider, self))
+        self.first_line.setSpacing(FIRST_LINE_SPACING)
+        self.first_line.addWidget(self.swatch)
         self.first_line.addWidget(self.title_label, 1)
-        self.first_line.addWidget(self.score_label, 0, Qt.AlignmentFlag.AlignTop)
+        self.corner_line = QHBoxLayout()
+        self.corner_line.setContentsMargins(0, 0, 0, 0)
+        self.corner_line.addStretch(1)
         self.row_layout = QVBoxLayout(self)
         self.row_layout.setContentsMargins(10, 9, 10, 9)
         self.row_layout.setSpacing(3)
         self.row_layout.addLayout(self.first_line)
+        self.row_layout.addLayout(self.corner_line)
         self.row_layout.addWidget(self.detail_label)
+        self.corner: QWidget = self.score_label
+        self.corner_beside_title = False
+        self.set_corner(self.score_label)
         self.describe()
+
+    def set_corner(self, widget: QWidget) -> None:
+        for layout in (self.first_line, self.corner_line):
+            layout.removeWidget(self.corner)
+        self.corner = widget
+        widget.setMinimumWidth(1)
+        self.corner_beside_title = False
+        self.place_corner(beside_title=True)
+
+    def corner_fits_beside_title(self) -> bool:
+        margins = self.row_layout.contentsMargins()
+        needed = (
+            margins.left()
+            + margins.right()
+            + self.swatch.minimumWidth()
+            + 2 * FIRST_LINE_SPACING
+            + self.title_label.minimumSizeHint().width()
+            + self.corner.sizeHint().width()
+        )
+        return self.width() >= needed
+
+    def place_corner(self, *, beside_title: bool) -> None:
+        if beside_title == self.corner_beside_title:
+            return
+        self.corner_beside_title = beside_title
+        if beside_title:
+            self.corner_line.removeWidget(self.corner)
+            self.first_line.addWidget(self.corner, 0, Qt.AlignmentFlag.AlignTop)
+        else:
+            self.first_line.removeWidget(self.corner)
+            self.corner_line.insertWidget(0, self.corner)
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.place_corner(beside_title=self.corner_fits_beside_title())
 
     def describe(self) -> None:
         parts = [self.title_label.text(), KIND_LABELS[self.entity.kind]]
@@ -105,12 +150,10 @@ class QueueRow(QFrame):
         self.setAccessibleDescription(self.entity.explanation)
 
     def add_actions(self, buttons: list[QPushButton]) -> None:
-        actions = QHBoxLayout()
+        actions = FlowLayout(horizontal_spacing=6, vertical_spacing=6)
         actions.setContentsMargins(0, 4, 0, 0)
-        actions.setSpacing(6)
         for button in buttons:
             actions.addWidget(button)
-        actions.addStretch(1)
         self.row_layout.addLayout(actions)
 
     def set_selected(self, selected: bool) -> None:
@@ -233,7 +276,7 @@ class ReviewQueueList(QScrollArea):
         badge = QLabel(entry.confidence_label, row)
         badge.setProperty("tone", "badge-outline")
         row.score_label.hide()
-        row.first_line.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+        row.set_corner(badge)
         row.setAccessibleName(f"{entry.title}, confiance {entry.confidence_label.lower()}")
         people = (entry.first.identifier, entry.second.identifier)
         labels = (entry.first.label, entry.second.label)
@@ -264,7 +307,7 @@ class ReviewQueueList(QScrollArea):
                 )
             )
             self.expand_buttons[lead.identifier] = button
-            row.first_line.addWidget(button, 0, Qt.AlignmentFlag.AlignTop)
+            row.set_corner(button)
         self.show_expanding(self.expanding)
 
     def show_expanding(self, expanding: set[str]) -> None:

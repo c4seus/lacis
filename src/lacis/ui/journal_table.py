@@ -144,6 +144,7 @@ class JournalTab(QWidget):
         self.proxy.setSortRole(SORT_ROLE)
         self.summary_label = QLabel(self)
         self.summary_label.setProperty("tone", "muted")
+        self.summary_label.setWordWrap(True)
         self.raw_button = QPushButton(RAW_RESPONSE_TEXT, self)
         self.raw_button.setProperty("compact", True)
         self.raw_button.setAccessibleName(RAW_RESPONSE_ACCESSIBLE_NAME)

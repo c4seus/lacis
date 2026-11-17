@@ -243,6 +243,19 @@ def test_the_legend_names_each_kind(qtbot: QtBot, icon_factory: IconFactory) -> 
     assert legend.accessibleName() == "Légende du graphe"
 
 
+def test_the_legend_wraps_its_entries_to_fit_a_narrow_graph(
+    qtbot: QtBot, icon_factory: IconFactory
+) -> None:
+    legend = GraphLegend(icon_factory.colours_provider)
+    qtbot.addWidget(legend)
+    legend.fit(2000)
+    one_line_height = legend.height()
+    assert legend.width() < 2000
+    legend.fit(200)
+    assert legend.width() == 200
+    assert legend.height() > one_line_height
+
+
 def test_the_graph_area_shows_the_legend_once_there_is_a_graph(
     qtbot: QtBot,
     icon_factory: IconFactory,

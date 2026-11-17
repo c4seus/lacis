@@ -60,6 +60,7 @@ class ValidatedField(QWidget):
         self.label.setBuddy(self.input)
         self.hint_label = QLabel(hint, self)
         self.hint_label.setProperty("tone", "faint")
+        self.hint_label.setWordWrap(True)
         self.problem_label = QLabel(self)
         self.problem_label.setProperty("tone", "problem")
         self.problem_label.setWordWrap(True)

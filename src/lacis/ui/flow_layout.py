@@ -4,6 +4,14 @@ from PySide6.QtCore import QMargins, QPoint, QRect, QSize, Qt
 from PySide6.QtWidgets import QLayout, QLayoutItem, QWidget
 
 
+def fitted_size(item: QLayoutItem, available_width: int) -> QSize:
+    hint = item.sizeHint()
+    width = max(min(hint.width(), available_width), item.minimumSize().width())
+    if width == hint.width() or not item.hasHeightForWidth():
+        return QSize(width, hint.height())
+    return QSize(width, item.heightForWidth(width))
+
+
 class FlowLayout(QLayout):
     def __init__(
         self,
@@ -52,7 +60,14 @@ class FlowLayout(QLayout):
 
     @override
     def sizeHint(self) -> QSize:
-        return self.minimumSize()
+        shown = [item.sizeHint() for item in self.items if not item.isEmpty()]
+        spacing = self.horizontal_spacing * max(len(shown) - 1, 0)
+        width = sum(hint.width() for hint in shown) + spacing
+        height = max((hint.height() for hint in shown), default=0)
+        margins = self.contentsMargins()
+        return QSize(
+            width + margins.left() + margins.right(), height + margins.top() + margins.bottom()
+        )
 
     @override
     def minimumSize(self) -> QSize:
@@ -65,19 +80,34 @@ class FlowLayout(QLayout):
     def arrange(self, rect: QRect, *, move: bool) -> int:
         margins = self.contentsMargins()
         area = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom())
-        x = area.x()
         y = area.y()
-        line_height = 0
+        for line in self.lines(area.width()):
+            line_height = max(size.height() for _item, size in line)
+            if move:
+                x = area.x()
+                for item, size in line:
+                    top = y + (line_height - size.height()) // 2
+                    item.setGeometry(QRect(QPoint(x, top), size))
+                    x += size.width() + self.horizontal_spacing
+            y += line_height + self.vertical_spacing
+        if y > area.y():
+            y -= self.vertical_spacing
+        return y - rect.y() + margins.bottom()
+
+    def lines(self, width: int) -> list[list[tuple[QLayoutItem, QSize]]]:
+        lines: list[list[tuple[QLayoutItem, QSize]]] = []
+        line: list[tuple[QLayoutItem, QSize]] = []
+        used = 0
         for item in self.items:
             if item.isEmpty():
                 continue
-            hint = item.sizeHint()
-            if x > area.x() and x + hint.width() > area.right() + 1:
-                x = area.x()
-                y += line_height + self.vertical_spacing
-                line_height = 0
-            if move:
-                item.setGeometry(QRect(QPoint(x, y), hint))
-            x += hint.width() + self.horizontal_spacing
-            line_height = max(line_height, hint.height())
-        return y + line_height - rect.y() + margins.bottom()
+            size = fitted_size(item, width)
+            if line and used + size.width() > width:
+                lines.append(line)
+                line = []
+                used = 0
+            line.append((item, size))
+            used += size.width() + self.horizontal_spacing
+        if line:
+            lines.append(line)
+        return lines

@@ -44,6 +44,7 @@ EMPTY_STATE_TEXT = (
 CREATE_FIRST_INVESTIGATION_TEXT = "Créer une première enquête"
 EMPTY_STATE_TEXT_WIDTH = 600
 CONTENT_MAXIMUM_WIDTH = 1040
+NOTICE_MAXIMUM_WIDTH = 760
 CARD_COLUMNS = 2
 CARD_ICON_SIZE = QSize(14, 14)
 CARD_SPACING = 14
@@ -187,6 +188,12 @@ class InvestigationCard(QFrame):
         super().mouseReleaseEvent(event)
 
 
+class BoundedLabel(QLabel):
+    @override
+    def heightForWidth(self, width: int) -> int:
+        return super().heightForWidth(min(width, self.maximumWidth()))
+
+
 class HomeScreen(QScrollArea):
     investigation_opened = Signal(str)
 
@@ -229,10 +236,10 @@ class HomeScreen(QScrollArea):
         self.card_grid = QGridLayout()
         self.card_grid.setSpacing(CARD_SPACING)
         self.content_layout.addLayout(self.card_grid)
-        self.notice_label = QLabel(DATA_NOTICE, content)
+        self.notice_label = BoundedLabel(DATA_NOTICE, content)
         self.notice_label.setWordWrap(True)
         self.notice_label.setProperty("tone", "faint")
-        self.notice_label.setMaximumWidth(760)
+        self.notice_label.setMaximumWidth(NOTICE_MAXIMUM_WIDTH)
         self.content_layout.addSpacing(10)
         self.content_layout.addWidget(self.notice_label)
         self.content_layout.addStretch(1)
@@ -248,6 +255,7 @@ class HomeScreen(QScrollArea):
         self.title_label.setAccessibleName(HOME_TITLE)
         subtitle = QLabel(HOME_SUBTITLE)
         subtitle.setProperty("tone", "subtitle")
+        subtitle.setWordWrap(True)
         titles.addWidget(self.title_label)
         titles.addWidget(subtitle)
         head.addLayout(titles, 1)

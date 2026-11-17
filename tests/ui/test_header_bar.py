@@ -9,7 +9,13 @@ from lacis import __version__
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController, ThemePreference
 from lacis.design.tokens import DARK_THEME, LIGHT_THEME, Theme
-from lacis.ui.header_bar import HEADER_BAR_HEIGHT, HeaderBar, SearchField, displayed_version
+from lacis.ui.header_bar import (
+    HEADER_BAR_HEIGHT,
+    SEARCH_HINT_RIGHT_MARGIN,
+    HeaderBar,
+    SearchField,
+    displayed_version,
+)
 
 ICON_PREVIEW_SIZE = QSize(32, 32)
 
@@ -324,3 +330,17 @@ def test_the_search_field_says_when_it_loses_the_focus(qtbot: QtBot) -> None:
     field.setFocus()
     with qtbot.waitSignal(field.left):
         other.setFocus()
+
+
+def test_the_search_hint_follows_a_larger_text(
+    qtbot: QtBot, icon_factory: IconFactory, theme_controller: ThemeController
+) -> None:
+    header_bar = open_header_bar(qtbot, icon_factory, theme_controller)
+    hint = header_bar.shortcut_hint
+    right_margin = header_bar.search_field.textMargins().right()
+    assert right_margin == hint.width() + SEARCH_HINT_RIGHT_MARGIN
+    theme_controller.set_text_size(200)
+    qtbot.waitUntil(lambda: header_bar.search_field.textMargins().right() > right_margin)
+    assert header_bar.search_field.textMargins().right() == hint.width() + SEARCH_HINT_RIGHT_MARGIN
+    assert header_bar.height() >= header_bar.search_field.height()
+    theme_controller.set_text_size(100)
