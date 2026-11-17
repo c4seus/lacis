@@ -41,13 +41,14 @@ Lacis does the pivots and keeps the evidence:
 
 ## Features
 
-Version 0.1.0 brings the capabilities of the former web prototype to the desktop, with the same interface.
+Lacis brings the capabilities of the former web prototype to the desktop, with the same interface.
 
 - **Investigations**, each with its own database and its starting question.
 - **Search** in the national company register by name, SIREN, SIRET, director or address, and adding results to the investigation.
-- **Pivots** from a company to its establishments, addresses and directors; from a person to every company they run; from an address to every company registered there; with a depth from 1 to 3 and a cap on new entities.
+- **Pivots** from a company to its establishments, addresses and directors; from a person to the companies of every director who bears their name; from an address to every company registered there; with a depth from 1 to 3 and a cap on new entities.
 - **BODACC notices** for each company, grouped by family, with the court, the judgment, a link to bodacc.fr and the fingerprint of the response.
-- **Homonym review** with "certain", "probable" and "weak" matches and their reasons, and the investigator's decisions remembered.
+- **Homonym review** with "certain", "probable" and "weak" matches and their reasons. Two people are never merged without a decision of the investigator, and a decision can be withdrawn at any time.
+- **Evidence** for every entity and link: the raw responses it came from, with their SHA-256 fingerprint, and a log of every request.
 - **Foreign entities**: foreign companies that run a French company, and companies under foreign law registered in France.
 - **Warning signals** from configurable rules: mass domiciliation, serial short-lived companies, phoenix scheme, burst of creations, registered office moved abroad.
 - **Main window**: the « À examiner » review queue, the interactive graph, and the details panel with its « Fiche », « Entités » and « Journal » tabs.
