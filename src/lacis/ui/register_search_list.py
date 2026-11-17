@@ -27,6 +27,7 @@ from lacis.graph.register_search import (
 )
 from lacis.storage.responses import ResponseSummary
 from lacis.ui import announcements
+from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.header_bar import SearchField
 
 SEARCH_DELAY_MILLISECONDS = 400
@@ -68,9 +69,10 @@ class SearchResultRow(QFrame):
         self.response = response
         self.setObjectName("searchResult")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.title_label = QLabel(self)
         self.title_label.setProperty("tone", "result-title")
+        self.title_label.setWordWrap(True)
         self.status_label = QLabel(self)
         self.in_investigation_label = QLabel(IN_INVESTIGATION_TEXT, self)
         self.in_investigation_label.setProperty("tone", "badge-outline")
@@ -81,12 +83,10 @@ class SearchResultRow(QFrame):
         self.action_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.action_button.clicked.connect(lambda: self.chosen.emit(self))
 
-        title_row = QHBoxLayout()
-        title_row.setSpacing(8)
+        title_row = FlowLayout(horizontal_spacing=8, vertical_spacing=4)
         title_row.addWidget(self.title_label)
         title_row.addWidget(self.status_label)
         title_row.addWidget(self.in_investigation_label)
-        title_row.addStretch(1)
         text_column = QVBoxLayout()
         text_column.setSpacing(4)
         text_column.addLayout(title_row)
@@ -150,8 +150,10 @@ class RegisterSearchPopup(QFrame):
         self.setAccessibleName(RESULTS_ACCESSIBLE_NAME)
         self.count_label = QLabel(self)
         self.count_label.setProperty("tone", "current")
+        self.count_label.setWordWrap(True)
         self.hint_label = QLabel(NAVIGATION_HINT, self)
         self.hint_label.setProperty("tone", "faint")
+        self.hint_label.setWordWrap(True)
         self.message_label = QLabel(self)
         self.message_label.setWordWrap(True)
         self.footer_label = QLabel(self)

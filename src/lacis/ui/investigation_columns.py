@@ -83,6 +83,7 @@ class QueueColumn(QFrame):
         self.title_label.setAccessibleName(QUEUE_TITLE)
         self.summary_label = QLabel(self)
         self.summary_label.setProperty("tone", "muted")
+        self.summary_label.setWordWrap(True)
         self.head = QFrame(self)
         self.head.setObjectName("columnHead")
         self.head_layout = QHBoxLayout(self.head)
@@ -128,7 +129,7 @@ class QueueRail(QFrame):
         self.count_label = QLabel(self)
         self.count_label.setProperty("tone", "rail-count")
         self.count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.count_label.setFixedHeight(RAIL_COUNT_HEIGHT)
+        self.count_label.setMinimumHeight(RAIL_COUNT_HEIGHT)
         self.count_label.hide()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 12, 6, 12)
@@ -247,6 +248,7 @@ class GraphArea(QFrame):
         )
         chips_height = max(self.filter_chip.height(), self.list_chip.height())
         self.list_layout.setContentsMargins(0, chips_height + 2 * OVERLAY_MARGIN, 0, 0)
+        self.legend.fit(self.width() - self.zoom_toolbar.width() - 3 * OVERLAY_MARGIN)
         self.legend.move(OVERLAY_MARGIN, self.height() - self.legend.height() - OVERLAY_MARGIN)
         self.zoom_toolbar.move(
             self.width() - self.zoom_toolbar.width() - OVERLAY_MARGIN,

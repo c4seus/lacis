@@ -14,7 +14,7 @@ from lacis.design.icons import IconFactory
 from lacis.overview import overview_of
 from lacis.review import ReviewQueue, review_queue
 from lacis.storage.homonym_decisions import HomonymDecision
-from lacis.ui.review_queue import ReviewQueueList
+from lacis.ui.review_queue import QueueRow, ReviewQueueList
 
 
 @pytest.fixture
@@ -177,3 +177,27 @@ def test_the_score_of_a_row_is_exposed_as_its_value(
     assert score.role() is QAccessible.Role.StaticText
     assert score.text(QAccessible.Text.Name) == "Score"
     assert score.text(QAccessible.Text.Value) == "0,85"
+
+
+def test_a_narrow_row_moves_its_score_or_button_under_its_title(
+    qtbot: QtBot,
+    icon_factory: IconFactory,
+    review_list: ReviewQueueList,
+    scenario: PlumbersScenario,
+) -> None:
+    listed = next(row for row in review_list.rows if row.entity.identifier == scenario.acme)
+    row = QueueRow(listed.entity, icon_factory.colours_provider)
+    qtbot.addWidget(row)
+    row.resize(320, 80)
+    row.show()
+    assert row.corner is row.score_label
+    assert row.corner_beside_title
+    assert row.first_line.indexOf(row.score_label) >= 0
+    row.resize(100, 120)
+    qtbot.waitUntil(lambda: not row.corner_beside_title)
+    assert row.corner_line.indexOf(row.score_label) == 0
+    assert row.first_line.indexOf(row.score_label) == -1
+    row.resize(320, 80)
+    qtbot.waitUntil(lambda: row.corner_beside_title)
+    lead = next(row for row in review_list.rows if row.entity.identifier == scenario.holding)
+    assert lead.corner is review_list.expand_buttons[scenario.holding]

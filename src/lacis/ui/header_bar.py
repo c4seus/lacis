@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import override
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
     QFocusEvent,
     QIcon,
@@ -98,6 +98,16 @@ class SearchField(QLineEdit):
 
 def displayed_version(version: str) -> str:
     return f"v{version.split(LOCAL_VERSION_SEPARATOR, 1)[0]}"
+
+
+class ShortcutHint(QLabel):
+    font_changed = Signal()
+
+    @override
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self.font_changed.emit()
 
 
 class IconMark(QWidget):
@@ -200,7 +210,7 @@ class HeaderBar(QWidget):
         self.icon_factory = icon_factory
         self.setObjectName("headerBar")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setFixedHeight(HEADER_BAR_HEIGHT)
+        self.setMinimumHeight(HEADER_BAR_HEIGHT)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.create_brand()
         self.create_search()
@@ -219,12 +229,9 @@ class HeaderBar(QWidget):
         self.search_field.setPlaceholderText(SEARCH_PLACEHOLDER)
         self.search_field.setAccessibleName(SEARCH_ACCESSIBLE_NAME)
         self.search_field.setAccessibleDescription(SEARCH_SHORTCUT_DESCRIPTION)
-        self.shortcut_hint = QLabel(SEARCH_SHORTCUT_HINT, self.search_field)
+        self.shortcut_hint = ShortcutHint(SEARCH_SHORTCUT_HINT, self.search_field)
         self.shortcut_hint.setProperty("tone", "kbd")
-        self.shortcut_hint.adjustSize()
-        self.search_field.setTextMargins(
-            SEARCH_TEXT_LEFT_MARGIN, 0, self.shortcut_hint.width() + SEARCH_HINT_RIGHT_MARGIN, 0
-        )
+        self.shortcut_hint.font_changed.connect(self.place_search_icon)
         self.search_field.entered.connect(self.show_shortcut_hint)
         self.search_field.left.connect(self.show_shortcut_hint)
         self.search_field.resized.connect(self.place_search_icon)
@@ -300,6 +307,9 @@ class HeaderBar(QWidget):
             (self.search_field.height() - self.search_icon.height()) // 2,
         )
         self.shortcut_hint.adjustSize()
+        self.search_field.setTextMargins(
+            SEARCH_TEXT_LEFT_MARGIN, 0, self.shortcut_hint.width() + SEARCH_HINT_RIGHT_MARGIN, 0
+        )
         self.shortcut_hint.move(
             self.search_field.width() - self.shortcut_hint.width() - SEARCH_HINT_RIGHT_MARGIN,
             (self.search_field.height() - self.shortcut_hint.height()) // 2,

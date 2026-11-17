@@ -2,7 +2,7 @@ import sqlite3
 from dataclasses import replace
 
 import pytest
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import QSize, Qt, QUrl
 from PySide6.QtGui import QAccessible, QGuiApplication
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QLabel, QWidget
@@ -14,7 +14,7 @@ from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.details import EntityDetails, entity_details
 from lacis.signals.signal import Severity
-from lacis.ui.entity_sheet import EntitySheet
+from lacis.ui.entity_sheet import LINK_ROLE_WIDTH, EntitySheet, RoleLabel
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.raw_response_dialog import RawResponseDialog
 
@@ -266,6 +266,27 @@ def test_an_entity_without_signals_links_or_sources_shows_only_its_head(
     assert not sheet.facts.isVisible()
 
 
+def test_a_flow_layout_narrows_a_wrapping_widget_to_its_width(qtbot: QtBot) -> None:
+    container = QWidget()
+    qtbot.addWidget(container)
+    layout = FlowLayout(container)
+    layout.setContentsMargins(3, 2, 3, 2)
+    label = QLabel("Société civile immobilière des plombiers du 12 rue des Lilas", container)
+    label.setWordWrap(True)
+    hidden = QLabel("Masqué", container)
+    hidden.hide()
+    layout.addWidget(label)
+    layout.addWidget(hidden)
+    hint = label.sizeHint()
+    assert layout.sizeHint() == QSize(hint.width() + 6, hint.height() + 4)
+    assert layout.heightForWidth(106) == label.heightForWidth(100) + 4
+    assert label.heightForWidth(100) > hint.height()
+    container.resize(106, layout.heightForWidth(106))
+    container.show()
+    assert label.width() == 100
+    assert FlowLayout().sizeHint() == QSize(0, 0)
+
+
 def test_a_flow_layout_wraps_its_widgets(qtbot: QtBot) -> None:
     container = QWidget()
     qtbot.addWidget(container)
@@ -278,7 +299,7 @@ def test_a_flow_layout_wraps_its_widgets(qtbot: QtBot) -> None:
     assert layout.heightForWidth(1000) == 20
     assert layout.heightForWidth(130) == 3 * 20 + 2 * 2
     assert layout.minimumSize().width() == 60
-    assert layout.sizeHint() == layout.minimumSize()
+    assert layout.sizeHint() == QSize(6 * 60 + 5 * 4, 20)
     assert layout.expandingDirections() == Qt.Orientation(0)
     container.resize(130, 64)
     container.show()
@@ -362,6 +383,7 @@ def test_a_same_person_link_comes_from_the_decision_of_the_investigator(
     [row] = [row for row in sheet.link_rows if row.line.role == "Même personne"]
     assert row.source_rows == []
     assert row.decision_label.text().startswith("Décision de l'enquêteur, le ")
+    assert row.provenance_button.text() == "Provenance · Décision"
     assert row.provenance_button.accessibleName() == (
         "Provenance du lien Même personne Jean Pierre DUPONT : Décision de l'enquêteur"
     )
@@ -419,3 +441,14 @@ def test_the_provenance_of_a_link_tells_whether_it_is_expanded(
     assert interface.state().expanded
     assert sheet.link_rows[0].provenance.isVisibleTo(sheet)
     assert [changed.expanded for changed in announced] == [True]
+
+
+def test_a_role_label_widens_with_its_font(qtbot: QtBot) -> None:
+    parent = QWidget()
+    qtbot.addWidget(parent)
+    label = RoleLabel("Directeur général", parent)
+    assert label.width() == LINK_ROLE_WIDTH
+    assert label.wordWrap()
+    label.setStyleSheet("font-size: 40px;")
+    assert label.width() > LINK_ROLE_WIDTH
+    assert label.width() >= label.fontMetrics().horizontalAdvance("Directeur")
