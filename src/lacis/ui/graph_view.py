@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 
 from lacis.design.icons import ColoursProvider
 from lacis.design.tokens import FONT_FAMILIES, Colours
-from lacis.graph.descriptions import entity_description, entity_summary, graph_summary
+from lacis.graph.descriptions import entity_description, entity_summary, graph_description
 from lacis.graph.drawing import EdgeKind, GraphDrawing, GraphEdge, GraphNode, NodeShape
 from lacis.graph.filters import GraphFilter
 from lacis.graph.navigation import Direction, linked_towards, starting_entity
@@ -512,10 +512,7 @@ class GraphView(QGraphicsView):
 
     def describe(self) -> None:
         if self.selected_identifier is None:
-            summary = graph_summary(self.drawing)
-            if self.graph_filter.is_active:
-                summary = f"{summary}, {self.graph_filter.summary(self.drawing)}"
-            self.setAccessibleDescription(summary)
+            self.setAccessibleDescription(graph_description(self.drawing, self.graph_filter))
         else:
             self.setAccessibleDescription(
                 entity_description(self.drawing, self.selected_identifier)
