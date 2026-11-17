@@ -4,8 +4,10 @@ from datetime import UTC, date, datetime
 
 import pytest
 from PySide6.QtCore import QUrl
+from PySide6.QtGui import QAccessible
 from pytestqt.qtbot import QtBot
 
+from accessibility_checks import interface_of
 from graph_scenario import PlumbersScenario, plumbers_scenario
 from investigation_builder import COURT, InvestigationBuilder
 from lacis.design.icons import IconFactory
@@ -184,3 +186,14 @@ def test_only_companies_have_notices_in_their_sheet(
     sheet.show_details(entity_details(builder.connection, scenario.jean, None))
     assert sheet.timeline is None
     assert sheet.refresh_button is None
+
+
+def test_the_timeline_is_a_list_of_its_notices(timeline: NoticeTimeline) -> None:
+    interface = interface_of(timeline)
+    assert interface.role() is QAccessible.Role.List
+    assert interface.text(QAccessible.Text.Name) == "Annonces BODACC"
+    items = [interface.child(index) for index in range(interface.childCount())]
+    assert [item.role() for item in items] == [QAccessible.Role.ListItem] * len(timeline.items)
+    assert [item.text(QAccessible.Text.Name) for item in items] == [
+        notice.accessibleName() for notice in timeline.items
+    ]
