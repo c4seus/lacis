@@ -6,6 +6,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Added
 
+- Each link in the details of an entity has a « Provenance » button, which shows the responses the link comes from, with their date, their SHA-256 fingerprint and their raw response. A « Même personne » link shows the decision of the investigator and its date.
 - The details of a person list the homonym decisions that concern them, with their date, and the « Retirer » button withdraws one at any time, even after the investigation was closed. The proposal comes back to the review queue, and the signals are computed again.
 - A website, https://c4seus.github.io/lacis/, that presents Lacis and holds its user guide, in French. The AppStream metadata, the packages and the notes of each release link to it. The website counts its visits with GoatCounter, without cookies, and its privacy page says what is counted.
 - The details of a company show how many of its directors the register withholds, such as « 1 dirigeant non diffusible », without any detail about them.
