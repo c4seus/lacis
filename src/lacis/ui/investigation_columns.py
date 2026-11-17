@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QStackedWidget,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -23,6 +24,7 @@ from lacis.ui.entity_sheet import EntitySheet
 from lacis.ui.entity_table import EntitiesTab
 from lacis.ui.graph_controls import FilterChip, ZoomToolbar
 from lacis.ui.graph_legend import GraphLegend
+from lacis.ui.graph_list import GraphList
 from lacis.ui.graph_view import GraphView
 from lacis.ui.header_bar import create_icon_button
 from lacis.ui.journal_table import JournalTab
@@ -148,7 +150,11 @@ class GraphArea(QFrame):
         self.setObjectName("graphArea")
         self.setMinimumWidth(GRAPH_MINIMUM_WIDTH)
         self.filter_chip = FilterChip(icon_factory, self)
-        self.graph_view = GraphView(icon_factory.colours_provider, self)
+        self.views = QStackedWidget(self)
+        self.graph_view = GraphView(icon_factory.colours_provider, self.views)
+        self.graph_list = GraphList(icon_factory.colours_provider, self.views)
+        self.views.addWidget(self.graph_view)
+        self.views.addWidget(self.graph_list)
         self.zoom_toolbar = ZoomToolbar(icon_factory, self)
         self.empty_label = placeholder(GRAPH_EMPTY_TEXT, self)
         self.empty_label.setWordWrap(False)
@@ -157,8 +163,9 @@ class GraphArea(QFrame):
         self.graph_layout = QVBoxLayout(self)
         self.graph_layout.setContentsMargins(0, 0, 0, 0)
         self.graph_layout.setSpacing(0)
-        self.graph_layout.addWidget(self.graph_view, 1)
+        self.graph_layout.addWidget(self.views, 1)
         self.filter_chip.filter_changed.connect(self.graph_view.apply_filter)
+        self.filter_chip.filter_changed.connect(self.graph_list.apply_filter)
         self.zoom_toolbar.zoom_in_button.clicked.connect(self.graph_view.zoom_in)
         self.zoom_toolbar.zoom_out_button.clicked.connect(self.graph_view.zoom_out)
         self.zoom_toolbar.fit_button.clicked.connect(self.graph_view.fit)
@@ -189,6 +196,7 @@ class GraphArea(QFrame):
     def show_drawing(self, drawing: GraphDrawing) -> None:
         self.filter_chip.show_drawing(drawing)
         self.graph_view.show_drawing(drawing)
+        self.graph_list.show_drawing(drawing)
         self.show_controls(bool(drawing.nodes))
         self.place_overlays()
 

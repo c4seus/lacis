@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QModelIndex, QSettings, Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtTest import QTest
 from pytestqt.qtbot import QtBot
@@ -17,7 +17,9 @@ from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrar
 from lacis.storage.notices import NoticeFamily
 from lacis.storage.positions import Position, PositionStore
 from lacis.storage.responses import ResponseSource
+from lacis.ui.data_table import IDENTIFIER_ROLE
 from lacis.ui.entity_sheet import EntitySheet
+from lacis.ui.graph_list import GraphList
 from lacis.ui.investigation_page import (
     COLUMNS_SETTING,
     Counter,
@@ -676,6 +678,75 @@ def test_choosing_a_row_of_the_entities_table_selects_the_entity_in_the_graph(
     assert entities.selected_identifier() == company
     main_window.refresh_overview()
     assert entities.selected_identifier() == company
+
+
+def entity_rows_of(graph_list: GraphList) -> list[QModelIndex]:
+    model = graph_list.model()
+    groups = [model.index(row, 0) for row in range(model.rowCount())]
+    return [model.index(row, 0, group) for group in groups for row in range(model.rowCount(group))]
+
+
+def test_moving_in_the_list_view_selects_the_entity_in_the_graph_and_the_details(
+    main_window: MainWindow,
+) -> None:
+    page = main_window.investigation_page
+    graph_list = page.graph_area.graph_list
+    first, second = entity_rows_of(graph_list)[:2]
+    graph_list.setCurrentIndex(first)
+    identifier = first.data(IDENTIFIER_ROLE)
+    assert page.selected_entity == identifier
+    assert page.graph_view.selected_identifier == identifier
+    details = sheet_of(main_window).details
+    assert details is not None
+    assert details.identifier == identifier
+    graph_list.setCurrentIndex(second)
+    assert page.graph_view.selected_identifier == second.data(IDENTIFIER_ROLE)
+    main_window.refresh_overview()
+    assert graph_list.selected_identifier() == second.data(IDENTIFIER_ROLE)
+
+
+def test_the_list_view_follows_the_selection_of_the_graph(main_window: MainWindow) -> None:
+    page = main_window.investigation_page
+    graph_list = page.graph_area.graph_list
+    company = select_first_company(main_window)
+    assert graph_list.selected_identifier() == company
+    assert graph_list.currentIndex().data(IDENTIFIER_ROLE) == company
+    page.graph_view.graph_scene.select(None)
+    assert graph_list.selected_identifier() is None
+    assert page.selected_entity is None
+
+
+def test_activating_a_link_in_the_list_view_selects_the_entity_it_leads_to(
+    main_window: MainWindow,
+) -> None:
+    page = main_window.investigation_page
+    graph_list = page.graph_area.graph_list
+    company = select_first_company(main_window)
+    entity = graph_list.currentIndex()
+    graph_list.expand(entity)
+    link = graph_list.model().index(0, 0, entity)
+    target = link.data(IDENTIFIER_ROLE)
+    graph_list.setCurrentIndex(link)
+    assert page.selected_entity == company
+    graph_list.activated.emit(link)
+    assert page.selected_entity == target
+    assert page.graph_view.selected_identifier == target
+    assert graph_list.currentIndex().data(IDENTIFIER_ROLE) == target
+    assert graph_list.selected_identifier() == target
+
+
+def test_the_list_view_hides_what_the_graph_filter_hides(main_window: MainWindow) -> None:
+    page = main_window.investigation_page
+    graph_list = page.graph_area.graph_list
+    company = select_first_company(main_window)
+    page.graph_area.filter_chip.kind_actions[EntityKind.COMPANY].setChecked(False)
+    shown = [index.data(IDENTIFIER_ROLE) for index in entity_rows_of(graph_list)]
+    assert company not in shown
+    assert len(shown) == 2
+    assert page.selected_entity is None
+    page.show_entity(company, "")
+    assert not page.graph_area.filter_chip.graph_filter.is_active
+    assert graph_list.selected_identifier() == company
 
 
 def test_the_raw_response_of_a_logged_request_opens_in_a_dialog(

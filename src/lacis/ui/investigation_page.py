@@ -126,6 +126,9 @@ class InvestigationPage(QWidget):
         self.graph_view = self.graph_area.graph_view
         self.graph_view.selection_changed.connect(self.follow_selection)
         self.graph_view.entities_moved.connect(self.entities_moved)
+        self.graph_area.graph_list.entity_chosen.connect(
+            lambda identifier: self.show_entity(identifier, "")
+        )
         review_list = self.queue_column.review_list
         review_list.entity_chosen.connect(lambda identifier: self.show_entity(identifier, ""))
         review_list.decision_requested.connect(self.decision_requested)
@@ -218,4 +221,5 @@ class InvestigationPage(QWidget):
         self.selected_entity = identifier or None
         self.queue_column.review_list.mark_selected(self.selected_entity)
         self.details_panel.entities_tab.mark_selected(self.selected_entity)
+        self.graph_area.graph_list.mark_selected(self.selected_entity)
         self.entity_selected.emit(identifier)
