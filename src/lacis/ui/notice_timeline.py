@@ -1,7 +1,7 @@
 from typing import override
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen
+from PySide6.QtGui import QAccessible, QColor, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from lacis.design.icons import ColoursProvider
@@ -37,6 +37,7 @@ def link_button(text: str, accessible_name: str, parent: QWidget) -> QPushButton
 
 
 class NoticeItem(QFrame):
+    accessible_role = QAccessible.Role.ListItem
     link_requested = Signal(str)
     raw_requested = Signal(int)
 
@@ -99,6 +100,7 @@ class NoticeItem(QFrame):
 
 
 class NoticeTimeline(QWidget):
+    accessible_role = QAccessible.Role.List
     link_requested = Signal(str)
     raw_requested = Signal(int)
 
