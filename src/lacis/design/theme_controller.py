@@ -4,6 +4,7 @@ from PySide6.QtCore import QObject, QSettings, Qt, Signal
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
+from lacis.design.fonts import application_font, system_text_scale
 from lacis.design.style_sheet import build_style_sheet
 from lacis.design.tokens import DARK_THEME, LIGHT_THEME, Theme
 
@@ -15,6 +16,9 @@ class ThemePreference(StrEnum):
 
 
 THEME_PREFERENCE_SETTING_KEY = "appearance/theme"
+TEXT_SIZE_SETTING_KEY = "appearance/text_size"
+TEXT_SIZES = (100, 125, 150, 175, 200)
+DEFAULT_TEXT_SIZE = 100
 FORCED_COLOUR_SCHEMES = {
     ThemePreference.LIGHT: Qt.ColorScheme.Light,
     ThemePreference.DARK: Qt.ColorScheme.Dark,
@@ -33,9 +37,19 @@ def read_theme_preference(settings: QSettings) -> ThemePreference:
         return ThemePreference.SYSTEM
 
 
+def read_text_size(settings: QSettings) -> int:
+    stored_size = settings.value(TEXT_SIZE_SETTING_KEY, DEFAULT_TEXT_SIZE)
+    try:
+        size = int(str(stored_size))
+    except ValueError:
+        return DEFAULT_TEXT_SIZE
+    return size if size in TEXT_SIZES else DEFAULT_TEXT_SIZE
+
+
 class ThemeController(QObject):
     theme_changed = Signal(Theme)
     preference_changed = Signal(ThemePreference)
+    text_size_changed = Signal(int)
 
     def __init__(
         self, application: QApplication, settings: QSettings, parent: QObject | None = None
@@ -45,7 +59,10 @@ class ThemeController(QObject):
         self.settings = settings
         self.style_hints = application.styleHints()
         self.current_theme = LIGHT_THEME
+        self.base_theme = LIGHT_THEME
         self.preference = read_theme_preference(settings)
+        self.text_size = read_text_size(settings)
+        self.system_text_scale = system_text_scale()
         self.style_hints.colorSchemeChanged.connect(self.follow_system_colour_scheme)
         self.apply_preference()
 
@@ -55,6 +72,17 @@ class ThemeController(QObject):
         self.settings.sync()
         self.apply_preference()
         self.preference_changed.emit(preference)
+
+    @property
+    def text_scale(self) -> float:
+        return self.system_text_scale * self.text_size / 100
+
+    def set_text_size(self, size: int) -> None:
+        self.text_size = size if size in TEXT_SIZES else DEFAULT_TEXT_SIZE
+        self.settings.setValue(TEXT_SIZE_SETTING_KEY, self.text_size)
+        self.settings.sync()
+        self.apply_theme(self.base_theme)
+        self.text_size_changed.emit(self.text_size)
 
     def apply_preference(self) -> None:
         forced_colour_scheme = FORCED_COLOUR_SCHEMES.get(self.preference)
@@ -77,7 +105,10 @@ class ThemeController(QObject):
             self.apply_theme(theme_for_colour_scheme(colour_scheme))
 
     def apply_theme(self, theme: Theme) -> None:
-        self.current_theme = theme
-        self.apply_link_colours(theme)
-        self.application.setStyleSheet(build_style_sheet(theme))
-        self.theme_changed.emit(theme)
+        self.base_theme = theme
+        scaled_theme = theme.with_text_scale(self.text_scale)
+        self.current_theme = scaled_theme
+        self.application.setFont(application_font(scaled_theme.font_sizes))
+        self.apply_link_colours(scaled_theme)
+        self.application.setStyleSheet(build_style_sheet(scaled_theme))
+        self.theme_changed.emit(scaled_theme)
