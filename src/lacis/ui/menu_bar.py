@@ -16,6 +16,8 @@ CLOSE_INVESTIGATION_ACTION_TEXT = "&Fermer l'enquête"
 CLOSE_INVESTIGATION_SHORTCUT = QKeySequence("Ctrl+W")
 QUEUE_ACTION_TEXT = "&Colonne À examiner"
 QUEUE_SHORTCUT = QKeySequence("Ctrl+1")
+LIST_ACTION_TEXT = "Vue &liste du graphe"
+LIST_SHORTCUT = QKeySequence("Ctrl+L")
 QUIT_SHORTCUT = QKeySequence("Ctrl+Q")
 ZOOM_IN_ACTION_TEXT = "Zoom &avant"
 ZOOM_IN_SHORTCUTS = [QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")]
@@ -83,6 +85,10 @@ class MainMenuBar(QMenuBar):
         self.queue_action.setShortcut(QUEUE_SHORTCUT)
         self.view_menu.addAction(self.queue_action)
         self.view_menu.addSeparator()
+        self.list_action = QAction(LIST_ACTION_TEXT, self)
+        self.list_action.setCheckable(True)
+        self.list_action.setShortcut(LIST_SHORTCUT)
+        self.view_menu.addAction(self.list_action)
         self.zoom_in_action = QAction(ZOOM_IN_ACTION_TEXT, self)
         self.zoom_in_action.setShortcuts(ZOOM_IN_SHORTCUTS)
         self.zoom_out_action = QAction(ZOOM_OUT_ACTION_TEXT, self)
@@ -129,6 +135,7 @@ class MainMenuBar(QMenuBar):
     def investigation_actions(self) -> list[QAction]:
         return [
             self.queue_action,
+            self.list_action,
             *self.graph_actions,
             self.next_tab_action,
             self.previous_tab_action,

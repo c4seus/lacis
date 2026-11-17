@@ -78,7 +78,10 @@ def shortcut_groups(menu_bar: MainMenuBar) -> tuple[ShortcutGroup, ...]:
         ),
         ShortcutGroup(
             "Graphe",
-            tuple(action_line(action) for action in menu_bar.graph_actions),
+            (
+                action_line(menu_bar.list_action, "Passer du graphe à sa vue liste"),
+                *(action_line(action) for action in menu_bar.graph_actions),
+            ),
         ),
         ShortcutGroup(GRAPH_GROUP_TITLE, tuple(ShortcutLine(*keys) for keys in GRAPH_KEYS)),
         ShortcutGroup(

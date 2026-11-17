@@ -120,6 +120,10 @@ class MainWindow(QMainWindow):
         queue_action.setChecked(not self.investigation_page.is_queue_collapsed())
         queue_action.toggled.connect(self.investigation_page.toggle_queue)
         self.investigation_page.queue_toggled.connect(queue_action.setChecked)
+        list_action = self.main_menu_bar.list_action
+        list_action.setChecked(self.investigation_page.is_list_shown())
+        list_action.toggled.connect(self.investigation_page.toggle_list)
+        self.investigation_page.list_toggled.connect(list_action.setChecked)
         self.investigation_page.entities_moved.connect(self.save_moved_positions)
         self.investigation_page.graph_area.layout_requested.connect(self.lay_out_again)
         graph_view = self.investigation_page.graph_view

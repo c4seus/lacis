@@ -275,6 +275,42 @@ def test_the_view_menu_collapses_and_expands_the_queue(main_window: MainWindow) 
     assert not action.isEnabled()
 
 
+def test_the_view_menu_switches_between_the_graph_and_its_list_view(
+    main_window: MainWindow,
+) -> None:
+    page = main_window.investigation_page
+    area = page.graph_area
+    action = main_window.main_menu_bar.list_action
+    assert action.isEnabled()
+    assert not action.isChecked()
+    assert action.shortcut() == QKeySequence("Ctrl+L")
+    action.trigger()
+    assert page.is_list_shown()
+    assert area.list_chip.isChecked()
+    assert area.graph_list.hasFocus()
+    area.list_chip.setFocus()
+    QTest.keyClick(area.list_chip, Qt.Key.Key_Space)
+    assert not page.is_list_shown()
+    assert not action.isChecked()
+    assert area.list_chip.hasFocus()
+    page.toggle_list(False)
+    assert area.list_chip.hasFocus()
+    main_window.show_home()
+    assert not action.isEnabled()
+
+
+def test_the_list_view_is_remembered_between_sessions(
+    qtbot: QtBot, main_window: MainWindow, settings: QSettings, icon_factory: IconFactory
+) -> None:
+    main_window.main_menu_bar.list_action.trigger()
+    next_page = InvestigationPage(settings, icon_factory)
+    qtbot.addWidget(next_page)
+    assert next_page.is_list_shown()
+    assert next_page.graph_area.list_chip.isChecked()
+    main_window.main_menu_bar.list_action.trigger()
+    assert not InvestigationPage(settings, icon_factory).is_list_shown()
+
+
 def test_a_collapsed_queue_is_remembered_between_sessions(
     qtbot: QtBot, main_window: MainWindow, settings: QSettings, icon_factory: IconFactory
 ) -> None:

@@ -22,6 +22,7 @@ ICON_NAMES = (
     "graph",
     "help",
     "layout",
+    "list",
     "monitor",
     "moon",
     "more",

@@ -26,6 +26,8 @@ LAYOUT_SHORTCUT_TEXT = "Ctrl+Maj+R"
 FILTER_TEXT = "Filtres"
 FILTER_ACCESSIBLE_NAME = "Filtres du graphe"
 SHOW_EVERYTHING_TEXT = "Tout afficher"
+LIST_VIEW_TEXT = "Vue liste"
+LIST_VIEW_SHORTCUT_TEXT = "Ctrl+L"
 
 
 def tooltip_with_shortcut(text: str, shortcut: str) -> str:
@@ -138,3 +140,16 @@ class FilterChip(QToolButton):
         for action in [*self.kind_actions.values(), self.flagged_action]:
             action.blockSignals(False)
         self.change(GraphFilter())
+
+
+class ListViewChip(QToolButton):
+    def __init__(self, icon_factory: IconFactory, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("viewChip")
+        self.setIcon(icon_factory.icon("list"))
+        self.setText(LIST_VIEW_TEXT)
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.setCheckable(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAccessibleName(LIST_VIEW_TEXT)
+        self.setToolTip(tooltip_with_shortcut(LIST_VIEW_TEXT, LIST_VIEW_SHORTCUT_TEXT))
