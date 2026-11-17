@@ -29,7 +29,12 @@ from lacis.details import (
 from lacis.graph.expansion import GraphExpander
 from lacis.signals.signal import Severity
 from lacis.storage.collection_log import CollectionLog
-from lacis.storage.entities import CollectedEntity, EntityKind, company_identifier
+from lacis.storage.entities import (
+    CollectedEntity,
+    EntityKind,
+    company_identifier,
+    mandate_link,
+)
 from lacis.storage.errors import TamperedResponseError
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
@@ -311,6 +316,68 @@ def test_the_latest_decisions_come_first(
         ("Même personne que", "Jean DUPONT"),
     ]
     assert details_of(builder, scenario.acme).decisions == ()
+
+
+def test_a_link_shows_the_response_it_comes_from(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    [line] = [
+        line for line in details_of(builder, scenario.acme).links if line.role == "Président"
+    ]
+    [source] = line.sources
+    assert source.source_name == "Recherche d'entreprises"
+    assert line.provenance == "1 réponse"
+    assert line.decided_on == ""
+
+
+def test_a_link_collected_twice_shows_both_responses_newest_first(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    later = ResponseStore(builder.connection).save(
+        CollectedResponse(
+            ResponseSource.COMPANY_REGISTER,
+            "https://recherche-entreprises.api.gouv.fr/search?q=acme",
+            b"{}",
+            COLLECTED_AT + timedelta(days=1),
+        )
+    )
+    GraphStore(builder.connection).save_link(
+        mandate_link(scenario.jean_pierre, scenario.acme, "Président"), later
+    )
+    [line] = [
+        line for line in details_of(builder, scenario.acme).links if line.role == "Président"
+    ]
+    assert [source.response_identifier for source in line.sources] == [
+        later.identifier,
+        builder.response.identifier,
+    ]
+    assert line.provenance == "2 réponses"
+
+
+def test_a_same_person_link_shows_the_decision_and_its_date(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    [line] = [
+        line for line in details_of(builder, scenario.jean).links if line.role == "Même personne"
+    ]
+    assert line.sources == ()
+    assert line.decided_on.startswith("Décision de l'enquêteur, le ")
+    assert line.provenance == "Décision de l'enquêteur"
+
+
+def test_every_link_of_the_demo_investigation_shows_its_provenance(
+    builder: InvestigationBuilder, demo_expander: GraphExpander
+) -> None:
+    for siren in ("111111111", "222222222", "121212121"):
+        demo_expander.expand_company(siren)
+    graph_store = GraphStore(builder.connection)
+    lines = [
+        line
+        for entity in graph_store.entities()
+        for line in details_of(builder, entity.identifier).links
+    ]
+    assert lines
+    assert all(line.sources or line.decided_on for line in lines)
 
 
 def test_a_company_without_siren_copies_its_name(builder: InvestigationBuilder) -> None:
