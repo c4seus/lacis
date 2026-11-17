@@ -39,6 +39,7 @@ Dans la liste des résultats de recherche, <kbd>↑</kbd> et <kbd>↓</kbd> pass
 
 | Action | Raccourci |
 | --- | --- |
+| Passer du graphe à sa vue liste | <kbd>Ctrl</kbd>+<kbd>L</kbd> |
 | Zoom avant | <kbd>Ctrl</kbd>+<kbd>+</kbd> |
 | Zoom arrière | <kbd>Ctrl</kbd>+<kbd>-</kbd> |
 | Ajuster le graphe à la fenêtre | <kbd>Ctrl</kbd>+<kbd>0</kbd> |
@@ -87,6 +88,7 @@ Lacis est conçu pour être utilisé avec un lecteur d'écran, comme Orca sous L
 - les éléments propres à Lacis annoncent aussi leur rôle et leur état : une puce d'entité se lit comme un lien vers une entreprise, une personne ou une adresse, une carte de signal comme un groupe avec son explication et son score, la frise des annonces BODACC comme une liste, et les boutons qui replient la colonne « À examiner » ou déplient la provenance d'un lien disent s'ils sont ouverts ou fermés ;
 - la touche <kbd>Tab</kbd> parcourt la fenêtre dans un ordre logique, de la barre de recherche aux colonnes de l'enquête, et le focus reste toujours visible ;
 - le nombre de résultats d'une recherche, le début et la fin d'une extension, et les erreurs sont annoncés au lecteur d'écran. Après une extension ou une décision, Lacis annonce aussi ce qu'il y a de nouveau à examiner, comme « À examiner : 2 nouveaux signaux d'alerte et 1 nouvel homonyme à vérifier ». Ces annonces attendent que le lecteur d'écran ait fini sa phrase, et les changements rapprochés sont regroupés en une seule ;
-- le graphe se parcourt aux flèches, d'une entité à sa voisine, et chaque entité sélectionnée ouvre sa fiche, qui se lit comme un texte.
+- le graphe se parcourt aux flèches, d'une entité à sa voisine, et chaque entité sélectionnée ouvre sa fiche, qui se lit comme un texte ;
+- la [vue liste](/lacis/guide/premiere-enquete/#parcourir-le-graphe-en-liste) du graphe, avec <kbd>Ctrl</kbd>+<kbd>L</kbd>, range les entités par type dans une arborescence : le lecteur d'écran annonce chacune avec son type et son nombre de liens, et ses liens se déplient sous elle.
 
 Si un élément de Lacis reste inaccessible, [signalez-le](https://github.com/c4seus/lacis/issues/new/choose) : c'est un défaut à corriger.
