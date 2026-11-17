@@ -47,6 +47,7 @@ DECISIONS_TITLE = "Décisions d'homonymie"
 WITHDRAW_TEXT = "Retirer"
 WITHDRAW_ACCESSIBLE_PREFIX = "Retirer la décision : "
 SOURCES_TITLE = "Provenance"
+PROVENANCE_TEXT = "Provenance"
 RAW_RESPONSE_TEXT = "Réponse brute"
 FINGERPRINT_PREFIX = "Empreinte SHA-256 "
 COPIED_MESSAGE = "« {value} » copié dans le presse-papiers."
@@ -174,14 +175,46 @@ class LinkRow(QWidget):
         self.role_label.setFixedWidth(LINK_ROLE_WIDTH)
         self.role_label.setWordWrap(True)
         self.chip = sheet.reference_chip(line.reference, self)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 2, 0, 2)
-        layout.setSpacing(8)
-        layout.addWidget(self.role_label)
-        layout.addWidget(self.chip)
-        layout.addStretch(1)
+        self.provenance_button = QPushButton(f"{PROVENANCE_TEXT} · {line.provenance}", self)
+        self.provenance_button.setCheckable(True)
+        self.provenance_button.setProperty("variant", "link")
+        self.provenance_button.setProperty("compact", True)
+        self.provenance_button.setAccessibleName(
+            f"{PROVENANCE_TEXT} du lien {line.role} {line.reference.label} : {line.provenance}"
+        )
+        self.provenance_button.toggled.connect(self.show_provenance)
+        head = QHBoxLayout()
+        head.setSpacing(8)
+        head.addWidget(self.role_label)
+        head.addWidget(self.chip)
+        head.addStretch(1)
         if line.closed:
-            layout.addWidget(badge("Fermé", "closed", self))
+            head.addWidget(badge("Fermé", "closed", self))
+        toggle = QHBoxLayout()
+        toggle.setContentsMargins(LINK_ROLE_WIDTH + 8, 0, 0, 0)
+        toggle.addWidget(self.provenance_button)
+        toggle.addStretch(1)
+        self.provenance = QWidget(self)
+        provenance_layout = QVBoxLayout(self.provenance)
+        provenance_layout.setContentsMargins(LINK_ROLE_WIDTH + 8, 0, 0, 4)
+        provenance_layout.setSpacing(0)
+        self.decision_label = wrapped_label(line.decided_on, "faint", self.provenance)
+        self.decision_label.setVisible(bool(line.decided_on))
+        provenance_layout.addWidget(self.decision_label)
+        self.source_rows = [SourceRow(source, self.provenance) for source in line.sources]
+        for row in self.source_rows:
+            row.raw_requested.connect(sheet.raw_requested)
+            provenance_layout.addWidget(row)
+        self.provenance.setVisible(False)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 2, 0, 2)
+        layout.setSpacing(2)
+        layout.addLayout(head)
+        layout.addLayout(toggle)
+        layout.addWidget(self.provenance)
+
+    def show_provenance(self, shown: bool) -> None:
+        self.provenance.setVisible(shown)
 
 
 class DecisionRow(QWidget):
