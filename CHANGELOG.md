@@ -6,6 +6,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Added
 
+- The graph has a list view, for screen readers and the keyboard. The « Vue liste » button above the graph, or Ctrl+L, shows its entities grouped by kind, each with its links, and screen readers hear each entity with its kind and its number of links. Moving through the list selects the entity in the graph and opens its details, Enter on a link goes to the entity it leads to, and the list follows the filters of the graph.
 - After an expansion or a decision, screen readers hear what is new to examine, such as « À examiner : 2 nouveaux signaux d'alerte et 1 nouvel homonyme à vérifier ». The announcement is polite, and the changes found within a second are grouped into one.
 - Screen readers learn the role, state and value of the widgets that Lacis draws itself: entity chips are links to their entity and tell its kind, signal cards are groups with their explanation and score, the BODACC timeline is a list of notices, and the buttons that fold the « À examiner » column or the provenance of a link tell whether it is open.
 
