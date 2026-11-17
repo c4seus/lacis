@@ -11,6 +11,7 @@ from investigation_builder import InvestigationBuilder
 from lacis.collectors.environment import demo_collection_environment
 from lacis.design.theme_controller import ThemeController
 from lacis.storage.investigations import InvestigationLibrary
+from lacis.ui.data_table import IDENTIFIER_ROLE
 from lacis.ui.header_bar import SEARCH_HINT_RIGHT_MARGIN
 from lacis.ui.main_window import MainWindow
 
@@ -133,6 +134,22 @@ def test_ctrl_e_expands_the_selected_entity(qtbot: QtBot, window: MainWindow) ->
     assert expand_action.isEnabled()
     window.show_home()
     assert not expand_action.isEnabled()
+
+
+def test_ctrl_l_switches_between_the_graph_and_its_list_view(window: MainWindow) -> None:
+    page = window.investigation_page
+    window.header_bar.search_field.setFocus()
+    press(Qt.Key.Key_L, CONTROL)
+    assert page.is_list_shown()
+    assert page.graph_area.graph_list.hasFocus()
+    assert window.header_bar.search_field.text() == ""
+    press(Qt.Key.Key_Down)
+    assert page.selected_entity is not None
+    assert page.selected_entity == page.graph_area.graph_list.currentIndex().data(IDENTIFIER_ROLE)
+    press(Qt.Key.Key_L, CONTROL)
+    assert not page.is_list_shown()
+    assert page.graph_view.hasFocus()
+    assert page.graph_view.selected_identifier == page.selected_entity
 
 
 def test_the_details_tabs_are_switched_from_the_keyboard(window: MainWindow) -> None:

@@ -161,6 +161,7 @@ def test_the_view_menu_offers_the_theme_choice(
     actions = [action for action in menu_bar.view_menu.actions() if not action.isSeparator()]
     assert actions == [
         menu_bar.queue_action,
+        menu_bar.list_action,
         menu_bar.zoom_in_action,
         menu_bar.zoom_out_action,
         menu_bar.fit_action,

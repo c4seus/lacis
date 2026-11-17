@@ -505,7 +505,7 @@ class GraphView(QGraphicsView):
             return
         self.selected_identifier = identifier
         self.describe()
-        if identifier is not None:
+        if identifier is not None and self.isVisible():
             summary = entity_summary(self.drawing, self.drawing.require_node(identifier))
             announcements.announce(self, summary, announcements.POLITE)
         self.selection_changed.emit(identifier or "")

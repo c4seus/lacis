@@ -56,6 +56,7 @@ def test_the_groups_list_every_shortcut_of_the_menus(
     assert lines["Rechercher une entreprise"] == "Ctrl+F ou /"
     assert lines["Étendre la sélection"] == "Ctrl+E"
     assert lines["Ajuster le graphe à la fenêtre"] == "Ctrl+0"
+    assert lines["Passer du graphe à sa vue liste"] == "Ctrl+L"
     assert lines["Onglet suivant"] == "Ctrl+PgDown"
     assert lines["Onglet Entités"] == "Alt+3"
     assert lines["Afficher les raccourcis clavier"] == "Ctrl+/"
