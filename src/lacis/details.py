@@ -11,6 +11,7 @@ from lacis.graph.drawing import KIND_LABELS, is_closed
 from lacis.graph.expansion import EXPANDED_AT_ATTRIBUTE, PIVOT_KINDS
 from lacis.graph.leads import is_known_as_director_only
 from lacis.graph.mapping import spaced_siren
+from lacis.signals.facts import counted
 from lacis.signals.signal import Severity, Signal
 from lacis.signals.store import SignalReport
 from lacis.storage.entities import Attributes, Entity, EntityKind, Link, LinkKind
@@ -27,6 +28,7 @@ OPEN_ESTABLISHMENT_TEXT = "Ouvert"
 CLOSED_ESTABLISHMENT_TEXT = "Fermé"
 HEAD_OFFICE_TEXT = "Siège"
 DIRECTOR_ONLY_TEXT = "Connue comme dirigeante seulement"
+DECIDED_LINK_TEXT = "Décision de l'enquêteur"
 FOREIGN_LAW_TEXT = "Droit étranger"
 
 
@@ -93,6 +95,14 @@ class LinkLine:
     role: str
     reference: Reference
     closed: bool
+    sources: tuple["SourceLine", ...] = ()
+    decided_on: str = ""
+
+    @property
+    def provenance(self) -> str:
+        if self.decided_on:
+            return DECIDED_LINK_TEXT
+        return counted(len(self.sources), "réponse", "réponses")
 
 
 @dataclass(frozen=True)
@@ -421,17 +431,28 @@ def link_role(link: Link, identifier: str) -> str:
     return from_source if seen_from_source else from_target
 
 
+def decided_on(link: Link) -> str:
+    if link.kind is not LinkKind.SAME_PERSON:
+        return ""
+    return f"{DECIDED_LINK_TEXT}, le {written_moment(link.last_collected_at)}"
+
+
 def link_lines(graph_store: GraphStore, identifier: str) -> list[LinkLine]:
     lines = []
     for link in graph_store.links_of(identifier):
         other = graph_store.require_entity(
             link.target if link.source == identifier else link.source
         )
+        sources = [
+            source_line(summary) for summary in graph_store.sources_of_link(link.identifier)
+        ]
         lines.append(
             LinkLine(
                 link_role(link, identifier),
                 Reference(other.identifier, other.kind, other.label),
                 is_closed(other),
+                tuple(reversed(sources)),
+                decided_on(link),
             )
         )
     return sorted(lines, key=lambda line: (line.role, line.reference.label))
