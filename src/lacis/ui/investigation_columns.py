@@ -17,6 +17,7 @@ from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
 from lacis.review import RunningCollection, review_queue
 from lacis.signals.facts import counted
+from lacis.ui.accessibility import DisclosureButton
 from lacis.ui.collection_progress import CollectionProgressPanel
 from lacis.ui.entity_sheet import EntitySheet
 from lacis.ui.entity_table import EntitiesTab
@@ -89,7 +90,11 @@ class QueueColumn(QFrame):
         titles.addWidget(self.summary_label)
         self.head_layout.addLayout(titles, 1)
         self.collapse_button = create_icon_button(
-            icon_factory.icon("collapse"), COLLAPSE_TEXT, COLLAPSE_TOOLTIP, self.head
+            icon_factory.icon("collapse"),
+            COLLAPSE_TEXT,
+            COLLAPSE_TOOLTIP,
+            self.head,
+            DisclosureButton(expanded=True, parent=self.head),
         )
         self.head_layout.addWidget(self.collapse_button, 0, Qt.AlignmentFlag.AlignTop)
         self.review_list = ReviewQueueList(icon_factory.colours_provider, self)
@@ -111,7 +116,11 @@ class QueueRail(QFrame):
         self.setFixedWidth(RAIL_WIDTH)
         self.setAccessibleName(RAIL_ACCESSIBLE_NAME)
         self.expand_button = create_icon_button(
-            icon_factory.icon("expand"), EXPAND_TEXT, EXPAND_TOOLTIP, self
+            icon_factory.icon("expand"),
+            EXPAND_TEXT,
+            EXPAND_TOOLTIP,
+            self,
+            DisclosureButton(expanded=False, parent=self),
         )
         self.count_label = QLabel(self)
         self.count_label.setProperty("tone", "rail-count")

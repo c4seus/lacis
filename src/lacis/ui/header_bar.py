@@ -172,9 +172,13 @@ class Breadcrumb(QWidget):
 
 
 def create_icon_button(
-    icon: QIcon, accessible_name: str, tooltip: str, parent: QWidget
+    icon: QIcon,
+    accessible_name: str,
+    tooltip: str,
+    parent: QWidget,
+    button: QToolButton | None = None,
 ) -> QToolButton:
-    button = QToolButton(parent)
+    button = button or QToolButton(parent)
     button.setProperty("variant", "icon")
     button.setIcon(icon)
     button.setFixedSize(ICON_BUTTON_SIZE)

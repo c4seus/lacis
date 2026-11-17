@@ -397,3 +397,25 @@ def test_a_signal_card_is_a_group_with_its_explanation_and_score(
     assert score.role() is QAccessible.Role.StaticText
     assert score.text(QAccessible.Text.Name) == "Score"
     assert score.text(QAccessible.Text.Value) == "0,85"
+
+
+def test_the_provenance_of_a_link_tells_whether_it_is_expanded(
+    sheet: EntitySheet,
+    builder: InvestigationBuilder,
+    scenario: PlumbersScenario,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    announced: list[QAccessible.State] = []
+    monkeypatch.setattr(
+        QAccessible, "updateAccessibility", lambda event: announced.append(event.changedStates())
+    )
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    button = sheet.link_rows[0].provenance_button
+    interface = interface_of(button)
+    assert interface.role() is QAccessible.Role.Button
+    assert interface.state().expandable
+    assert not interface.state().expanded
+    press(button)
+    assert interface.state().expanded
+    assert sheet.link_rows[0].provenance.isVisibleTo(sheet)
+    assert [changed.expanded for changed in announced] == [True]
