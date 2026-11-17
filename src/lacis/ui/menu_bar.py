@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QMenu, QMenuBar, QWidget
 
 from lacis.history import InvestigationHistory
 from lacis.ui.help_menu import HelpMenu
+from lacis.ui.text_size_menu import TextSizeMenu
 from lacis.ui.theme_menu import ThemeMenu
 
 FILE_MENU_TITLE = "&Fichier"
@@ -102,6 +103,8 @@ class MainMenuBar(QMenuBar):
         self.create_details_menu()
         self.view_menu.addSeparator()
         self.view_menu.addMenu(theme_menu)
+        self.text_size_menu = TextSizeMenu(theme_menu.theme_controller, self.view_menu)
+        self.view_menu.addMenu(self.text_size_menu)
 
     def create_investigation_menu(self) -> None:
         self.search_action = QAction(SEARCH_ACTION_TEXT, self)

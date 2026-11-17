@@ -168,6 +168,7 @@ def test_the_view_menu_offers_the_theme_choice(
         menu_bar.layout_action,
         menu_bar.details_menu.menuAction(),
         theme_menu.menuAction(),
+        menu_bar.text_size_menu.menuAction(),
     ]
     assert [action.shortcut().toString() for action in menu_bar.graph_actions] == [
         "Ctrl++",
@@ -188,7 +189,7 @@ def test_the_view_menu_and_the_theme_button_share_the_same_choice(
     main_window = open_main_window(qtbot, settings, theme_controller)
     shared_menu = main_window.header_bar.theme_menu
     assert main_window.header_bar.theme_button.menu() is shared_menu
-    assert main_window.main_menu_bar.view_menu.actions()[-1] is shared_menu.menuAction()
+    assert main_window.main_menu_bar.view_menu.actions()[-2] is shared_menu.menuAction()
     shared_menu.preference_actions[ThemePreference.DARK].trigger()
     assert theme_controller.current_theme is DARK_THEME
 
@@ -203,7 +204,7 @@ def test_every_entry_of_a_menu_has_its_own_mnemonic(
         mnemonics = [mnemonic(entry) for entry in entries]
         assert len(set(mnemonics)) == len(mnemonics), menu.title()
         checked_menus += 1
-    assert checked_menus == len(menu_bar.menus()) + 2
+    assert checked_menus == len(menu_bar.menus()) + 3
 
 
 def test_the_help_menu_and_the_help_button_share_the_same_entries(
