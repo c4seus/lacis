@@ -92,6 +92,12 @@ def test_the_screenshots_are_in_the_repository_at_their_declared_size() -> None:
         assert screenshot.size() == QSize(int(image.attrib["width"]), int(image.attrib["height"]))
 
 
-def test_the_first_release_is_listed() -> None:
+def test_every_release_is_listed_newest_first() -> None:
     releases = ElementTree.parse(METAINFO).getroot().findall("releases/release")
-    assert [release.attrib["version"] for release in releases] == ["0.1.0"]
+    versions = [
+        tuple(int(part) for part in release.attrib["version"].split(".")) for release in releases
+    ]
+    dates = [release.attrib["date"] for release in releases]
+    assert versions[-1] == (0, 1, 0)
+    assert versions == sorted(versions, reverse=True)
+    assert dates == sorted(dates, reverse=True)
