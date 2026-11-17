@@ -20,6 +20,7 @@ from lacis.signals.rules import RULES
 from lacis.signals.signal import Finding
 from lacis.signals.store import SignalStore
 from lacis.storage.entities import EntityKind
+from lacis.storage.homonym_decisions import HomonymDecisionStore
 from lacis.storage.investigations import DATABASE_FILE_NAME, InvestigationLibrary
 from signal_rules import defaults_for
 
@@ -91,6 +92,20 @@ def test_a_homonym_decision_makes_signals_stale(
     assert signals.current().signals == ()
     builder.same_person(jean, jean_pierre)
     assert [signal.rule for signal in signals.current().signals] == ["creation_burst"]
+
+
+def test_withdrawing_a_homonym_decision_makes_signals_stale(
+    builder: InvestigationBuilder, clock: Clock
+) -> None:
+    jean = builder.person("Jean", "DUPONT")
+    jean_pierre = builder.person("Jean Pierre", "DUPONT")
+    burst_by(builder, jean, BURST_DATES[:2])
+    builder.mandate(jean_pierre, builder.company("SOCIETE C", BURST_DATES[2]))
+    builder.same_person(jean, jean_pierre)
+    signals = signals_of(builder, clock)
+    assert [signal.rule for signal in signals.current().signals] == ["creation_burst"]
+    HomonymDecisionStore(builder.connection).withdraw(jean, jean_pierre)
+    assert signals.current().signals == ()
 
 
 def test_signals_are_recomputed_on_a_new_day(builder: InvestigationBuilder, clock: Clock) -> None:

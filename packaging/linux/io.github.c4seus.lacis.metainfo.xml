@@ -60,7 +60,8 @@
     <binary>lacis</binary>
   </provides>
 
-  <url type="homepage">https://github.com/c4seus/lacis</url>
+  <url type="homepage">https://c4seus.github.io/lacis/</url>
+  <url type="help">https://c4seus.github.io/lacis/guide/</url>
   <url type="bugtracker">https://github.com/c4seus/lacis/issues</url>
   <url type="vcs-browser">https://github.com/c4seus/lacis</url>
 
@@ -106,6 +107,12 @@
   </screenshots>
 
   <releases>
+    <release version="0.2.0" date="2026-11-17" type="stable">
+      <description>
+        <p>Directors with the same name are never merged without a decision of the investigator. Each link shows the responses it comes from, and homonym decisions can be withdrawn at any time. Fixes to the transfer abroad, burst and truncated expansion warnings.</p>
+        <p xml:lang="fr">Les dirigeants de même nom ne sont jamais confondus sans décision de l'enquêteur. Chaque lien montre les réponses dont il provient, et les décisions d'homonymie se retirent à tout moment. Corrections des alertes de transfert à l'étranger, de rafale de créations et des extensions tronquées.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-11-13" type="stable">
       <description>
         <p>First release: investigations, company search, pivots, BODACC notices, homonym review, warning signals and the investigation window.</p>

@@ -2,9 +2,10 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import QMenu, QWidget
 
+from lacis.product import GUIDE_URL
+
 HELP_MENU_TITLE = "Ai&de"
 DOCUMENTATION_ACTION_TEXT = "&Documentation"
-DOCUMENTATION_URL = "https://github.com/c4seus/lacis#readme"
 DOCUMENTATION_SHORTCUT = QKeySequence("F1")
 SHORTCUTS_ACTION_TEXT = "&Raccourcis clavier"
 SHORTCUTS_SHORTCUT = QKeySequence("Ctrl+/")
@@ -17,7 +18,7 @@ class HelpMenu(QMenu):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(HELP_MENU_TITLE, parent)
         self.documentation_action = self.add_link(
-            DOCUMENTATION_ACTION_TEXT, DOCUMENTATION_URL, DOCUMENTATION_SHORTCUT
+            DOCUMENTATION_ACTION_TEXT, GUIDE_URL, DOCUMENTATION_SHORTCUT
         )
         self.shortcuts_action = QAction(SHORTCUTS_ACTION_TEXT, self)
         self.shortcuts_action.setShortcut(SHORTCUTS_SHORTCUT)

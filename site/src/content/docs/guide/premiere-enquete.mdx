@@ -1,0 +1,74 @@
+---
+title: Mener une première enquête
+description: "Créer une enquête et sa question, chercher une entreprise dans le registre national, étendre le graphe à partir d'elle et lire sa fiche."
+---
+
+import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
+import mainWindowDark from "../../../assets/screenshots/main-window-dark.webp";
+import mainWindowLight from "../../../assets/screenshots/main-window-light.webp";
+import newInvestigationDark from "../../../assets/screenshots/new-investigation-dark.webp";
+import newInvestigationLight from "../../../assets/screenshots/new-investigation-light.webp";
+import registerSearchDark from "../../../assets/screenshots/register-search-dark.webp";
+import registerSearchLight from "../../../assets/screenshots/register-search-light.webp";
+
+Une enquête part d'une question et d'une entreprise. Cette page suit l'enquête d'exemple du [mode démo](/lacis/guide/demonstration/) : vous pouvez la refaire à l'identique avec `lacis --demo`, puis mener la vôtre sur les vraies données.
+
+## Créer l'enquête
+
+Sur l'écran « Enquêtes », choisissez **Nouvelle enquête** (<kbd>Ctrl</kbd>+<kbd>N</kbd>), ou **Créer une première enquête** si vous n'en avez encore aucune. Donnez-lui :
+
+- un **nom**, en minuscules sans accent, avec des chiffres et des tirets, comme `faux-plombiers-31` : c'est aussi le nom de son dossier sur votre ordinateur ;
+- une **question**, ce à quoi l'enquête doit répondre. Elle reste affichée en tête de l'enquête, et vous aide à n'aller chercher que ce dont vous avez besoin.
+
+Choisissez ensuite **Créer** : Lacis ouvre la nouvelle enquête. Le nom et la question restent modifiables depuis le menu **Actions** de sa carte, sur l'écran « Enquêtes ».
+
+<ThemedScreenshot
+    light={newInvestigationLight}
+    dark={newInvestigationDark}
+    alt="L'écran Enquêtes avec le formulaire de création rempli : le nom faux-plombiers-31 et la question « Qui se cache derrière les plombiers du 12 rue des Lilas ? »."
+    caption="La création d'une enquête, avec son nom et sa question."
+/>
+
+## Chercher dans le registre
+
+Le champ de recherche, en haut de la fenêtre, interroge le registre national des entreprises. Placez-y le curseur d'un clic, ou avec <kbd>Ctrl</kbd>+<kbd>F</kbd> ou <kbd>/</kbd>, puis saisissez au moins trois caractères : une dénomination, un numéro SIREN ou SIRET, le nom d'un dirigeant ou une adresse. Les résultats s'affichent dès que vous arrêtez de taper, et le bouton **Rechercher** relance la recherche aussitôt.
+
+Chaque résultat indique l'état de l'entreprise, son SIREN, son code NAF, sa ville et sa date de création. Ajoutez-le à l'enquête avec **Ajouter**, ou parcourez la liste avec <kbd>↑</kbd> et <kbd>↓</kbd> et ajoutez le résultat choisi avec <kbd>Entrée</kbd>. L'entreprise apparaît alors dans le graphe. Un résultat marqué « Déjà dans l'enquête » propose **Voir** à la place : Lacis sélectionne l'entreprise dans le graphe.
+
+<ThemedScreenshot
+    light={registerSearchLight}
+    dark={registerSearchDark}
+    alt="La recherche de « 12 rue des Lilas » dans une enquête vide : trois résultats, ACME PLOMBERIE, DUPONT SERVICES et LILAS BOULANGERIE, chacun avec son bouton Ajouter."
+    caption="Trois entreprises trouvées à l'adresse « 12 rue des Lilas »."
+/>
+
+Dans l'enquête d'exemple, ajoutez ACME PLOMBERIE et DUPONT SERVICES.
+
+## Étendre à partir d'une entreprise
+
+Cliquez sur une entreprise dans le graphe : sa fiche s'ouvre dans le panneau de droite. Le bouton **Étendre** collecte ses établissements, ses adresses et ses dirigeants, puis les relie à elle dans le graphe. La flèche à côté du bouton propose une profondeur de 1 à 3 : à la profondeur 2, Lacis étend aussi chaque entité trouvée au premier niveau, et ainsi de suite. <kbd>Ctrl</kbd>+<kbd>E</kbd> étend l'entité sélectionnée.
+
+Une extension en cours affiche sa progression, avec un bouton **Annuler**. Elle n'ajoute jamais plus de 500 nouvelles entités.
+
+Les entités trouvées mais pas encore étendues rejoignent les « Pistes non étendues » de la colonne « À examiner », à gauche, chacune avec son bouton **Étendre**. La même colonne rassemble les signaux d'alerte et les homonymes à vérifier.
+
+Dans l'enquête d'exemple, étendez les deux plomberies. Lacis signale un schéma phénix et propose de rapprocher Jean DUPONT et Jean Pierre DUPONT : choisissez **Même personne**.
+
+## Lire la fiche
+
+La fiche d'une entreprise rassemble ce que Lacis sait d'elle :
+
+- son type, son état, son SIREN, ses dates de création et de fermeture et son code NAF, puis la date de sa dernière extension ;
+- **Annuaire**, qui ouvre sa page dans l'Annuaire des entreprises, et **Copier le SIREN** ;
+- ses **signaux d'alerte**, chacun avec sa gravité, son score et une explication chiffrée ;
+- ses **annonces BODACC**, avec leur date, leur nature, le greffe, un lien vers bodacc.fr et la **réponse brute** dont chacune provient ;
+- ses **liens** avec les autres entités, et la [**provenance**](/lacis/guide/preuves/) de chaque fait, avec l'empreinte SHA-256 de la réponse.
+
+<ThemedScreenshot
+    light={mainWindowLight}
+    dark={mainWindowDark}
+    alt="L'enquête faux-plombiers-31 après extension : la file « À examiner » avec le signal de schéma phénix, le graphe des deux plomberies, de leurs dirigeants et de leur adresse, et la fiche de DUPONT SERVICES avec son signal et ses annonces BODACC."
+    caption="L'enquête d'exemple après l'extension des deux plomberies."
+/>
+
+Les onglets **Entités** et **Journal** du même panneau donnent la liste des entités de l'enquête et le journal de chaque requête de collecte. L'onglet **Signaux** n'est pas encore rempli dans cette version : les [signaux d'alerte](/lacis/guide/signaux/) se lisent dans la colonne « À examiner », le graphe et les fiches. <kbd>Ctrl</kbd>+<kbd>Page suivante</kbd> et <kbd>Ctrl</kbd>+<kbd>Page précédente</kbd> passent d'un onglet à l'autre.

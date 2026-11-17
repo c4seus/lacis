@@ -1,0 +1,74 @@
+---
+title: Vérifier les homonymes
+description: "Comprendre pourquoi Lacis rapproche deux personnes, décider si elles sont la même, et annuler ou rétablir une décision."
+---
+
+import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
+import homonymReviewDark from "../../../assets/screenshots/homonym-review-dark.webp";
+import homonymReviewLight from "../../../assets/screenshots/homonym-review-light.webp";
+
+Le registre national ne donne pas d'identifiant aux dirigeants : pour chaque entreprise, il donne leur nom, leurs prénoms et leur mois de naissance, quand il le connaît. Lacis ne devine donc pas qui est qui : une personne apparaît dans le graphe une fois pour chaque entreprise qu'elle dirige. Deux « Jean DUPONT » nés le même mois, l'un président de DUPONT SERVICES et l'autre de HOLDING DUPONT, restent deux personnes tant que vous n'avez pas décidé qu'elles n'en font qu'une. De même, « Jean DUPONT » et « Jean Pierre DUPONT » peuvent être la même personne. Lacis repère ces homonymes, mais c'est vous qui décidez.
+
+## Quand Lacis rapproche deux personnes
+
+Lacis propose de rapprocher deux personnes du graphe quand :
+
+- elles ont le même nom de famille ;
+- leurs mois de naissance sont identiques, ou l'un des deux est inconnu ;
+- leurs prénoms sont identiques, ou les uns commencent les autres, comme « Jean » et « Jean Pierre », ou l'un des deux est inconnu.
+
+Chaque proposition rejoint les « Homonymes à vérifier » de la colonne « À examiner », avec les raisons qui la fondent. Les premières disent ce que l'on sait de l'identité : « Même nom de famille », « Mêmes prénoms » ou « Prénom composé », « Même mois de naissance », ou ce qui manque d'un côté. Les suivantes sont des indices tirés du graphe :
+
+- « Dirigeants tous deux de » une même entreprise ;
+- une entreprise dirigée par l'une qui « dirige » une entreprise dirigée par l'autre ;
+- des « Entreprises domiciliées à la même adresse ».
+
+## Lire le degré de confiance
+
+Chaque proposition porte un degré de confiance :
+
+- **Certain** : les prénoms et le mois de naissance concordent, et au moins deux indices du graphe la confirment ;
+- **Probable** : l'identité concorde avec moins de deux indices, ou elle est incomplète mais au moins deux indices la confirment ;
+- **Faible** : l'identité est incomplète et les indices manquent.
+
+Les propositions certaines viennent en tête. Même certaine, une proposition reste une proposition : Lacis ne relie jamais deux personnes sans votre décision, même quand elles ont exactement le même nom, les mêmes prénoms et le même mois de naissance.
+
+<ThemedScreenshot
+    light={homonymReviewLight}
+    dark={homonymReviewDark}
+    alt="La colonne À examiner de l'enquête d'exemple : un homonyme à vérifier, Jean DUPONT (1980-05) et Jean Pierre DUPONT (1980-05), jugé probable. Ses raisons : même nom de famille, prénom composé Jean / Jean Pierre, même mois de naissance (05/1980), entreprises domiciliées à la même adresse, le 12 rue des Lilas. En dessous, les boutons Même personne et Personne différente."
+    caption="Un homonyme probable, avec ses raisons et les deux décisions possibles."
+/>
+
+## Décider
+
+Avant de décider, sélectionnez chacune des deux personnes pour lire sa fiche et ses mandats. Puis choisissez :
+
+- **Même personne** : les deux personnes sont reliées par un lien « même personne » dans le graphe, et comptent pour une seule dans les [signaux d'alerte](/lacis/guide/signaux/). Le compteur « homonyme confirmé » de l'enquête augmente ;
+- **Personne différente** : la proposition disparaît et ne revient plus.
+
+Dans les deux cas, la décision est enregistrée dans l'enquête, avec sa date, et une notification la confirme.
+
+Une décision vaut pour tout un groupe. Une fois deux « Jean DUPONT » reconnus comme la même personne, les indices du graphe comptent les entreprises de l'un et de l'autre, et Lacis ne vous propose plus qu'une fois chaque rapprochement avec ce groupe. Une décision « Personne différente » écarte de même tous les membres du groupe.
+
+Dans l'enquête d'exemple, confirmer que Jean DUPONT et Jean Pierre DUPONT sont la même personne fait apparaître un schéma phénix : la même personne dirige la plomberie liquidée et celle qui lui succède.
+
+## Annuler ou rétablir une décision
+
+Une décision se défait : **Édition › Annuler la décision d'homonyme**, ou <kbd>Ctrl</kbd>+<kbd>Z</kbd>, remet la proposition dans la liste. **Édition › Rétablir**, ou <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>Z</kbd>, la rejoue. Les décisions s'annulent dans l'ordre inverse où vous les avez prises.
+
+Cet historique dure tant que l'enquête reste ouverte. Pour défaire une décision plus ancienne, prise avant de fermer l'enquête, passez par la fiche d'une des deux personnes.
+
+## Retirer une décision depuis la fiche
+
+La fiche d'une personne liste, dans sa section « Décisions d'homonymie », les décisions qui la concernent, de la plus récente à la plus ancienne : « Même personne que Jean Pierre DUPONT » ou « Personne différente de Marie DUPONT », avec la date de la décision. Le bouton **Retirer** de chaque ligne défait la décision, quelle que soit sa date.
+
+Le retrait remet la proposition parmi les « Homonymes à vérifier » de la colonne « À examiner », retire le lien « même personne » du graphe, et Lacis recalcule les signaux d'alerte. Une notification le confirme, et <kbd>Ctrl</kbd>+<kbd>Z</kbd> rétablit la décision tant que l'enquête reste ouverte.
+
+Au clavier, la touche <kbd>Tab</kbd> mène au bouton **Retirer**, que <kbd>Espace</kbd> active. Un lecteur d'écran l'annonce avec la décision qu'il retire et sa date.
+
+## Enquêtes créées avec Lacis 0.1.0
+
+Lacis 0.1.0 confondait en une seule personne les dirigeants de même nom, mêmes prénoms et même mois de naissance, ou de même nom quand le mois manquait. À son ouverture, une enquête créée avec cette version sépare chacune de ses personnes en une personne par entreprise dirigée.
+
+Vos décisions « Personne différente » restent valables pour chacune des nouvelles personnes. Une décision « Même personne » reste valable si chacune des deux personnes ne dirigeait qu'une entreprise. Sinon, Lacis ne peut pas savoir à laquelle de ses entreprises elle se rapportait : il ne la devine pas, l'abandonne, et les homonymes reviennent dans la liste pour que vous décidiez à nouveau.

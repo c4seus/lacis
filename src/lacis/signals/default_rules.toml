@@ -53,6 +53,7 @@ window_days = 90
 by_activity_and_department = true
 activity_minimum_companies = 5
 activity_window_days = 30
+excluded_legal_forms = []
 include_probable = false
 excluded_roles = [
     "Commissaire aux comptes",

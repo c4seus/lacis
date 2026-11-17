@@ -15,3 +15,5 @@ dist/
 *.onefile-build/
 /debian/
 .pybuild/
+site/node_modules/
+site/.astro/

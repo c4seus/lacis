@@ -23,8 +23,8 @@ from lacis.storage.homonym_decisions import (
 from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 
 DECIDED_AT = datetime(2026, 11, 6, 15, 0, tzinfo=UTC)
-JEAN = person_identifier("DUPONT", "Jean", "1980-05")
-JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05")
+JEAN = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
+JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111")
 
 
 @pytest.fixture

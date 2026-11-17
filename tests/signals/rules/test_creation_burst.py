@@ -17,6 +17,7 @@ from lacis.signals.rules.creation_burst import (
     department_of,
 )
 from lacis.signals.signal import Finding, Severity
+from lacis.storage.entities import CollectedEntity, EntityKind
 
 RULE = CreationBurstRule()
 PLUMBING = "43.22A"
@@ -70,6 +71,7 @@ def test_the_rule_ships_with_its_default_thresholds(settings: RuleSettings) -> N
     assert settings.switch("by_activity_and_department")
     assert settings.whole_number("activity_minimum_companies") == 5
     assert settings.whole_number("activity_window_days") == 30
+    assert settings.texts("excluded_legal_forms") == ()
 
 
 def test_a_director_creating_companies_in_a_burst_is_flagged(
@@ -81,7 +83,7 @@ def test_a_director_creating_companies_in_a_burst_is_flagged(
     [finding] = findings(builder, without_activity)
     assert finding.subject == director
     assert finding.justifying_entities == tuple(companies)
-    assert finding.severity is Severity.MEDIUM
+    assert finding.severity is None
     assert finding.explanation == (
         "3 entreprises créées en 65 jours, du 10/01/2025 au 15/03/2025, sous la direction de "
         "Paul MARTIN : SOCIETE A, SOCIETE B, SOCIETE C."
@@ -116,13 +118,34 @@ def test_creations_on_the_same_day_say_so(
     )
 
 
-def test_twice_the_minimum_is_more_severe(
-    builder: InvestigationBuilder, without_activity: RuleSettings
+@pytest.mark.parametrize(
+    ("configured", "raised"),
+    [
+        (Severity.LOW, Severity.MEDIUM),
+        (Severity.MEDIUM, Severity.HIGH),
+        (Severity.HIGH, Severity.HIGH),
+    ],
+)
+def test_twice_the_minimum_raises_the_configured_severity(
+    builder: InvestigationBuilder,
+    without_activity: RuleSettings,
+    configured: Severity,
+    raised: Severity,
 ) -> None:
     director = builder.person("Paul", "MARTIN")
     directed_by(builder, director, created(builder, BURST_DATES * 2))
+    [finding] = findings(builder, replace(without_activity, severity=configured))
+    assert finding.severity is raised
+
+
+def test_a_burst_at_one_address_keeps_the_configured_severity(
+    builder: InvestigationBuilder, without_activity: RuleSettings
+) -> None:
+    address = builder.address("5 rue de la Gare 31000 Toulouse", postcode="31000")
+    for company in created(builder, BURST_DATES):
+        builder.registered_office(company, address)
     [finding] = findings(builder, without_activity)
-    assert finding.severity is Severity.HIGH
+    assert finding.severity is None
 
 
 def test_a_company_directing_new_companies_is_flagged(
@@ -234,4 +257,66 @@ def test_the_engine_gives_the_signal_with_its_title(builder: InvestigationBuilde
     directed_by(builder, director, created(builder, BURST_DATES))
     [signal] = SignalEngine.configured().signals(builder.context())
     assert signal.title == "Rafale de créations"
-    assert signal.severity is Severity.MEDIUM
+    assert signal.severity is Severity.LOW
+
+
+def test_a_holding_creating_three_companies_on_one_day_gives_a_low_signal(
+    builder: InvestigationBuilder,
+) -> None:
+    holding = builder.company("HOLDING MARTIN", date(2015, 1, 1))
+    directed_by(builder, holding, created(builder, (date(2025, 5, 2),) * 3, prefix="SCI"))
+    [signal] = SignalEngine.configured().signals(builder.context())
+    assert (signal.subject, signal.severity) == (holding, Severity.LOW)
+
+
+def test_a_holding_creating_six_companies_in_a_burst_gives_a_medium_signal(
+    builder: InvestigationBuilder,
+) -> None:
+    holding = builder.company("HOLDING MARTIN", date(2015, 1, 1))
+    directed_by(builder, holding, created(builder, (date(2025, 5, 2),) * 6, prefix="SCI"))
+    [signal] = SignalEngine.configured().signals(builder.context())
+    assert (signal.subject, signal.severity) == (holding, Severity.MEDIUM)
+
+
+def with_legal_form(builder: InvestigationBuilder, companies: list[str], code: str) -> None:
+    for company in companies:
+        entity = builder.graph_store.require_entity(company)
+        builder.graph_store.save_entity(
+            CollectedEntity(company, entity.label, {"legal_form": code}), builder.response
+        )
+
+
+def sci_burst(builder: InvestigationBuilder) -> str:
+    holding = builder.company("HOLDING MARTIN", date(2015, 1, 1))
+    companies = created(builder, (date(2025, 5, 2),) * 3, prefix="SCI")
+    with_legal_form(builder, companies, "6540")
+    directed_by(builder, holding, companies)
+    return holding
+
+
+def test_companies_of_every_legal_form_count_by_default(
+    builder: InvestigationBuilder, without_activity: RuleSettings
+) -> None:
+    holding = sci_burst(builder)
+    assert [finding.subject for finding in findings(builder, without_activity)] == [holding]
+
+
+def test_legal_forms_can_be_left_out_of_every_burst(
+    builder: InvestigationBuilder, settings: RuleSettings
+) -> None:
+    sci_burst(builder)
+    address = builder.address("5 rue de la Gare 31000 Toulouse", postcode="31000")
+    for entity in builder.context().entities_of(EntityKind.COMPANY):
+        if entity.label.startswith("SCI"):
+            builder.registered_office(entity.identifier, address)
+    activity_companies = created(builder, (date(2025, 3, 1),) * 5, PLUMBING, prefix="PLOMBERIE")
+    with_legal_form(builder, activity_companies, "5710")
+    for position, company in enumerate(activity_companies):
+        builder.registered_office(
+            company, builder.address(f"{position} rue Haute 31000 Ville", postcode="31000")
+        )
+    excluding = replace(
+        settings, thresholds={**settings.thresholds, "excluded_legal_forms": ["6540", "5710"]}
+    )
+    assert len(findings(builder, settings)) == 3
+    assert findings(builder, excluding) == []

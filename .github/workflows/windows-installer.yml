@@ -28,6 +28,10 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+      - name: Exclude the workspace, Python and the temporary folders from Microsoft Defender
+        run: |
+          $folders = $env:GITHUB_WORKSPACE, $env:RUNNER_TEMP, $env:TEMP, $env:pythonLocation
+          Add-MpPreference -ExclusionPath $folders
       - name: Install Lacis and Nuitka
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
@@ -54,7 +58,7 @@ jobs:
           if ($process.ExitCode -ne 0) {
             throw "The installer of Inno Setup failed with exit code $($process.ExitCode)"
           }
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/nuitka-cache
           key: nuitka-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}-${{ github.sha }}
@@ -84,7 +88,7 @@ jobs:
       SHORTCUT: Microsoft\Windows\Start Menu\Programs\Lacis.lnk
       UNINSTALL_KEY: Software\Microsoft\Windows\CurrentVersion\Uninstall\io.github.c4seus.lacis_is1
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: windows-installer
           path: dist

@@ -38,6 +38,7 @@ dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "pytest-qt>=4.4",
+    "pytest-xdist>=3.8",
     "ruff>=0.8",
 ]
 windows-installer = [
@@ -48,7 +49,9 @@ windows-installer = [
 lacis = "lacis.application:main"
 
 [project.urls]
-Homepage = "https://github.com/c4seus/lacis"
+Homepage = "https://c4seus.github.io/lacis/"
+Documentation = "https://c4seus.github.io/lacis/guide/"
+Repository = "https://github.com/c4seus/lacis"
 Issues = "https://github.com/c4seus/lacis/issues"
 
 [tool.hatch.version]
@@ -56,6 +59,9 @@ source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lacis"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/site"]
 
 [tool.ruff]
 line-length = 99

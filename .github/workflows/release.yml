@@ -107,7 +107,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
       - name: Gather one file from each package artifact, under the name GitHub serves it under
@@ -127,3 +127,13 @@ jobs:
           fi
           gh release create "$GITHUB_REF_NAME" release/* \
             --repo "$GITHUB_REPOSITORY" "${options[@]}"
+
+  website:
+    name: Website
+    needs: publish
+    if: ${{ !contains(github.ref_name, 'rc') }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/website.yml

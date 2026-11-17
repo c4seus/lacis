@@ -34,7 +34,7 @@ from lacis.storage.entities import (
 ACME = company_identifier("111111111")
 ACME_HEAD_OFFICE = establishment_identifier("11111111100015")
 SHARED_ADDRESS = address_identifier("12 RUE DES LILAS 31000 TOULOUSE")
-JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05")
+JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111")
 HOLDING = company_identifier("333333333")
 INVEST = foreign_company_identifier("DUPONT INVEST LTD", "")
 ALBI_ADDRESS = FictionalAddress(

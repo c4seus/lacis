@@ -1,11 +1,20 @@
 import sqlite3
+from collections.abc import Iterator
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
+import httpx
 import pytest
 
+from fake_time import FakeTime
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import COLLECTED_AT, COURT, InvestigationBuilder
+from lacis.collectors.bodacc import Bodacc
+from lacis.collectors.company_register import CompanyRegister
+from lacis.collectors.fake_api import FakeApi
+from lacis.collectors.fake_plumbers import FAKE_PLUMBERS_SCENARIO
+from lacis.collectors.http_client import CollectorHttpClient, CollectorTiming
+from lacis.collectors.rate_limiting import RateLimiters
 from lacis.details import (
     Badge,
     BadgeTone,
@@ -17,10 +26,18 @@ from lacis.details import (
     written_day,
     written_month,
 )
+from lacis.graph.expansion import GraphExpander
 from lacis.signals.signal import Severity
-from lacis.storage.entities import CollectedEntity, EntityKind
+from lacis.storage.collection_log import CollectionLog
+from lacis.storage.entities import (
+    CollectedEntity,
+    EntityKind,
+    company_identifier,
+    mandate_link,
+)
 from lacis.storage.errors import TamperedResponseError
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
 from lacis.storage.notices import NoticeFamily, NoticeRole
 from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 
@@ -86,6 +103,58 @@ def test_an_active_company_known_only_as_director_says_so(
 
 def test_a_company_shows_its_activity(builder: InvestigationBuilder) -> None:
     company = builder.company("ACME PLOMBERIE", date(2021, 3, 1), "43.22A")
+    assert details_of(builder, company).facts[-1] == "NAF 43.22A"
+
+
+@pytest.mark.parametrize(
+    ("count", "fact"),
+    [(1, "1 dirigeant non diffusible"), (2, "2 dirigeants non diffusibles")],
+)
+def test_a_company_shows_the_number_of_its_withheld_directors(
+    builder: InvestigationBuilder, count: int, fact: str
+) -> None:
+    company = builder.company("ACME PLOMBERIE", date(2021, 3, 1), "43.22A")
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "ACME PLOMBERIE", {"hidden_director_count": count}),
+        builder.response,
+    )
+    assert details_of(builder, company).facts[-2:] == ("NAF 43.22A", fact)
+
+
+@pytest.mark.parametrize("count", [0, None])
+def test_a_company_without_withheld_directors_says_nothing_about_them(
+    builder: InvestigationBuilder, count: int | None
+) -> None:
+    company = builder.company("ACME PLOMBERIE", date(2021, 3, 1), "43.22A")
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "ACME PLOMBERIE", {"hidden_director_count": count}),
+        builder.response,
+    )
+    assert details_of(builder, company).facts[-1] == "NAF 43.22A"
+
+
+def collect_withheld_directors(
+    builder: InvestigationBuilder, company: str, count: int, collected_at: datetime
+) -> None:
+    response = ResponseStore(builder.connection).save(
+        CollectedResponse(
+            ResponseSource.COMPANY_REGISTER, "https://register.example", b"{}", collected_at, {}
+        )
+    )
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "ACME PLOMBERIE", {"hidden_director_count": count}), response
+    )
+
+
+def test_the_number_of_withheld_directors_follows_the_latest_collection(
+    builder: InvestigationBuilder,
+) -> None:
+    company = builder.company("ACME PLOMBERIE", date(2021, 3, 1), "43.22A")
+    collect_withheld_directors(builder, company, 1, COLLECTED_AT)
+    assert details_of(builder, company).facts[-1] == "1 dirigeant non diffusible"
+    collect_withheld_directors(builder, company, 0, COLLECTED_AT + timedelta(days=30))
+    assert details_of(builder, company).facts[-1] == "NAF 43.22A"
+    collect_withheld_directors(builder, company, 2, COLLECTED_AT - timedelta(days=30))
     assert details_of(builder, company).facts[-1] == "NAF 43.22A"
 
 
@@ -160,6 +229,155 @@ def test_a_foreign_company_shows_its_country_without_directory(
     assert details.facts == ("Pays Royaume-Uni",)
     assert details.directory_url == ""
     assert not details.expandable
+
+
+@pytest.fixture
+def demo_expander(builder: InvestigationBuilder) -> Iterator[GraphExpander]:
+    fake_time = FakeTime()
+    client = CollectorHttpClient(
+        ResponseStore(builder.connection),
+        CollectionLog(builder.connection),
+        httpx.MockTransport(FakeApi(FAKE_PLUMBERS_SCENARIO)),
+        CollectorTiming(
+            rate_limiters=RateLimiters(clock=fake_time.clock, sleep=fake_time.sleep),
+            monotonic=fake_time.clock,
+        ),
+    )
+    yield GraphExpander(builder.connection, CompanyRegister(client), Bodacc(client))
+    client.close()
+
+
+def test_a_company_under_foreign_law_shows_it_with_its_country(
+    builder: InvestigationBuilder, demo_expander: GraphExpander
+) -> None:
+    demo_expander.expand_company("121212121")
+    details = details_of(builder, company_identifier("121212121"))
+    assert Badge("Droit étranger", BadgeTone.OUTLINE) in details.badges
+    assert "Pays Royaume-Uni (adresse du siège)" in details.facts
+
+
+def test_a_french_company_shows_neither_foreign_law_nor_a_country(
+    builder: InvestigationBuilder, demo_expander: GraphExpander
+) -> None:
+    demo_expander.expand_company("111111111")
+    details = details_of(builder, company_identifier("111111111"))
+    assert Badge("Droit étranger", BadgeTone.OUTLINE) not in details.badges
+    assert not [fact for fact in details.facts if fact.startswith("Pays")]
+
+
+def test_the_country_found_in_the_legal_form_names_it(builder: InvestigationBuilder) -> None:
+    company = builder.company("THAMES TRADING LIMITED")
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(
+            company,
+            "THAMES TRADING LIMITED",
+            {
+                "is_under_foreign_law": True,
+                "country": "Royaume-Uni",
+                "country_source": "Forme juridique LIMITED",
+            },
+        ),
+        builder.response,
+    )
+    assert details_of(builder, company).facts[-1] == "Pays Royaume-Uni (forme juridique LIMITED)"
+
+
+def test_a_country_without_its_source_is_shown_alone(builder: InvestigationBuilder) -> None:
+    company = builder.company("THAMES TRADING LIMITED")
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(company, "THAMES TRADING LIMITED", {"country": "Royaume-Uni"}),
+        builder.response,
+    )
+    assert details_of(builder, company).facts[-1] == "Pays Royaume-Uni"
+
+
+def test_a_person_lists_the_homonym_decisions_that_concern_them(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    [line] = details_of(builder, scenario.jean).decisions
+    assert line.text == "Même personne que"
+    assert (line.person.identifier, line.other.identifier) == (scenario.jean, scenario.jean_pierre)
+    assert (line.person.label, line.other.label) == ("Jean DUPONT", "Jean Pierre DUPONT")
+    assert line.written_date.startswith("le ")
+    assert (
+        line.spoken == f"même personne que Jean Pierre DUPONT, décision prise {line.written_date}"
+    )
+
+
+def test_the_latest_decisions_come_first(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    marie = builder.person("Marie", "DUPONT")
+    later = HomonymDecisionStore(builder.connection, now=lambda: datetime(2099, 1, 1, tzinfo=UTC))
+    later.record(marie, scenario.jean_pierre, HomonymDecision.DIFFERENT_PERSON)
+    lines = details_of(builder, scenario.jean_pierre).decisions
+    assert [(line.text, line.other.label) for line in lines] == [
+        ("Personne différente de", "Marie DUPONT"),
+        ("Même personne que", "Jean DUPONT"),
+    ]
+    assert details_of(builder, scenario.acme).decisions == ()
+
+
+def test_a_link_shows_the_response_it_comes_from(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    [line] = [
+        line for line in details_of(builder, scenario.acme).links if line.role == "Président"
+    ]
+    [source] = line.sources
+    assert source.source_name == "Recherche d'entreprises"
+    assert line.provenance == "1 réponse"
+    assert line.decided_on == ""
+
+
+def test_a_link_collected_twice_shows_both_responses_newest_first(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    later = ResponseStore(builder.connection).save(
+        CollectedResponse(
+            ResponseSource.COMPANY_REGISTER,
+            "https://recherche-entreprises.api.gouv.fr/search?q=acme",
+            b"{}",
+            COLLECTED_AT + timedelta(days=1),
+        )
+    )
+    GraphStore(builder.connection).save_link(
+        mandate_link(scenario.jean_pierre, scenario.acme, "Président"), later
+    )
+    [line] = [
+        line for line in details_of(builder, scenario.acme).links if line.role == "Président"
+    ]
+    assert [source.response_identifier for source in line.sources] == [
+        later.identifier,
+        builder.response.identifier,
+    ]
+    assert line.provenance == "2 réponses"
+
+
+def test_a_same_person_link_shows_the_decision_and_its_date(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    [line] = [
+        line for line in details_of(builder, scenario.jean).links if line.role == "Même personne"
+    ]
+    assert line.sources == ()
+    assert line.decided_on.startswith("Décision de l'enquêteur, le ")
+    assert line.provenance == "Décision de l'enquêteur"
+
+
+def test_every_link_of_the_demo_investigation_shows_its_provenance(
+    builder: InvestigationBuilder, demo_expander: GraphExpander
+) -> None:
+    for siren in ("111111111", "222222222", "121212121"):
+        demo_expander.expand_company(siren)
+    graph_store = GraphStore(builder.connection)
+    lines = [
+        line
+        for entity in graph_store.entities()
+        for line in details_of(builder, entity.identifier).links
+    ]
+    assert lines
+    assert all(line.sources or line.decided_on for line in lines)
 
 
 def test_a_company_without_siren_copies_its_name(builder: InvestigationBuilder) -> None:

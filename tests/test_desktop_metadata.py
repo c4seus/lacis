@@ -1,4 +1,5 @@
 import configparser
+import re
 import tomllib
 from pathlib import Path
 from xml.etree import ElementTree
@@ -13,6 +14,11 @@ LINUX_DIRECTORY = REPOSITORY / "packaging" / "linux"
 DESKTOP_ENTRY = LINUX_DIRECTORY / f"{APPLICATION_ID}.desktop"
 METAINFO = LINUX_DIRECTORY / f"{APPLICATION_ID}.metainfo.xml"
 SCREENSHOT_PREFIX = "https://raw.githubusercontent.com/c4seus/lacis/main/"
+PACKAGE_HOMEPAGES = {
+    "debian/control": re.compile(r"^Homepage: (\S+)$", re.MULTILINE),
+    "arch/PKGBUILD.in": re.compile(r"^url='([^']+)'$", re.MULTILINE),
+    "fedora/lacis.spec.in": re.compile(r"^URL:\s+(\S+)$", re.MULTILINE),
+}
 
 
 def desktop_entry() -> configparser.SectionProxy:
@@ -48,6 +54,34 @@ def test_the_metainfo_describes_the_same_application() -> None:
     assert component.findtext("provides/binary") == desktop_entry()["Exec"]
 
 
+def project_urls() -> dict[str, str]:
+    urls = project()["urls"]
+    assert isinstance(urls, dict)
+    return urls
+
+
+def test_the_metainfo_links_the_website_the_guide_and_the_repository() -> None:
+    urls = project_urls()
+    links = {
+        url.attrib["type"]: url.text
+        for url in ElementTree.parse(METAINFO).getroot().findall("url")
+    }
+    assert links == {
+        "homepage": urls["Homepage"],
+        "help": urls["Documentation"],
+        "bugtracker": urls["Issues"],
+        "vcs-browser": urls["Repository"],
+    }
+
+
+def test_every_package_points_to_the_website() -> None:
+    for path, homepage in PACKAGE_HOMEPAGES.items():
+        text = (REPOSITORY / "packaging" / path).read_text(encoding="utf-8")
+        found = homepage.search(text)
+        assert found is not None
+        assert found[1] == project_urls()["Homepage"]
+
+
 def test_the_screenshots_are_in_the_repository_at_their_declared_size() -> None:
     images = ElementTree.parse(METAINFO).getroot().findall("screenshots/screenshot/image")
     assert len(images) == 2
@@ -58,6 +92,12 @@ def test_the_screenshots_are_in_the_repository_at_their_declared_size() -> None:
         assert screenshot.size() == QSize(int(image.attrib["width"]), int(image.attrib["height"]))
 
 
-def test_the_first_release_is_listed() -> None:
+def test_every_release_is_listed_newest_first() -> None:
     releases = ElementTree.parse(METAINFO).getroot().findall("releases/release")
-    assert [release.attrib["version"] for release in releases] == ["0.1.0"]
+    versions = [
+        tuple(int(part) for part in release.attrib["version"].split(".")) for release in releases
+    ]
+    dates = [release.attrib["date"] for release in releases]
+    assert versions[-1] == (0, 1, 0)
+    assert versions == sorted(versions, reverse=True)
+    assert dates == sorted(dates, reverse=True)

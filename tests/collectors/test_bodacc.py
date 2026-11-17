@@ -14,6 +14,7 @@ from lacis.collectors.bodacc import (
     family_of,
     notice_from,
 )
+from lacis.collectors.bodacc_records import notice_record_in
 from lacis.collectors.company_register import InvalidQueryError
 from lacis.collectors.fake_api import FakeApi
 from lacis.collectors.fake_plumbers import (
@@ -79,9 +80,34 @@ EVERY_FAMILY_NOTICES = tuple(
     )
     for index, (code, (label, _)) in enumerate(EVERY_FAMILY.items())
 )
+MOVING_COMPANY = FictionalCompany(
+    siren="989898989",
+    name="SIEGE NOMADE",
+    establishments=(FictionalEstablishment("00012", SHARED_ADDRESS, "2018-04-02"),),
+    directors=(),
+    creation_date="2018-04-02",
+)
+NEW_ADDRESSES = {
+    "B202500500001": "au 12 rue d'Italie, 13100 Aix-en-Provence",
+    "B202500500002": "au 4 avenue de Belgique, 31000 Toulouse",
+    "B202500500003": "en Belgique, 10 avenue Louise, 1050 Ixelles, à compter du 1er juin 2025",
+    "B202500500004": "au 8 allée des Tilleuls, 31000 Toulouse",
+}
+MOVING_NOTICES = tuple(
+    FictionalNotice(
+        identifier,
+        MOVING_COMPANY,
+        "modification",
+        "Modifications diverses",
+        f"2025-0{index + 2}-10",
+        COURT,
+        {"modificationsgenerales": {"descriptif": f"Transfert du siège social {new_address}."}},
+    )
+    for index, (identifier, new_address) in enumerate(NEW_ADDRESSES.items())
+)
 SCENARIO = FictionalScenario(
-    (*FAKE_PLUMBERS_SCENARIO.companies, EVERY_FAMILY_COMPANY),
-    (*FAKE_PLUMBERS_NOTICES, *EVERY_FAMILY_NOTICES),
+    (*FAKE_PLUMBERS_SCENARIO.companies, EVERY_FAMILY_COMPANY, MOVING_COMPANY),
+    (*FAKE_PLUMBERS_NOTICES, *EVERY_FAMILY_NOTICES, *MOVING_NOTICES),
 )
 
 
@@ -486,6 +512,16 @@ def test_notices_without_transfer_abroad_have_none(bodacc: Bodacc) -> None:
         assert all(notice.office_transfer is None for notice in bodacc.notices_of(siren).notices)
 
 
+def test_only_the_move_to_another_country_is_a_transfer_abroad(bodacc: Bodacc) -> None:
+    notices = bodacc.notices_of("989898989").notices
+    assert {notice.identifier: notice.office_transfer for notice in notices} == {
+        "B202500500001": None,
+        "B202500500002": None,
+        "B202500500003": OfficeTransfer("Belgique", date(2025, 6, 1), effective_date_stated=True),
+        "B202500500004": None,
+    }
+
+
 def transfer_of(field_name: str = "modificationsgenerales", **detail: object) -> object:
     return notice_from(
         raw_notice("modification", **{field_name: detail}), RESPONSE
@@ -527,6 +563,18 @@ def transfer_of(field_name: str = "modificationsgenerales", **detail: object) ->
             {"descriptif": "Transfert du siège le 2 brumaire 2025 hors de France."},
             OfficeTransfer(None, date(2025, 3, 4), effective_date_stated=False),
         ),
+        (
+            {"descriptif": "Transfert du siège social au 10 avenue Louise, Bruxelles, Belgique."},
+            OfficeTransfer("Belgique", date(2025, 3, 4), effective_date_stated=False),
+        ),
+        (
+            {"descriptif": "TRANSFERT DU SIÈGE SOCIAL AUX PAYS-BAS."},
+            OfficeTransfer("Pays-Bas", date(2025, 3, 4), effective_date_stated=False),
+        ),
+        (
+            {"descriptif": "Transfert du siège social à Monaco, 2 boulevard des Moulins."},
+            OfficeTransfer("Monaco", date(2025, 3, 4), effective_date_stated=False),
+        ),
     ],
 )
 def test_a_transfer_abroad_is_recognised_in_its_forms(
@@ -549,6 +597,19 @@ def test_a_removal_after_a_transfer_abroad_is_recognised() -> None:
     [
         {"descriptif": "Transfert du siège social au 5 avenue du Port 13002 Marseille."},
         {"descriptif": "Transfert du siège social.", "pays": "France"},
+        {
+            "descriptif": "Transfert du siège social au 12 rue d'Italie, 13100 Aix-en-Provence.",
+            "pays": "FRANCE",
+        },
+        {"descriptif": "Transfert du siège social hors de France.", "pays": "France"},
+        {"descriptif": "Transfert du siège social au 12 rue d'Italie, 13100 Aix-en-Provence."},
+        {"descriptif": "Transfert du siège social au 4 avenue de Belgique, 31000 Toulouse."},
+        {"descriptif": "Transfert du siège social au 3 place du Luxembourg, 31000 Toulouse."},
+        {"descriptif": "Transfert du siège social au 2 rue Suisse (bâtiment Italie), Toulouse."},
+        {"descriptif": "Transfert du siège social au 5 rue Ozenne, 31000 Toulouse, France."},
+        {"descriptif": "Gérant domicilié en Belgique. Transfert du siège social à Toulouse."},
+        {"descriptif": "Transfert du siège social à Albi. Le gérant réside à l'étranger."},
+        {"descriptif": "Transfert d'un établissement en Belgique et du siège social à Albi."},
         {"descriptif": "Nouveau gérant domicilié en Belgique."},
         {"descriptif": "Transfert d'un établissement en Belgique."},
     ],
@@ -559,14 +620,53 @@ def test_a_domestic_transfer_or_another_change_is_not_a_transfer_abroad(
     assert transfer_of(**detail) is None
 
 
-def test_the_country_of_the_persons_counts_for_a_transfer() -> None:
+def transfer_with_persons(descriptif: str, persons: object) -> object:
     record = raw_notice(
         "modification",
-        modificationsgenerales={"descriptif": "Transfert du siège social."},
-        listepersonnes={"personne": {"adresseSiegeSocial": {"pays": "Belgique"}}},
+        modificationsgenerales={"descriptif": descriptif},
+        listepersonnes={"personne": persons},
     )
-    transfer = notice_from(record, RESPONSE).office_transfer
+    return notice_from(record, RESPONSE).office_transfer
+
+
+@pytest.mark.parametrize(
+    "persons",
+    [
+        {"adresseSiegeSocial": {"pays": "Belgique"}},
+        [{"denomination": "SIEGE NOMADE"}, {"adresseSiegeSocial": {"pays": "Belgique"}}],
+    ],
+)
+def test_the_country_of_the_registered_office_of_the_persons_counts_for_a_transfer(
+    persons: object,
+) -> None:
+    transfer = transfer_with_persons("Transfert du siège social.", persons)
     assert transfer == OfficeTransfer("Belgique", date(2025, 3, 4), effective_date_stated=False)
+
+
+@pytest.mark.parametrize(
+    "persons",
+    [
+        {"adresseSiegeSocial": {"ville": "Aix-en-Provence", "pays": "France"}},
+        {
+            "adresseSiegeSocial": {"ville": "Aix-en-Provence", "pays": "France"},
+            "adresseEtablissementPrincipal": {"ville": "Bruxelles", "pays": "Belgique"},
+        },
+    ],
+)
+def test_a_registered_office_stated_in_france_is_not_a_transfer_abroad(
+    persons: dict[str, object],
+) -> None:
+    transfer = transfer_with_persons(
+        "Transfert du siège social au 12 rue d'Italie, 13100 Aix-en-Provence.", persons
+    )
+    assert transfer is None
+
+
+def test_the_country_of_another_address_of_the_persons_does_not_count() -> None:
+    transfer = transfer_with_persons(
+        "Transfert du siège social.", {"adresseEtablissementPrincipal": {"pays": "Belgique"}}
+    )
+    assert transfer is None
 
 
 def test_a_detail_that_is_not_valid_json_is_read_as_plain_text() -> None:
@@ -577,6 +677,25 @@ def test_a_detail_that_is_not_valid_json_is_read_as_plain_text() -> None:
 def test_a_transfer_described_in_a_list_of_texts_is_recognised() -> None:
     transfer = transfer_of(descriptif=["", "Transfert du siège social en Italie."])
     assert transfer == OfficeTransfer("Italie", date(2025, 3, 4), effective_date_stated=False)
+
+
+def test_a_stored_page_gives_back_the_record_of_a_notice() -> None:
+    record = raw_notice("modification")
+    body = notice_page([{"id": "A202500990002"}, record]).decode()
+    assert notice_record_in(body, "A202500990001") == record
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"{texte",
+        b"[]",
+        b'{"results": {"id": "A202500990001"}}',
+        b'{"results": ["A202500990001", {"id": "A202500990002"}]}',
+    ],
+)
+def test_a_page_without_the_record_of_a_notice_gives_none(body: bytes) -> None:
+    assert notice_record_in(body, "A202500990001") is None
 
 
 def test_numbers_that_are_not_sirens_give_no_company() -> None:

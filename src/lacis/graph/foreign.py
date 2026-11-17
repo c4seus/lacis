@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from lacis.collectors.bodacc import COUNTRY_OF_NORMALISED_NAME
+from lacis.collectors.bodacc_records import COUNTRY_OF_NORMALISED_NAME
 from lacis.collectors.company_register import Company
 from lacis.storage.comparison_keys import normalise_text
 

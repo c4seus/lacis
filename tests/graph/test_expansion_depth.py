@@ -33,7 +33,7 @@ ACME = "company:111111111"
 DUPONT_SERVICES = "company:222222222"
 HOLDING = "company:333333333"
 SHARED_ADDRESS = address_identifier("12 RUE DES LILAS 31000 TOULOUSE")
-JEAN_DUPONT = person_identifier("DUPONT", "Jean", "1980-05")
+JEAN_DUPONT = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
 
 
 @pytest.fixture

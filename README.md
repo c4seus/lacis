@@ -10,6 +10,8 @@
 
 Start from one company and Lacis pulls the threads: who runs it, which other companies those people run, who else is registered at the same address, and what the BODACC published about each of them. Explainable rules then flag the patterns that deserve a review, such as mass domiciliation, serial short-lived companies or phoenix schemes. Every fact in the graph links back to the exact response it came from, with its date and its SHA-256 fingerprint.
 
+The [website of Lacis](https://c4seus.github.io/lacis/) presents it and holds its [user guide](https://c4seus.github.io/lacis/guide/), in French, like its interface.
+
 > [!NOTE]
 > **Lacis is in its `0.y` phase.** The interface, the investigation format and the rule configuration can still change between minor versions, as described in the [versioning policy](docs/versioning.md).
 
@@ -39,13 +41,14 @@ Lacis does the pivots and keeps the evidence:
 
 ## Features
 
-Version 0.1.0 brings the capabilities of the former web prototype to the desktop, with the same interface.
+Lacis brings the capabilities of the former web prototype to the desktop, with the same interface.
 
 - **Investigations**, each with its own database and its starting question.
 - **Search** in the national company register by name, SIREN, SIRET, director or address, and adding results to the investigation.
-- **Pivots** from a company to its establishments, addresses and directors; from a person to every company they run; from an address to every company registered there; with a depth from 1 to 3 and a cap on new entities.
+- **Pivots** from a company to its establishments, addresses and directors; from a person to the companies of every director who bears their name; from an address to every company registered there; with a depth from 1 to 3 and a cap on new entities.
 - **BODACC notices** for each company, grouped by family, with the court, the judgment, a link to bodacc.fr and the fingerprint of the response.
-- **Homonym review** with "certain", "probable" and "weak" matches and their reasons, and the investigator's decisions remembered.
+- **Homonym review** with "certain", "probable" and "weak" matches and their reasons. Two people are never merged without a decision of the investigator, and a decision can be withdrawn at any time.
+- **Evidence** for every entity and link: the raw responses it came from, with their SHA-256 fingerprint, and a log of every request.
 - **Foreign entities**: foreign companies that run a French company, and companies under foreign law registered in France.
 - **Warning signals** from configurable rules: mass domiciliation, serial short-lived companies, phoenix scheme, burst of creations, registered office moved abroad.
 - **Main window**: the « À examiner » review queue, the interactive graph, and the details panel with its « Fiche », « Entités » and « Journal » tabs.
@@ -78,7 +81,7 @@ Each [GitHub release](https://github.com/c4seus/lacis/releases) carries a packag
 | Windows 10 (version 1809 or later) and Windows 11, 64-bit | `lacis-X.Y.Z-windows-x64-setup.exe` |
 | Other platforms | `lacis-X.Y.Z.tar.gz`, the source archive |
 
-`X.Y.Z` stands for the version of Lacis, and `NN` for the Fedora release. The reasons behind these formats are in [ADR 0002](docs/adr/0002-packaging.md).
+`X.Y.Z` stands for the version of Lacis, and `NN` for the Fedora release. The reasons behind these formats are in [ADR 0002](docs/adr/0002-packaging.md). The user guide describes the same steps in French, in [Installer Lacis](https://c4seus.github.io/lacis/guide/installation/).
 
 ### Debian and derivatives
 
@@ -127,6 +130,16 @@ pipx installs Lacis and its dependencies, PySide6 included, in an environment of
 
 To run Lacis from a clone of the repository, see the development setup in [CONTRIBUTING.md](CONTRIBUTING.md#development-setup).
 
+### Update
+
+Download the package of the new version and install it with the same command as the first time: apt, dnf and pacman replace the installed version, and the Windows installer replaces the installed Lacis. With pipx, add `--force`:
+
+```bash
+pipx install --force ./lacis-X.Y.Z.tar.gz
+```
+
+Your investigations are kept. `lacis --version` prints the installed version, and so does **Aide › À propos de Lacis**.
+
 ### Verify a download
 
 `SHA256SUMS` lists the SHA-256 fingerprint of every file of the release. Put it in the folder of your download, then compare the fingerprints.
@@ -152,7 +165,7 @@ The check detects a damaged or altered download, as long as `SHA256SUMS` comes f
 
 ## Responsible use
 
-Lacis works on public, legally published company data. It helps investigators, journalists, compliance teams and citizens understand who is behind a company. Signals are leads, not accusations: always check the sources before drawing a conclusion about a company or a person, and respect the rules that apply to personal data in your country.
+Lacis works on public, legally published company data. It helps investigators, journalists, compliance teams and citizens understand who is behind a company. Signals are leads, not accusations: always check the sources before drawing a conclusion about a company or a person, and respect the rules that apply to personal data in your country. The user guide details these rules in [Usage responsable](https://c4seus.github.io/lacis/guide/usage-responsable/), in French.
 
 ## Contributing
 

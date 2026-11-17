@@ -19,3 +19,14 @@ updates:
     groups:
       development-tools:
         patterns: [mypy, pytest*, ruff]
+  - package-ecosystem: npm
+    directory: /site
+    target-branch: develop
+    schedule:
+      interval: weekly
+    labels: [dependencies, documentation]
+    commit-message:
+      prefix: build
+    groups:
+      starlight:
+        patterns: [astro, "@astrojs/*", starlight-*]

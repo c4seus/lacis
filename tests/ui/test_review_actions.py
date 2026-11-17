@@ -31,6 +31,10 @@ from lacis.ui.theme_menu import ThemeMenu
 
 INVESTIGATION_NAME = "faux-plombiers-31"
 WAIT_MILLISECONDS = 10_000
+WITHDRAWAL_TEXT = (
+    "Décision retirée : Jean DUPONT et Jean Pierre DUPONT reviennent parmi les "
+    "homonymes à vérifier. Ctrl+Z pour annuler."
+)
 
 type Notified = list[tuple[str, NotificationKind]]
 
@@ -158,6 +162,52 @@ def test_nothing_is_decided_or_expanded_once_stopped(
     actions.expand("company:111111111", "ACME PLOMBERIE")
     assert decision_of(library, people) is None
     assert actions.expansions == {}
+    actions.stop()
+
+
+def test_a_decision_of_an_earlier_session_can_be_withdrawn_and_restored(
+    qtbot: QtBot,
+    actions: ReviewActions,
+    library: InvestigationLibrary,
+    people: tuple[str, str],
+    notified: Notified,
+) -> None:
+    with library.open(INVESTIGATION_NAME) as opened:
+        HomonymDecisionStore(opened.connection).record(*people, HomonymDecision.SAME_PERSON)
+    with qtbot.waitSignal(actions.changed):
+        actions.withdraw(people, ("Jean DUPONT", "Jean Pierre DUPONT"))
+    assert decision_of(library, people) is None
+    assert notified == [(WITHDRAWAL_TEXT, NotificationKind.SUCCESS)]
+    menu_bar = actions.menu_bar
+    assert menu_bar.undo_action.text() == "&Annuler le retrait de la décision d'homonyme"
+    with qtbot.waitSignal(actions.changed):
+        menu_bar.undo_action.trigger()
+    assert decision_of(library, people) is HomonymDecision.SAME_PERSON
+    menu_bar.redo_action.trigger()
+    assert decision_of(library, people) is None
+
+
+def test_withdrawing_a_decision_that_is_gone_is_reported(
+    actions: ReviewActions,
+    menu_bar: MainMenuBar,
+    people: tuple[str, str],
+    notified: Notified,
+) -> None:
+    actions.withdraw(people, ("Jean", "Jean Pierre"))
+    assert notified == [
+        ("Aucune décision n'a été prise sur ces deux personnes.", NotificationKind.ERROR)
+    ]
+    assert not menu_bar.undo_action.isEnabled()
+
+
+def test_nothing_is_withdrawn_once_stopped(
+    menu_bar: MainMenuBar, people: tuple[str, str], library: InvestigationLibrary
+) -> None:
+    with library.open(INVESTIGATION_NAME) as opened:
+        HomonymDecisionStore(opened.connection).record(*people, HomonymDecision.SAME_PERSON)
+    actions = ReviewActions(menu_bar, lambda message, kind: None)
+    actions.withdraw(people, ("Jean", "Jean Pierre"))
+    assert decision_of(library, people) is HomonymDecision.SAME_PERSON
     actions.stop()
 
 

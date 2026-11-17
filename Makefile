@@ -1,9 +1,16 @@
 PYTHON ?= python
 SYSTEM_PYTHON ?= /usr/bin/python3
 SYSTEM_PATH := $(if $(VIRTUAL_ENV),$(subst $(VIRTUAL_ENV)/bin:,,$(PATH)),$(PATH))
+SITE_DEPENDENCIES := site/node_modules/.package-lock.json
+SITE_NODE := $(shell cat site/.node-version)
+CHECK_SITE_NODE = case "$$(node --version 2> /dev/null)" in \
+		v$(SITE_NODE).*) command -v npm > /dev/null && exit 0 ;; \
+	esac; \
+	echo "The website needs Node.js $(SITE_NODE) and npm, see site/.node-version"; \
+	exit 1
 
-.PHONY: help install lint format types test coverage check icons clean desktop-metadata deb rpm \
-	arch windows
+.PHONY: help install lint format types test coverage check icons screenshots clean \
+	desktop-metadata deb rpm arch windows site site-preview
 .DEFAULT_GOAL := help
 
 help:
@@ -18,7 +25,8 @@ help:
 	@echo "  coverage          Run the tests and report the coverage"
 	@echo "  check             Run lint, types and coverage, like the CI"
 	@echo "  icons             Render the PNG and ICO icons from their SVG masters"
-	@echo "  clean             Remove the build outputs: build, dist, debian and .pybuild"
+	@echo "  screenshots       Take the screenshots of the website and the README in demo mode"
+	@echo "  clean             Remove the build outputs: build, dist, debian, .pybuild and site/dist"
 	@echo
 	@echo "Packaging (packages are written to dist/)"
 	@echo "  desktop-metadata  Validate the desktop entry and the AppStream metadata"
@@ -26,6 +34,10 @@ help:
 	@echo "  rpm               Build the Fedora package, on Fedora or in a Fedora container"
 	@echo "  arch              Build the Arch Linux package, on Arch Linux or in its container"
 	@echo "  windows           Build the Windows installer, on Windows from Git Bash"
+	@echo
+	@echo "Website (needs Node.js and npm)"
+	@echo "  site              Build the website into site/dist and check its internal links"
+	@echo "  site-preview      Serve the website locally, and reload it on every change"
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -43,18 +55,21 @@ types:
 	mypy
 
 test:
-	QT_QPA_PLATFORM=offscreen pytest
+	QT_QPA_PLATFORM=offscreen pytest --numprocesses auto
 
 coverage:
-	QT_QPA_PLATFORM=offscreen pytest --cov --cov-report=term
+	QT_QPA_PLATFORM=offscreen pytest --numprocesses auto --cov --cov-report=term
 
 check: lint types coverage
 
 icons:
 	QT_QPA_PLATFORM=offscreen $(PYTHON) scripts/build_icons.py
 
+screenshots:
+	$(PYTHON) scripts/take_screenshots.py
+
 clean:
-	rm -rf build dist debian .pybuild
+	rm -rf build dist debian .pybuild site/dist site/.astro
 
 desktop-metadata:
 	desktop-file-validate packaging/linux/io.github.c4seus.lacis.desktop
@@ -110,3 +125,15 @@ windows:
 	}
 	$(PYTHON) scripts/build_windows_installer.py \
 		"$$($(PYTHON) -c 'import lacis; print(lacis.__version__, end="")')"
+
+site: $(SITE_DEPENDENCIES)
+	@$(CHECK_SITE_NODE)
+	npm --prefix site run build
+
+site-preview: $(SITE_DEPENDENCIES)
+	@$(CHECK_SITE_NODE)
+	npm --prefix site run dev
+
+$(SITE_DEPENDENCIES): site/package.json site/package-lock.json
+	@$(CHECK_SITE_NODE)
+	npm --prefix site ci

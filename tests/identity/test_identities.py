@@ -24,9 +24,9 @@ ACME = "company:111111111"
 DUPONT_SERVICES = "company:222222222"
 HOLDING = "company:333333333"
 DUPONT_RENOVATION = "company:666666666"
-JEAN = person_identifier("DUPONT", "Jean", "1980-05")
-JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05")
-JEAN_MARC = person_identifier("DUPONT", "Jean Marc", "1980-05")
+JEAN = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
+JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111")
+JEAN_MARC = person_identifier("DUPONT", "Jean Marc", "1980-05", "666666666")
 
 
 @pytest.fixture
@@ -123,7 +123,7 @@ def test_weak_matches_are_never_taken_as_one_person(
     response_store: ResponseStore,
 ) -> None:
     plumbers_expanded.expand_person(JEAN)
-    unknown_birth = person_identifier("DUPONT", "Jean", None)
+    unknown_birth = person_identifier("DUPONT", "Jean", None, "222222222")
     attributes: Attributes = {"last_name": "DUPONT", "first_names": "Jean"}
     graph_store.save_entity(
         CollectedEntity(unknown_birth, "Jean DUPONT", attributes),
@@ -149,6 +149,5 @@ def test_confirmed_people_form_one_group_across_several_decisions(
     assert identities.directed_companies(JEAN_PIERRE) == {
         DUPONT_SERVICES,
         ACME,
-        HOLDING,
         DUPONT_RENOVATION,
     }

@@ -1,7 +1,7 @@
 import sqlite3
 from dataclasses import dataclass
 
-from investigation_builder import COLLECTED_AT, fictional_sirens
+from investigation_builder import COLLECTED_AT, PERSON_SIREN, fictional_sirens
 from lacis.storage.entities import (
     CollectedLink,
     address_identifier,
@@ -55,7 +55,7 @@ def large_investigation(connection: sqlite3.Connection, groups: int) -> LargeInv
     entities: list[tuple[str, ...]] = []
     links: list[CollectedLink] = []
     for group in range(groups):
-        person = person_identifier(f"NOM{group}", "Jean", "1980-05")
+        person = person_identifier(f"NOM{group}", "Jean", "1980-05", PERSON_SIREN)
         address = address_identifier(f"{group} RUE DES LILAS 31000 TOULOUSE")
         entities.append(entity_row(person, "person", f"Jean NOM{group}"))
         entities.append(entity_row(address, "address", f"{group} RUE DES LILAS 31000 TOULOUSE"))

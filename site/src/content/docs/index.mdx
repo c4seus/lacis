@@ -1,0 +1,85 @@
+---
+title: Cartographier les entreprises françaises et leurs dirigeants
+description: Lacis est un logiciel libre d'OSINT pour Linux et Windows. Il relie les entreprises françaises, leurs dirigeants et leurs adresses en un graphe sourcé, à partir des données publiques de l'État.
+template: splash
+hero:
+  title: Lacis
+  tagline: Lacis cartographie les entreprises françaises, leurs dirigeants et leurs adresses en un graphe de liens sourcés, et signale les situations qui méritent un examen.
+  actions:
+    - text: Télécharger Lacis
+      link: https://github.com/c4seus/lacis/releases/latest
+      icon: download
+    - text: Lire le guide
+      link: /lacis/guide/
+      icon: open-book
+      variant: secondary
+---
+
+import { Card, CardGrid, LinkButton } from "@astrojs/starlight/components";
+import SoftwareApplication from "../../components/SoftwareApplication.astro";
+import ThemedScreenshot from "../../components/ThemedScreenshot.astro";
+import darkWindow from "../../assets/screenshots/main-window-dark.webp";
+import lightWindow from "../../assets/screenshots/main-window-light.webp";
+
+<ThemedScreenshot
+    light={lightWindow}
+    dark={darkWindow}
+    alt="La fenêtre d'enquête de Lacis : la file « À examiner » à gauche, le graphe des liens au centre, et à droite la fiche de l'entreprise DUPONT SERVICES avec son signal de schéma phénix et ses annonces BODACC."
+    caption="Une enquête du mode démonstration. Les entreprises et les personnes affichées sont toutes fictives."
+/>
+
+## Tirer les fils
+
+Partez d'une entreprise et Lacis tire les fils : qui la dirige, quelles autres entreprises ces personnes dirigent, qui d'autre est domicilié à la même adresse, et ce que le BODACC a publié sur chacune.
+
+<CardGrid>
+    <Card title="Recherche dans le registre" icon="magnifier">
+        Cherchez une entreprise par dénomination, SIREN, SIRET, dirigeant ou adresse dans le registre national des entreprises, et ajoutez-la à votre enquête.
+    </Card>
+    <Card title="Rebonds dans le graphe" icon="link">
+        D'une entreprise à ses établissements, ses adresses et ses dirigeants, d'une personne à toutes les entreprises qu'elle dirige, d'une adresse à toutes celles qui y sont domiciliées, jusqu'à trois niveaux.
+    </Card>
+    <Card title="Annonces du BODACC" icon="clock">
+        La frise des annonces raconte ce qui est arrivé à chaque entreprise, et quand : créations, modifications, procédures collectives, radiations.
+    </Card>
+    <Card title="Signaux d'alerte" icon="warning">
+        Des règles explicables repèrent la domiciliation de masse, les sociétés éphémères en série, le schéma phénix, les rafales de créations et les transferts de siège à l'étranger. Chaque signal donne sa gravité, son score et une explication chiffrée.
+    </Card>
+    <Card title="Homonymes" icon="question-circle">
+        Deux personnes ne sont jamais fusionnées sur une simple ressemblance. Lacis propose un rapprochement avec son niveau de confiance et ses raisons, et c'est vous qui décidez.
+    </Card>
+    <Card title="Entités étrangères" icon="external">
+        Les sociétés étrangères qui dirigent une entreprise française, et les sociétés de droit étranger immatriculées en France, prennent leur place dans le graphe.
+    </Card>
+</CardGrid>
+
+## La preuve de chaque fait
+
+Chaque réponse des API publiques est conservée telle quelle, avec sa date et son empreinte SHA-256. Chaque entité du graphe renvoie aux réponses qui l'ont produite, et le journal de collecte garde la trace de chaque requête. Vous savez d'où vient chaque information, et vous pouvez le montrer.
+
+## Libre, local et sans compte
+
+<CardGrid>
+    <Card title="Logiciel libre" icon="heart">
+        Lacis est publié sous licence GPL 3.0 ou ultérieure. Son code source est ouvert : vous pouvez l'étudier, le modifier et le partager.
+    </Card>
+    <Card title="Sans compte" icon="approve-check-circle">
+        Ni inscription ni clé d'API. Lacis interroge directement l'API Recherche d'entreprises et le BODACC, des données ouvertes publiées par l'État.
+    </Card>
+    <Card title="Sur votre ordinateur" icon="laptop">
+        Chaque enquête est un fichier SQLite local. Rien ne quitte votre ordinateur, à part les requêtes publiques que vous déclenchez.
+    </Card>
+    <Card title="Linux et Windows" icon="linux">
+        Des paquets pour Debian, Fedora et Arch Linux, et un installateur pour Windows qui ne demande pas de droits d'administrateur.
+    </Card>
+</CardGrid>
+
+## Un usage responsable
+
+Lacis travaille sur des données d'entreprises publiques, publiées légalement. Les noms et les mois de naissance des dirigeants restent pourtant des données personnelles : gardez vos enquêtes locales et proportionnées à leur but. Un signal est une piste, pas une accusation : revenez toujours aux sources avant de conclure sur une entreprise ou une personne.
+
+<LinkButton href="/lacis/guide/usage-responsable/" variant="secondary" icon="right-arrow">
+    Les règles d'un usage responsable
+</LinkButton>
+
+<SoftwareApplication />

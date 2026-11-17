@@ -1,0 +1,122 @@
+---
+title: Comprendre les signaux d'alerte
+description: "Lire les signaux d'alerte de Lacis, comprendre leurs cinq règles, leur gravité et leur score, et régler leurs seuils dans le fichier signals.toml."
+---
+
+import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
+import warningSignalDark from "../../../assets/screenshots/warning-signal-dark.webp";
+import warningSignalLight from "../../../assets/screenshots/warning-signal-light.webp";
+
+Un signal d'alerte attire votre attention sur une configuration du graphe qui mérite un examen : des entreprises qui se succèdent sous le même dirigeant, des dizaines de sièges à la même adresse. Un signal n'est pas une preuve de fraude. C'est une piste, avec son explication chiffrée, à vérifier dans les sources.
+
+## Où lire les signaux
+
+Lacis calcule les signaux à partir de ce que contient l'enquête. Il les recalcule à l'ouverture de l'enquête, après chaque collecte et après chaque décision sur un homonyme. Vous les retrouvez à plusieurs endroits :
+
+- en tête de la colonne « À examiner », regroupés par règle avec leur gravité, chaque entité visée avec son score ;
+- dans le graphe, où un anneau rouge, orange ou jaune entoure l'entité visée selon que le signal est fort, moyen ou faible ;
+- dans la section « Signaux d'alerte » de la fiche, avec l'explication complète et les entités qui le fondent ;
+- dans l'onglet **Entités**, qui trie les entités par score et peut n'afficher que les entités signalées ;
+- dans le compteur de signaux, en haut de l'enquête.
+
+L'onglet **Signaux** du panneau de droite n'est pas encore rempli dans cette version.
+
+<ThemedScreenshot
+    light={warningSignalLight}
+    dark={warningSignalDark}
+    alt="La fiche de DUPONT SERVICES avec son signal d'alerte : un schéma phénix de gravité forte et de score 0,85. DUPONT SERVICES a fermé le 15/01/2023 après une liquidation judiciaire ; ACME PLOMBERIE, même dirigeant et même activité, a été créée deux mois plus tôt, à la même adresse. En dessous, les entités qui fondent le signal : ACME PLOMBERIE, Jean DUPONT et Jean Pierre DUPONT."
+    caption="Un schéma phénix, avec son explication et les entités qui le fondent."
+/>
+
+Choisir une entité citée par un signal la sélectionne dans le graphe et ouvre sa fiche.
+
+## Les cinq règles
+
+| Règle | Ce qu'elle relève |
+| --- | --- |
+| Domiciliation de masse | Une adresse où l'enquête compte au moins 10 sièges d'entreprises, dont une part notable créées récemment ou exerçant la même activité. |
+| Transfert du siège à l'étranger | Une entreprise dont une annonce BODACC annonce le transfert du siège hors de France, plus grave s'il date de moins de 5 ans. |
+| Sociétés éphémères en série | Un dirigeant d'au moins 5 entreprises de l'enquête, dont au moins 3 ont fermé moins de 18 mois après leur création. |
+| Schéma phénix | Une entreprise fermée après une procédure collective, et une entreprise de même activité, sous le même dirigeant, créée dans les 12 mois qui précèdent ou suivent la fermeture. |
+| Rafale de créations | Au moins 3 entreprises créées en 90 jours sous le même dirigeant ou à la même adresse, ou au moins 5 en 30 jours dans la même activité et le même département. |
+
+Les règles qui portent sur les dirigeants comptent les mandats des personnes que vous avez reconnues comme la même. Elles écartent les rôles de contrôle, comme les commissaires aux comptes et les mandataires judiciaires.
+
+Le registre ne relie pas les mandats d'une même personne : chacune de ses entreprises en donne une fiche distincte. Tant que vous ne les avez pas reconnues comme la même personne, sur la page [Vérifier les homonymes](/lacis/guide/homonymes/), ces règles comptent un dirigeant par entreprise.
+
+Le transfert du siège à l'étranger se lit dans le pays du nouveau siège que donne l'annonce, ou à défaut dans sa nouvelle adresse, comme « en Belgique » ou « Bruxelles (Belgique) ». Un nom de rue ou de ville, comme « rue d'Italie », ne suffit pas. Une enquête créée avec une version précédente relit ces annonces à son ouverture.
+
+## Gravité et score
+
+Chaque signal a une **gravité**, faible, moyenne ou forte. Chaque règle part d'une gravité de base, que les circonstances relèvent. Un schéma phénix est moyen si l'entreprise fermée a été liquidée ou si un indice s'ajoute, comme la même adresse ou un nom proche, et fort si les deux se cumulent. Une rafale de créations garde la gravité de base, et monte d'un cran quand elle atteint le double du seuil : 6 créations sous un même dirigeant au lieu de 3, par exemple.
+
+Chaque signal a aussi un **score**, de 0 à 1 : la force du constat, multipliée par le poids de la règle. Il départage les signaux de même gravité, et classe les entités dans l'onglet **Entités**.
+
+## Régler les seuils
+
+Les seuils de chaque règle se règlent dans un fichier `signals.toml`, à créer dans le dossier de configuration de Lacis :
+
+- sous Linux : `~/.config/Lacis/Lacis/signals.toml` ;
+- sous Windows : `%LOCALAPPDATA%\Lacis\Lacis\signals.toml`.
+
+Ce fichier ne contient que ce que vous changez : chaque réglage absent garde sa valeur par défaut. Par exemple, pour ne relever une domiciliation de masse qu'à partir de 20 sièges et désactiver la rafale de créations :
+
+```toml
+[rules.mass_domiciliation]
+minimum_companies = 20
+
+[rules.creation_burst]
+enabled = false
+```
+
+Chaque règle accepte trois réglages communs :
+
+- `enabled` : `true` ou `false`, pour activer ou désactiver la règle ;
+- `severity` : la gravité de base, `"low"`, `"medium"` ou `"high"`. Une circonstance peut la relever, jamais l'abaisser ;
+- `weight` : le poids de la règle dans le score, de 0 à 1.
+
+Les autres réglages sont propres à chaque règle. Voici leurs valeurs par défaut.
+
+### `mass_domiciliation`, domiciliation de masse
+
+- `minimum_companies = 10` : le nombre de sièges à partir duquel une adresse est examinée ;
+- `recent_years = 2` : l'ancienneté, en années, d'une création récente ;
+- `minimum_recent_share = 0.5` : la part minimale de créations récentes ;
+- `minimum_same_activity_share = 0.5` : la part minimale d'entreprises de la même activité.
+
+L'adresse est relevée si l'une des deux parts est atteinte, et le signal est plus grave si les deux le sont.
+
+### `foreign_office_transfer`, transfert du siège à l'étranger
+
+- `recent_years = 5` : l'ancienneté, en années, d'un transfert récent.
+
+### `short_lived_companies`, sociétés éphémères en série
+
+- `minimum_companies = 5` : le nombre d'entreprises dirigées à partir duquel un dirigeant est examiné ;
+- `minimum_short_lived = 3` : le nombre minimal d'entreprises éphémères ;
+- `maximum_lifetime_months = 18` : la durée de vie, en mois, en deçà de laquelle une entreprise est éphémère.
+
+### `phoenix_scheme`, schéma phénix
+
+- `window_months = 12` : l'écart maximal, en mois, entre la fermeture d'une entreprise et la création de celle qui lui succède ;
+- `name_overlap = 0.5` : la part de mots communs à partir de laquelle deux noms sont proches.
+
+### `creation_burst`, rafale de créations
+
+- `minimum_companies = 3` : le nombre de créations qui fait une rafale, sous un même dirigeant ou à une même adresse ;
+- `window_days = 90` : la période, en jours, de cette rafale ;
+- `by_activity_and_department = true` : chercher aussi les rafales dans une même activité et un même département ;
+- `activity_minimum_companies = 5` : le nombre de créations d'une rafale par activité et département ;
+- `activity_window_days = 30` : la période, en jours, de cette rafale ;
+- `excluded_legal_forms = []` : les formes juridiques écartées de toutes les rafales, par leur code de catégorie juridique de l'Insee, comme `["6540"]` pour les sociétés civiles immobilières. Par défaut, aucune.
+
+### Les réglages des règles sur les dirigeants
+
+Les règles `short_lived_companies`, `phoenix_scheme` et `creation_burst` acceptent aussi :
+
+- `include_probable` : `true` pour traiter comme la même personne les homonymes certains et probables que vous n'avez pas encore tranchés. Par défaut, `false` : seules vos décisions comptent ;
+- `excluded_roles` : la liste des rôles écartés. Par défaut, les commissaires aux comptes, titulaires et suppléants, et les administrateurs, mandataires et liquidateurs judiciaires.
+
+### Appliquer les changements
+
+Lacis relit ce fichier à chaque calcul des signaux : fermez et rouvrez l'enquête pour appliquer vos changements. Si le fichier contient une erreur, un réglage inconnu ou une valeur hors limites, les signaux de l'enquête restent indisponibles et la colonne « À examiner » affiche le message qui la décrit, avec le nom du réglage en cause.

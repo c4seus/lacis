@@ -303,9 +303,8 @@ def test_the_graph_of_the_investigation_is_drawn_and_selectable(main_window: Mai
     jean = next(
         identifier
         for identifier, item in scene.node_items.items()
-        if item.node.label.startswith("Jean DUPONT")
+        if item.node.label.startswith("Jean") and item.node.severity is not None
     )
-    assert scene.node_items[jean].node.severity is not None
     page.show_entity(jean, "Jean DUPONT")
     assert page.selected_entity == jean
     main_window.show_home()
@@ -446,7 +445,7 @@ def queue_rows(main_window: MainWindow) -> list[QueueRow]:
 def test_the_queue_shows_signals_homonyms_and_leads(main_window: MainWindow) -> None:
     review_list = main_window.investigation_page.queue_column.review_list
     assert review_list.group_titles == [
-        "Rafale de créations · moyenne",
+        "Rafale de créations · faible",
         "Homonymes à vérifier",
         "Pistes non étendues",
     ]

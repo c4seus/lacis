@@ -1,0 +1,91 @@
+---
+title: Clavier, thèmes et accessibilité
+description: "Mener une enquête au clavier avec les raccourcis de Lacis, choisir le thème clair ou sombre, et utiliser Lacis avec un lecteur d'écran."
+sidebar:
+  label: Raccourcis clavier
+---
+
+import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
+import keyboardShortcutsDark from "../../../assets/screenshots/keyboard-shortcuts-dark.webp";
+import keyboardShortcutsLight from "../../../assets/screenshots/keyboard-shortcuts-light.webp";
+
+Tout ce que fait Lacis se fait aussi au clavier. Cette page rassemble ses raccourcis, puis le choix du thème et ce que Lacis prévoit pour les lecteurs d'écran.
+
+## Afficher les raccourcis
+
+**Aide › Raccourcis clavier**, ou <kbd>Ctrl</kbd>+<kbd>/</kbd>, ouvre la liste des raccourcis, groupés comme dans les tableaux ci-dessous. Elle se parcourt elle aussi au clavier.
+
+<ThemedScreenshot
+    light={keyboardShortcutsLight}
+    dark={keyboardShortcutsDark}
+    alt="La fenêtre Raccourcis clavier : les raccourcis de l'enquête, du graphe, de la navigation dans le graphe et des panneaux, chacun avec son action et ses touches."
+    caption="La liste des raccourcis, dans le menu Aide."
+/>
+
+## Enquête
+
+| Action | Raccourci |
+| --- | --- |
+| Rechercher une entreprise | <kbd>Ctrl</kbd>+<kbd>F</kbd> ou <kbd>/</kbd> |
+| Étendre l'entité sélectionnée | <kbd>Ctrl</kbd>+<kbd>E</kbd> |
+| Annuler la dernière décision d'homonyme | <kbd>Ctrl</kbd>+<kbd>Z</kbd> |
+| Rétablir la décision annulée | <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>Z</kbd> |
+| Nouvelle enquête | <kbd>Ctrl</kbd>+<kbd>N</kbd> |
+| Fermer l'enquête | <kbd>Ctrl</kbd>+<kbd>W</kbd> |
+
+Dans la liste des résultats de recherche, <kbd>↑</kbd> et <kbd>↓</kbd> passent d'un résultat à l'autre, <kbd>Entrée</kbd> ajoute le résultat choisi et <kbd>Échap</kbd> ferme la liste.
+
+## Graphe
+
+| Action | Raccourci |
+| --- | --- |
+| Zoom avant | <kbd>Ctrl</kbd>+<kbd>+</kbd> |
+| Zoom arrière | <kbd>Ctrl</kbd>+<kbd>-</kbd> |
+| Ajuster le graphe à la fenêtre | <kbd>Ctrl</kbd>+<kbd>0</kbd> |
+| Réorganiser le graphe | <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>R</kbd> |
+
+Quand le graphe a le focus, d'autres touches s'y ajoutent :
+
+| Action | Touches |
+| --- | --- |
+| Aller à l'entité voisine dans cette direction | <kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> |
+| Déplacer la vue | <kbd>Maj</kbd>+flèches |
+| Déplacer l'entité sélectionnée | <kbd>Alt</kbd>+flèches |
+| Zoomer, dézoomer, ajuster | <kbd>+</kbd>, <kbd>-</kbd>, <kbd>0</kbd> |
+| Désélectionner l'entité | <kbd>Échap</kbd> |
+
+## Panneaux
+
+| Action | Raccourci |
+| --- | --- |
+| Afficher ou masquer la colonne « À examiner » | <kbd>Ctrl</kbd>+<kbd>1</kbd> |
+| Onglet suivant du panneau de droite | <kbd>Ctrl</kbd>+<kbd>Page suivante</kbd> |
+| Onglet précédent | <kbd>Ctrl</kbd>+<kbd>Page précédente</kbd> |
+| Onglets Fiche, Signaux, Entités et Journal | <kbd>Alt</kbd>+<kbd>1</kbd> à <kbd>Alt</kbd>+<kbd>4</kbd> |
+
+## Application
+
+| Action | Raccourci |
+| --- | --- |
+| Afficher les raccourcis clavier | <kbd>Ctrl</kbd>+<kbd>/</kbd> |
+| Ouvrir la documentation | <kbd>F1</kbd> |
+| Quitter Lacis | <kbd>Ctrl</kbd>+<kbd>Q</kbd> |
+
+**Aide › Documentation**, ou <kbd>F1</kbd>, ouvre ce guide dans votre navigateur.
+
+Les menus s'ouvrent aussi avec <kbd>Alt</kbd> et la lettre soulignée de leur nom, comme <kbd>Alt</kbd>+<kbd>F</kbd> pour **Fichier**.
+
+## Choisir le thème
+
+Lacis a un thème clair et un thème sombre. Par défaut, il suit celui de votre système, et change avec lui. Pour en imposer un, choisissez **Système**, **Clair** ou **Sombre** dans **Affichage › Thème**, ou dans le menu du bouton de thème, en haut à droite de la fenêtre. Lacis retient votre choix.
+
+## Accessibilité
+
+Lacis est conçu pour être utilisé avec un lecteur d'écran, comme Orca sous Linux ou NVDA sous Windows :
+
+- chaque bouton, champ et liste a un nom accessible, y compris les boutons qui n'affichent qu'une icône ;
+- la touche <kbd>Tab</kbd> parcourt la fenêtre dans un ordre logique, de la barre de recherche aux colonnes de l'enquête, et le focus reste toujours visible ;
+- le nombre de résultats d'une recherche, la fin d'une extension et les erreurs sont annoncés au lecteur d'écran ;
+- le graphe se parcourt aux flèches, d'une entité à sa voisine, et chaque entité sélectionnée ouvre sa fiche, qui se lit comme un texte.
+
+Si un élément de Lacis reste inaccessible, [signalez-le](https://github.com/c4seus/lacis/issues/new/choose) : c'est un défaut à corriger.

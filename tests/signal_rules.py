@@ -81,7 +81,7 @@ def strong_finding(subject: str, strength: float = 1.0) -> Finding:
 
 
 COLLECTED_AT = datetime(2026, 11, 2, 23, 11, tzinfo=UTC)
-JEAN_DUPONT = person_identifier("DUPONT", "Jean", "1980-05")
+JEAN_DUPONT = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
 LILAS_ADDRESS = address_identifier("12 rue des Lilas 31000 Toulouse")
 ACME = "company:111111111"
 DUPONT_SERVICES = "company:222222222"

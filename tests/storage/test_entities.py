@@ -43,24 +43,36 @@ def test_a_malformed_siret_is_refused(siret: str) -> None:
         establishment_identifier(siret)
 
 
-def test_a_person_is_identified_by_name_and_month_of_birth() -> None:
-    jean = person_identifier("DUPONT", "Jean", "1980-05")
+def test_a_person_is_identified_by_name_month_of_birth_and_company() -> None:
+    jean = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
     assert jean.startswith("person:")
-    assert jean == person_identifier("Dupont", "jean", "1980-05")
-    assert jean != person_identifier("DUPONT", "Jean Pierre", "1980-05")
-    assert jean != person_identifier("DUPONT", "Jean", "1980-06")
-    assert jean != person_identifier("DUPONT", "Jean", None)
+    assert jean == person_identifier("Dupont", "jean", "1980-05", "222 222 222")
+    assert jean != person_identifier("DUPONT", "Jean Pierre", "1980-05", "222222222")
+    assert jean != person_identifier("DUPONT", "Jean", "1980-06", "222222222")
+    assert jean != person_identifier("DUPONT", "Jean", None, "222222222")
+    assert jean != person_identifier("DUPONT", "Jean", "1980-05", "333333333")
+
+
+def test_namesakes_without_month_of_birth_in_two_companies_are_two_people() -> None:
+    assert person_identifier("DUPONT", "Jean", None, "222222222") != person_identifier(
+        "DUPONT", "Jean", None, "333333333"
+    )
+
+
+def test_a_person_needs_the_siren_of_their_company() -> None:
+    with pytest.raises(InvalidIdentifierError, match="9 digits"):
+        person_identifier("DUPONT", "Jean", "1980-05", "22222222")
 
 
 @pytest.mark.parametrize("month_of_birth", ["1980-5", "1980-13", "05/1980", "1980"])
 def test_a_malformed_month_of_birth_is_refused(month_of_birth: str) -> None:
     with pytest.raises(InvalidIdentifierError, match="YYYY-MM"):
-        person_identifier("DUPONT", "Jean", month_of_birth)
+        person_identifier("DUPONT", "Jean", month_of_birth, "222222222")
 
 
 def test_a_person_needs_a_last_name() -> None:
     with pytest.raises(InvalidIdentifierError, match="last name"):
-        person_identifier(" ", "Jean", None)
+        person_identifier(" ", "Jean", None, "222222222")
 
 
 def test_an_address_is_identified_by_its_comparison_key() -> None:
@@ -88,7 +100,7 @@ def test_a_foreign_company_is_identified_by_its_name_and_country() -> None:
     [
         ("company:222222222", EntityKind.COMPANY),
         ("establishment:22222222200015", EntityKind.ESTABLISHMENT),
-        (person_identifier("DUPONT", "Jean", "1980-05"), EntityKind.PERSON),
+        (person_identifier("DUPONT", "Jean", "1980-05", "222222222"), EntityKind.PERSON),
         (address_identifier("12 rue des Lilas"), EntityKind.ADDRESS),
         (
             foreign_company_identifier("DUPONT INVEST LTD", "Royaume-Uni"),
@@ -101,8 +113,8 @@ def test_the_kind_is_read_from_the_identifier(entity_identifier: str, kind: Enti
     assert CollectedEntity(entity_identifier, "label").kind is kind
 
 
-JEAN = person_identifier("DUPONT", "Jean", "1980-05")
-JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05")
+JEAN = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
+JEAN_PIERRE = person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111")
 DUPONT_SERVICES = company_identifier("222222222")
 ACME = company_identifier("111111111")
 SIEGE = establishment_identifier("22222222200015")

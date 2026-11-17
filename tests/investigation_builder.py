@@ -38,6 +38,7 @@ from lacis.storage.responses import (
 COLLECTED_AT = datetime(2026, 11, 2, 23, 11, tzinfo=UTC)
 TODAY = date(2026, 11, 10)
 COURT = "GREFFE DU TRIBUNAL DE COMMERCE DE TOULOUSE"
+PERSON_SIREN = "100000000"
 
 
 def fictional_siret(company: str) -> str:
@@ -129,7 +130,7 @@ class InvestigationBuilder:
         return identifier
 
     def person(self, first_names: str, last_name: str, *, expanded: bool = False) -> str:
-        identifier = person_identifier(last_name, first_names, "1980-05")
+        identifier = person_identifier(last_name, first_names, "1980-05", PERSON_SIREN)
         attributes: Attributes = {
             "last_name": last_name,
             "first_names": first_names,

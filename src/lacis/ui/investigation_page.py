@@ -107,6 +107,7 @@ class InvestigationPage(QWidget):
     expansion_requested = Signal(str, str, int, bool)
     entity_selected = Signal(str)
     notices_refresh_requested = Signal(str, str)
+    decision_withdrawal_requested = Signal(object, object)
 
     def __init__(
         self, settings: QSettings, icon_factory: IconFactory, parent: QWidget | None = None
@@ -135,6 +136,7 @@ class InvestigationPage(QWidget):
         sheet.entity_chosen.connect(lambda identifier: self.show_entity(identifier, ""))
         sheet.expansion_requested.connect(self.expansion_requested)
         sheet.notices_refresh_requested.connect(self.notices_refresh_requested)
+        sheet.decision_withdrawal_requested.connect(self.decision_withdrawal_requested)
         self.details_panel.entities_tab.entity_chosen.connect(
             lambda identifier: self.show_entity(identifier, "")
         )

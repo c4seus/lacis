@@ -1,5 +1,6 @@
+import json
 import sqlite3
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -8,14 +9,28 @@ from investigation_builder import InvestigationBuilder
 from lacis.storage.errors import NewerInvestigationError
 from lacis.storage.homonym_decisions import HomonymDecisionStore
 from lacis.storage.investigations import InvestigationLibrary
-from lacis.storage.notices import NoticeFamily
+from lacis.storage.notices import CollectedNotice, NoticeFamily, NoticeStore, OfficeTransfer
+from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 from lacis.storage.schema import (
     MIGRATIONS,
     NewerSchemaError,
     create_investigation_table,
     migrate,
+    reread_office_transfers,
     schema_version,
 )
+
+COLLECTED_AT = datetime(2026, 11, 10, 9, 0, tzinfo=UTC)
+PUBLISHED_ON = date(2025, 3, 4)
+STORED_TRANSFERS = {
+    "A202500000001": OfficeTransfer("Italie", PUBLISHED_ON, effective_date_stated=False),
+    "A202500000002": OfficeTransfer("Belgique", PUBLISHED_ON, effective_date_stated=False),
+    "A202500000003": OfficeTransfer("Italie", PUBLISHED_ON, effective_date_stated=False),
+}
+NEW_ADDRESSES = {
+    "A202500000001": "au 12 rue d'Italie, 13100 Aix-en-Provence",
+    "A202500000002": "au 1 rue de la Loi, 1000 Bruxelles (Belgique)",
+}
 
 
 def add_note_table(connection: sqlite3.Connection) -> None:
@@ -146,3 +161,66 @@ def test_storing_signals_does_not_move_the_revision(
             "INSERT INTO signal_computation VALUES (0, '2026-11-10', 'x', '2026-11-10T08:00')"
         )
     assert revision_of(investigation_connection) == before
+
+
+def bodacc_page(new_addresses: dict[str, str]) -> bytes:
+    records = [
+        {
+            "id": identifier,
+            "modificationsgenerales": json.dumps(
+                {"descriptif": f"Transfert du siège social {new_address}."}
+            ),
+        }
+        for identifier, new_address in new_addresses.items()
+    ]
+    return json.dumps({"total_count": len(records), "results": records}).encode()
+
+
+def save_transfers(connection: sqlite3.Connection) -> None:
+    responses = ResponseStore(connection)
+    page = responses.save(
+        CollectedResponse(
+            ResponseSource.BODACC,
+            "https://bodacc.example",
+            bodacc_page(NEW_ADDRESSES),
+            COLLECTED_AT,
+        )
+    )
+    empty_page = responses.save(
+        CollectedResponse(ResponseSource.BODACC, "https://bodacc.example", b"{}", COLLECTED_AT)
+    )
+    notices = NoticeStore(connection)
+    for identifier, transfer in STORED_TRANSFERS.items():
+        notices.save_notice(
+            CollectedNotice(
+                identifier,
+                NoticeFamily.AMENDMENT,
+                PUBLISHED_ON,
+                "GREFFE DU TRIBUNAL DE COMMERCE DE TOULOUSE",
+                "Transfert du siège social",
+                office_transfer=transfer,
+            ),
+            page if identifier in NEW_ADDRESSES else empty_page,
+        )
+
+
+def test_opening_an_older_investigation_reads_its_transfers_abroad_again(
+    tmp_path: Path,
+) -> None:
+    before = MIGRATIONS.index(reread_office_transfers)
+    older_library = InvestigationLibrary(tmp_path, migrations=MIGRATIONS[:before])
+    older_library.create("ancienne", "")
+    with older_library.open("ancienne") as opened:
+        save_transfers(opened.connection)
+        revision_before = revision_of(opened.connection)
+    with InvestigationLibrary(tmp_path).open("ancienne") as opened:
+        notices = NoticeStore(opened.connection)
+        assert {
+            identifier: notices.require_notice(identifier).office_transfer
+            for identifier in STORED_TRANSFERS
+        } == {
+            "A202500000001": None,
+            "A202500000002": STORED_TRANSFERS["A202500000002"],
+            "A202500000003": STORED_TRANSFERS["A202500000003"],
+        }
+        assert revision_of(opened.connection) == revision_before + 1

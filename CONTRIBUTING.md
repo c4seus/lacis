@@ -4,7 +4,7 @@ Thank you for your interest in Lacis. This guide explains how the project is org
 
 ## Ground rules
 
-- **Languages.** Code, commits, issues, pull requests and documentation are in English. The user interface is in French, because Lacis is built for French company data and a French audience.
+- **Languages.** Code, commits, issues, pull requests and documentation are in English. The user interface and the website are in French, because Lacis is built for French company data and a French audience.
 - **No real personal data.** Test data, screenshots, issues and logs use fictional companies, people and identifiers only.
 - **Every change starts from an issue.** Open or pick an issue before writing code, so the scope is agreed first.
 - **Small pull requests.** One issue per pull request, one commit per task of the issue.
@@ -38,7 +38,7 @@ cd lacis
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
-ruff check . ; ruff format --check . ; python scripts/check_no_comments.py ; mypy ; pytest --cov
+ruff check . ; ruff format --check . ; python scripts/check_no_comments.py ; mypy ; pytest --numprocesses auto --cov
 ```
 
 ### Running Lacis
@@ -65,12 +65,15 @@ The demonstration serves the fictional companies of the « faux plombiers » sce
 | `make coverage` | Runs the tests with the coverage report and threshold |
 | `make check` | Runs everything the CI runs. Run it before every push |
 | `make icons` | Renders the PNG and ICO icons from their SVG masters |
-| `make clean` | Removes the build outputs: `build`, `dist`, `debian` and `.pybuild` |
+| `make screenshots` | Takes the screenshots of the website and the README from the demo mode, in both themes |
+| `make clean` | Removes the build outputs: `build`, `dist`, `debian`, `.pybuild` and `site/dist` |
 | `make desktop-metadata` | Validates the desktop entry and the AppStream metadata |
 | `make deb` | Builds the Debian package into `dist/`, on Debian or Ubuntu |
 | `make rpm` | Builds the Fedora package into `dist/`, on Fedora or in a Fedora container |
 | `make arch` | Builds the Arch Linux package into `dist/`, on Arch Linux or in its container |
 | `make windows` | Builds the Windows installer into `dist/`, on Windows from Git Bash |
+| `make site` | Builds the website into `site/dist/`, and fails on a broken internal link |
+| `make site-preview` | Serves the website at http://localhost:4321/lacis/, and reloads it on every change |
 
 ## Labels
 
@@ -211,6 +214,7 @@ Established acronyms of the domain stay as they are: `siren`, `siret`, `naf`, `b
 - **Test names are sentences.** `test_a_closed_company_keeps_its_directors` says what is checked.
 - **Interface tests use pytest-qt.** They run on the offscreen platform, on Linux and Windows. Interact with widgets through `qtbot`, never with sleeps.
 - **Coverage stays above 85 %** on code outside `src/lacis/ui`. The interface is covered by pytest-qt tests, not by the threshold.
+- **Tests run in parallel** with pytest-xdist, one process per processor, in `make test`, `make coverage` and the CI. A test never depends on another test or on their order, and passes as well alone with `pytest tests/test_module.py::test_name`.
 - **No network in tests.** Collectors are tested against a fake API with fictional data.
 
 ## User interface
@@ -219,6 +223,17 @@ Established acronyms of the domain stay as they are: `siren`, `siret`, `naf`, `b
 - **Colours, spacing and fonts come from the design tokens.** No hard-coded colour in a widget.
 - **Accessibility is part of the definition of done.** Every interactive widget has an accessible name, is reachable with the keyboard in a logical order and shows a visible focus. A custom-painted widget provides a `QAccessibleInterface`. A test checks that every interactive widget has a name.
 - **Both themes are checked.** A visible change comes with screenshots in the light and the dark theme.
+
+## Website
+
+The website, https://c4seus.github.io/lacis/, presents Lacis and holds its user guide. It is built with [Starlight](https://starlight.astro.build/) from the `site/` folder, and written in French with the typography of the interface. The documentation for contributors stays in this repository, and the website links to it.
+
+- **Pages** are Markdown or MDX files in `site/src/content/docs/`. The file `guide/installation.md` becomes the page `/lacis/guide/installation/`.
+- **Node.js.** The website needs the version of Node.js written in `site/.node-version`, and npm. `make site` and `make site-preview` install the dependencies locked in `site/package-lock.json` when they change.
+- **Screenshots** come from the demo mode and are never edited by hand. `make screenshots` plays the fictional investigations of `scripts/take_screenshots.py` and saves each scene in the light and the dark theme: as lossless WebP at twice the default size of the window in `site/src/assets/screenshots/`, and as PNG at the default size in `docs/images/` for the README and the AppStream metadata. The clock is frozen and the time zone is Paris, so two runs write the same files, and a changed screenshot shows a changed interface. To show a new screen, add a scene to the script.
+- **Links** between pages start with the base path and end with a slash, as in `/lacis/guide/installation/`. `make site` fails on a broken internal link, and the CI also checks the external links with [lychee](https://github.com/lycheeverse/lychee), configured in `site/lychee.toml`.
+- **Publication.** The release workflow publishes the website to GitHub Pages after each final release, so the website describes the version that can be downloaded. To publish it between two releases, for example after a fix in the guide, run the `Website` workflow from the Actions tab, on the chosen branch or tag. The `github-pages` environment of the repository lists the branches and tags allowed to publish.
+- **Audience.** The published website counts its visits with [GoatCounter](https://www.goatcounter.com/), on the site `c4seus.goatcounter.com`, without cookies and without personal data. The `Website` workflow sets `GOATCOUNTER_CODE`, and `astro.config.mjs` adds the script, pinned by its integrity hash, only when this variable is set: `make site`, `make site-preview` and the CI build the website without it, so a local preview is never counted. The website adds no other request to a third party. Its privacy page, `confidentialite.md`, tells visitors what is counted and what the website keeps in their browser: update it with any change to the measurement or to the storage of the website.
 
 ## Pull requests
 
@@ -247,11 +262,11 @@ Version numbers follow the [versioning policy](docs/versioning.md). The version 
    git push origin vX.Y.Z
    ```
 
-6. The release workflow checks that the tag is on `main` and matches the version of the package, the changelog and the AppStream metadata. It then builds and tests the source archive and every package. Only when they all pass does it publish the GitHub release, with every package, a `SHA256SUMS` file and the notes of the changelog.
+6. The release workflow checks that the tag is on `main` and matches the version of the package, the changelog and the AppStream metadata. It then builds and tests the source archive and every package. Only when they all pass does it publish the GitHub release, with every package, a `SHA256SUMS` file and the notes of the changelog. It then publishes the website, built from the tag.
 
 If a check or a package fails, nothing is published. After a passing failure, such as a network error, re-run the failed jobs. Otherwise, fix the cause and publish the next patch version: a pushed tag is never moved.
 
-A pre-release follows the same steps with a tag such as `v0.2.0rc1`, without the second step: its notes are the `[Unreleased]` section of the changelog, and it is published as a GitHub pre-release.
+A pre-release follows the same steps with a tag such as `v0.2.0rc1`, without the second step: its notes are the `[Unreleased]` section of the changelog, and it is published as a GitHub pre-release. The website is left as it is.
 
 ### Patch releases
 
@@ -282,7 +297,7 @@ A pre-release follows the same steps with a tag such as `v0.2.0rc1`, without the
 
 ## Dependencies
 
-Dependabot opens pull requests against `develop` every week for Python dependencies and GitHub Actions. They are reviewed like any other pull request. Their commits keep the subjects written by Dependabot, so the commit check skips them, in their own pull request and in a release.
+Dependabot opens pull requests against `develop` every week for Python dependencies, GitHub Actions and the npm dependencies of the website. Astro, Starlight and its plugins depend on each other, so their updates come in a single pull request. They are reviewed like any other pull request. Their commits keep the subjects written by Dependabot, so the commit check skips them, in their own pull request and in a release.
 
 ## Security
 

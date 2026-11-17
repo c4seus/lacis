@@ -25,7 +25,14 @@ from lacis.collectors.fictional_records import (
 )
 from lacis.collectors.http_client import CollectorHttpClient, CollectorTiming
 from lacis.collectors.rate_limiting import RateLimiters
-from lacis.graph.expansion import ExpansionError, GraphExpander, SearchedName, current_time
+from lacis.graph.expansion import (
+    ExpansionError,
+    GraphExpander,
+    SearchedName,
+    TruncatedSearch,
+    current_time,
+    truncated_search_of,
+)
 from lacis.graph.mapping import company_fragment
 from lacis.storage.collection_log import CollectionLog
 from lacis.storage.entities import (
@@ -44,7 +51,7 @@ from lacis.storage.responses import ResponseStore
 DUPONT_SERVICES = "company:222222222"
 DUPONT_SERVICES_HEAD_OFFICE = establishment_identifier("22222222200015")
 SHARED_ADDRESS = address_identifier("12 RUE DES LILAS 31000 TOULOUSE")
-JEAN_DUPONT = person_identifier("DUPONT", "Jean", "1980-05")
+JEAN_DUPONT = person_identifier("DUPONT", "Jean", "1980-05", "222222222")
 EXPANDED_AT = datetime(2026, 11, 5, 10, 30, tzinfo=UTC)
 
 
@@ -379,8 +386,9 @@ def test_an_incomplete_notice_list_withdraws_nothing(
 ACME = "company:111111111"
 HOLDING = "company:333333333"
 DUPONT_RENOVATION = "company:666666666"
-JEAN_PIERRE_DUPONT = person_identifier("DUPONT", "Jean Pierre", "1980-05")
-JEAN_MARC_DUPONT = person_identifier("DUPONT", "Jean Marc", "1980-05")
+JEAN_DUPONT_OF_HOLDING = person_identifier("DUPONT", "Jean", "1980-05", "333333333")
+JEAN_PIERRE_DUPONT = person_identifier("DUPONT", "Jean Pierre", "1980-05", "111111111")
+JEAN_MARC_DUPONT = person_identifier("DUPONT", "Jean Marc", "1980-05", "666666666")
 BRANCH = FictionalCompany(
     siren="888888888",
     name="PLOMBERIE DU SUD",
@@ -411,16 +419,56 @@ def test_expanding_jean_dupont_finds_the_companies_run_under_his_name(
         ACME,
         HOLDING,
         DUPONT_RENOVATION,
+        JEAN_DUPONT_OF_HOLDING,
         JEAN_PIERRE_DUPONT,
         JEAN_MARC_DUPONT,
     }
     assert mandates(graph_store) == {
         (JEAN_DUPONT, DUPONT_SERVICES, "Président"),
-        (JEAN_DUPONT, HOLDING, "Président"),
+        (JEAN_DUPONT_OF_HOLDING, HOLDING, "Président"),
         (JEAN_PIERRE_DUPONT, ACME, "Président"),
         (JEAN_MARC_DUPONT, DUPONT_RENOVATION, "Gérant"),
     }
     assert "company:444444444" not in {entity.identifier for entity in graph_store.entities()}
+
+
+def is_expanded(graph_store: GraphStore, identifier: str) -> bool:
+    return "expanded_at" in graph_store.require_entity(identifier).attributes
+
+
+def test_namesakes_in_two_companies_are_two_people(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("222222222")
+    expander.expand_person(JEAN_DUPONT)
+    namesakes = [
+        entity.identifier
+        for entity in graph_store.entities()
+        if entity.kind is EntityKind.PERSON and entity.label == "Jean DUPONT"
+    ]
+    assert sorted(namesakes) == sorted([JEAN_DUPONT, JEAN_DUPONT_OF_HOLDING])
+
+
+def test_the_people_found_by_a_complete_search_count_as_searched(
+    expander: GraphExpander, graph_store: GraphStore
+) -> None:
+    expander.expand_company("222222222")
+    expander.expand_person(JEAN_DUPONT)
+    for person in (JEAN_DUPONT_OF_HOLDING, JEAN_PIERRE_DUPONT, JEAN_MARC_DUPONT):
+        assert is_expanded(graph_store, person)
+
+
+def test_the_people_found_by_a_search_that_stopped_early_are_not_searched(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    fake_api: FakeApi,
+    graph_store: GraphStore,
+) -> None:
+    with_a_fifth_mandate_of_jean_dupont(fake_api)
+    expander = one_result_per_page(investigation_connection, http_client)
+    expander.expand_company("222222222")
+    expander.expand_person(JEAN_DUPONT)
+    assert not is_expanded(graph_store, JEAN_DUPONT_OF_HOLDING)
 
 
 def test_a_person_expansion_adds_companies_without_expanding_them(
@@ -503,26 +551,94 @@ def test_a_person_expansion_reads_the_search_results_page_by_page(
     assert graph_store.entity(DUPONT_RENOVATION) is not None
 
 
-def test_a_person_expansion_stops_after_four_pages(
-    investigation_connection: sqlite3.Connection,
-    http_client: CollectorHttpClient,
-    fake_api: FakeApi,
-) -> None:
+def one_result_per_page(
+    connection: sqlite3.Connection, http_client: CollectorHttpClient
+) -> GraphExpander:
+    return GraphExpander(
+        connection, CompanyRegister(http_client, results_per_page=1), Bodacc(http_client)
+    )
+
+
+def with_a_fifth_mandate_of_jean_dupont(fake_api: FakeApi) -> None:
     fake_api.scenario = replace(
         FAKE_PLUMBERS_SCENARIO,
         companies=(*FAKE_PLUMBERS_SCENARIO.companies, DUPONT_SERVICES_COMPANY),
     )
-    expander = GraphExpander(
-        investigation_connection,
-        CompanyRegister(http_client, results_per_page=1),
-        Bodacc(http_client),
-    )
+
+
+def test_a_person_expansion_stops_after_four_pages_and_says_how_many_were_read(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    fake_api: FakeApi,
+    graph_store: GraphStore,
+) -> None:
+    with_a_fifth_mandate_of_jean_dupont(fake_api)
+    expander = one_result_per_page(investigation_connection, http_client)
     expander.expand_company("222222222")
-    expander.expand_person(JEAN_DUPONT)
+    report = expander.expand(JEAN_DUPONT)
     director_searches = [
         request for request in fake_api.requests if "nom_personne" in request.url.params
     ]
     assert len(director_searches) == 4
+    truncated = TruncatedSearch("Jean DUPONT", 4, 5)
+    assert report.truncated_searches == (truncated,)
+    assert truncated_search_of(graph_store.require_entity(JEAN_DUPONT)) == truncated
+    assert truncated.reason == "Seuls les 4 premiers résultats sur 5 ont été lus"
+
+
+def test_an_expansion_that_reads_every_result_records_no_truncation(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    graph_store: GraphStore,
+) -> None:
+    expander = one_result_per_page(investigation_connection, http_client)
+    expander.expand_company("222222222")
+    report = expander.expand(JEAN_DUPONT)
+    assert report.truncated_searches == ()
+    assert truncated_search_of(graph_store.require_entity(JEAN_DUPONT)) is None
+
+
+def test_reading_every_result_later_forgets_the_truncation(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    fake_api: FakeApi,
+    expander: GraphExpander,
+    graph_store: GraphStore,
+) -> None:
+    with_a_fifth_mandate_of_jean_dupont(fake_api)
+    one_result_per_page(investigation_connection, http_client).expand_company("222222222")
+    one_result_per_page(investigation_connection, http_client).expand(JEAN_DUPONT)
+    expander.expand(JEAN_DUPONT)
+    assert truncated_search_of(graph_store.require_entity(JEAN_DUPONT)) is None
+
+
+def test_an_address_expansion_that_stops_after_four_pages_is_recorded(
+    investigation_connection: sqlite3.Connection,
+    http_client: CollectorHttpClient,
+    fake_api: FakeApi,
+    graph_store: GraphStore,
+) -> None:
+    neighbours = tuple(
+        FictionalCompany(
+            siren=f"98765432{digit}",
+            name=f"VOISINE {digit}",
+            establishments=(
+                FictionalEstablishment("00011", SHARED_ADDRESS_OF_SCENARIO, "2020-03-02"),
+            ),
+            directors=(),
+            creation_date="2020-03-02",
+        )
+        for digit in "1234"
+    )
+    fake_api.scenario = replace(
+        FAKE_PLUMBERS_SCENARIO, companies=(*FAKE_PLUMBERS_SCENARIO.companies, *neighbours)
+    )
+    expander = one_result_per_page(investigation_connection, http_client)
+    expander.expand_company("222222222")
+    report = expander.expand(SHARED_ADDRESS)
+    truncated = TruncatedSearch("12 RUE DES LILAS 31000 TOULOUSE", 4, 6)
+    assert report.truncated_searches == (truncated,)
+    assert truncated_search_of(graph_store.require_entity(SHARED_ADDRESS)) == truncated
 
 
 @pytest.mark.parametrize("identifier", ["person:0000000000000000", DUPONT_SERVICES])
@@ -669,9 +785,11 @@ def test_expanding_an_establishment_expands_its_company(
     changes = branch_found_at_the_address.expand_establishment(BRANCH_AT_SHARED_ADDRESS)
     head_office = establishment_identifier("88888888800015")
     marseille = address_identifier("5 AVENUE DU PORT 13002 MARSEILLE")
-    assert {head_office, marseille, person_identifier("ROUX", "Inès", "1991-04")} <= set(
-        changes.new_entities
-    )
+    assert {
+        head_office,
+        marseille,
+        person_identifier("ROUX", "Inès", "1991-04", "888888888"),
+    } <= set(changes.new_entities)
     assert BRANCH_AT_SHARED_ADDRESS not in changes.new_entities
     company = graph_store.require_entity("company:888888888")
     assert company.attributes["expanded_at"] == EXPANDED_AT.isoformat()

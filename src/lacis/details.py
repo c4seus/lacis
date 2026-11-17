@@ -11,10 +11,12 @@ from lacis.graph.drawing import KIND_LABELS, is_closed
 from lacis.graph.expansion import EXPANDED_AT_ATTRIBUTE, PIVOT_KINDS
 from lacis.graph.leads import is_known_as_director_only
 from lacis.graph.mapping import spaced_siren
+from lacis.signals.facts import counted
 from lacis.signals.signal import Severity, Signal
 from lacis.signals.store import SignalReport
 from lacis.storage.entities import Attributes, Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
 from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore
 from lacis.storage.responses import ResponseStore, ResponseSummary
 
@@ -26,6 +28,8 @@ OPEN_ESTABLISHMENT_TEXT = "Ouvert"
 CLOSED_ESTABLISHMENT_TEXT = "Fermé"
 HEAD_OFFICE_TEXT = "Siège"
 DIRECTOR_ONLY_TEXT = "Connue comme dirigeante seulement"
+DECIDED_LINK_TEXT = "Décision de l'enquêteur"
+FOREIGN_LAW_TEXT = "Droit étranger"
 
 
 class BadgeTone(StrEnum):
@@ -47,6 +51,32 @@ class Reference:
     label: str
 
 
+DECISION_TEXTS = {
+    HomonymDecision.SAME_PERSON: "Même personne que",
+    HomonymDecision.DIFFERENT_PERSON: "Personne différente de",
+}
+
+
+@dataclass(frozen=True)
+class DecisionLine:
+    person: Reference
+    other: Reference
+    decision: HomonymDecision
+    decided_at: datetime
+
+    @property
+    def text(self) -> str:
+        return DECISION_TEXTS[self.decision]
+
+    @property
+    def written_date(self) -> str:
+        return f"le {written_moment(self.decided_at)}"
+
+    @property
+    def spoken(self) -> str:
+        return f"{self.text.lower()} {self.other.label}, décision prise {self.written_date}"
+
+
 @dataclass(frozen=True)
 class SignalCard:
     title: str
@@ -65,6 +95,14 @@ class LinkLine:
     role: str
     reference: Reference
     closed: bool
+    sources: tuple["SourceLine", ...] = ()
+    decided_on: str = ""
+
+    @property
+    def provenance(self) -> str:
+        if self.decided_on:
+            return DECIDED_LINK_TEXT
+        return counted(len(self.sources), "réponse", "réponses")
 
 
 @dataclass(frozen=True)
@@ -173,6 +211,7 @@ class EntityDetails:
     links: tuple[LinkLine, ...]
     sources: tuple[SourceLine, ...]
     notices: tuple[NoticeLine, ...] = ()
+    decisions: tuple[DecisionLine, ...] = ()
 
     @property
     def kind_label(self) -> str:
@@ -216,8 +255,26 @@ def text_of(attributes: Attributes, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
+def withheld_directors(count: object) -> str:
+    if not isinstance(count, int) or count < 1:
+        return ""
+    if count == 1:
+        return "1 dirigeant non diffusible"
+    return f"{count} dirigeants non diffusibles"
+
+
 def spaced_siret(siret: str) -> str:
     return f"{spaced_siren(siret[:9])} {siret[9:]}"
+
+
+def country_facts(attributes: Attributes) -> list[str]:
+    country = text_of(attributes, "country")
+    if not country:
+        return []
+    source = text_of(attributes, "country_source")
+    if not source:
+        return [f"Pays {country}"]
+    return [f"Pays {country} ({source[0].lower()}{source[1:]})"]
 
 
 def company_facts(attributes: Attributes) -> list[str]:
@@ -229,6 +286,9 @@ def company_facts(attributes: Attributes) -> list[str]:
     facts += [f"Créée le {created}"] if created else []
     facts += [f"Fermée le {closed}"] if closed else []
     facts += [f"NAF {activity}"] if activity else []
+    facts += country_facts(attributes)
+    withheld = withheld_directors(attributes.get("hidden_director_count"))
+    facts += [withheld] if withheld else []
     return facts
 
 
@@ -282,6 +342,8 @@ def status_badges(graph_store: GraphStore, entity: Entity) -> list[Badge]:
             badges.append(Badge(ACTIVE_TEXT, BadgeTone.ACTIVE))
         elif attributes.get("is_active") is False:
             badges.append(Badge(CLOSED_COMPANY_TEXT, BadgeTone.CLOSED))
+        if attributes.get("is_under_foreign_law") is True:
+            badges.append(Badge(FOREIGN_LAW_TEXT, BadgeTone.OUTLINE))
         if is_known_as_director_only(graph_store, entity):
             badges.append(Badge(DIRECTOR_ONLY_TEXT, BadgeTone.OUTLINE))
     if entity.kind is EntityKind.ESTABLISHMENT:
@@ -369,17 +431,28 @@ def link_role(link: Link, identifier: str) -> str:
     return from_source if seen_from_source else from_target
 
 
+def decided_on(link: Link) -> str:
+    if link.kind is not LinkKind.SAME_PERSON:
+        return ""
+    return f"{DECIDED_LINK_TEXT}, le {written_moment(link.last_collected_at)}"
+
+
 def link_lines(graph_store: GraphStore, identifier: str) -> list[LinkLine]:
     lines = []
     for link in graph_store.links_of(identifier):
         other = graph_store.require_entity(
             link.target if link.source == identifier else link.source
         )
+        sources = [
+            source_line(summary) for summary in graph_store.sources_of_link(link.identifier)
+        ]
         lines.append(
             LinkLine(
                 link_role(link, identifier),
                 Reference(other.identifier, other.kind, other.label),
                 is_closed(other),
+                tuple(reversed(sources)),
+                decided_on(link),
             )
         )
     return sorted(lines, key=lambda line: (line.role, line.reference.label))
@@ -415,6 +488,25 @@ def notice_lines(connection: sqlite3.Connection, identifier: str) -> list[Notice
     return sorted(lines, key=lambda line: (line.published_on, line.identifier), reverse=True)
 
 
+def decision_lines(connection: sqlite3.Connection, identifier: str) -> list[DecisionLine]:
+    references = References(GraphStore(connection))
+    lines = []
+    for recorded in HomonymDecisionStore(connection).decisions():
+        people = (recorded.first_person, recorded.second_person)
+        if identifier not in people:
+            continue
+        other = people[1] if people[0] == identifier else people[0]
+        lines.append(
+            DecisionLine(
+                references.of(identifier),
+                references.of(other),
+                recorded.decision,
+                recorded.decided_at,
+            )
+        )
+    return sorted(lines, key=lambda line: line.decided_at, reverse=True)
+
+
 def entity_details(
     connection: sqlite3.Connection, identifier: str, report: SignalReport | None
 ) -> EntityDetails | None:
@@ -444,6 +536,7 @@ def entity_details(
         links=tuple(link_lines(graph_store, identifier)),
         sources=tuple(reversed(sources)),
         notices=tuple(notice_lines(connection, identifier)),
+        decisions=tuple(decision_lines(connection, identifier)),
     )
 
 
