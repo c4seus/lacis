@@ -6,11 +6,16 @@ from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
+from lacis.design import theme_controller as theme_controller_module
 from lacis.design.style_sheet import build_style_sheet
 from lacis.design.theme_controller import (
+    DEFAULT_TEXT_SIZE,
+    TEXT_SIZE_SETTING_KEY,
+    TEXT_SIZES,
     THEME_PREFERENCE_SETTING_KEY,
     ThemeController,
     ThemePreference,
+    read_text_size,
     read_theme_preference,
     theme_for_colour_scheme,
 )
@@ -24,6 +29,7 @@ def create_theme_controller(
     qapp: QApplication, settings: QSettings
 ) -> Iterator[ControllerFactory]:
     created_controllers: list[ThemeController] = []
+    font = qapp.font()
 
     def create() -> ThemeController:
         controller = ThemeController(qapp, settings)
@@ -35,6 +41,7 @@ def create_theme_controller(
         qapp.styleHints().colorSchemeChanged.disconnect(controller.follow_system_colour_scheme)
     qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")
+    qapp.setFont(font)
 
 
 def system_turns(qapp: QApplication, colour_scheme: Qt.ColorScheme) -> None:
@@ -166,3 +173,66 @@ def test_links_take_the_accent_colour_of_the_theme(
     create_theme_controller().set_preference(preference)
     for role in (QPalette.ColorRole.Link, QPalette.ColorRole.LinkVisited):
         assert qapp.palette().color(role) == QColor(theme.colours.accent)
+
+
+def test_the_text_size_is_designed_size_by_default(
+    qapp: QApplication, create_theme_controller: ControllerFactory
+) -> None:
+    theme_controller = create_theme_controller()
+    assert theme_controller.text_size == DEFAULT_TEXT_SIZE == 100
+    assert theme_controller.text_scale == 1.0
+    assert qapp.font().pixelSize() == LIGHT_THEME.font_sizes.body
+
+
+def test_a_larger_text_size_enlarges_every_text_of_the_theme(
+    qtbot: QtBot, qapp: QApplication, create_theme_controller: ControllerFactory
+) -> None:
+    theme_controller = create_theme_controller()
+    theme_controller.set_preference(ThemePreference.DARK)
+    with qtbot.waitSignal(theme_controller.text_size_changed) as changed:
+        theme_controller.set_text_size(200)
+    assert changed.args == [200]
+    larger = DARK_THEME.with_text_scale(2)
+    assert theme_controller.current_theme == larger
+    assert theme_controller.base_theme is DARK_THEME
+    assert qapp.font().pixelSize() == 28
+    assert qapp.styleSheet() == build_style_sheet(larger)
+    theme_controller.set_preference(ThemePreference.LIGHT)
+    assert theme_controller.current_theme == LIGHT_THEME.with_text_scale(2)
+
+
+def test_the_text_size_stays_in_place_after_a_restart(
+    settings: QSettings, create_theme_controller: ControllerFactory
+) -> None:
+    create_theme_controller().set_text_size(150)
+    assert settings.value(TEXT_SIZE_SETTING_KEY) == 150
+    restarted_controller = create_theme_controller()
+    assert restarted_controller.text_size == 150
+    assert restarted_controller.current_theme.font_sizes.body == 21
+
+
+@pytest.mark.parametrize("stored_value", ["énorme", "120", 300, None], ids=str)
+def test_an_unknown_stored_text_size_falls_back_to_the_designed_size(
+    settings: QSettings, stored_value: object
+) -> None:
+    if stored_value is not None:
+        settings.setValue(TEXT_SIZE_SETTING_KEY, stored_value)
+    assert read_text_size(settings) == DEFAULT_TEXT_SIZE
+
+
+def test_an_unknown_text_size_is_not_applied(create_theme_controller: ControllerFactory) -> None:
+    theme_controller = create_theme_controller()
+    theme_controller.set_text_size(130)
+    assert theme_controller.text_size == DEFAULT_TEXT_SIZE
+    assert TEXT_SIZES == (100, 125, 150, 175, 200)
+
+
+def test_the_text_size_adds_to_the_font_size_of_the_system(
+    monkeypatch: pytest.MonkeyPatch, create_theme_controller: ControllerFactory
+) -> None:
+    monkeypatch.setattr(theme_controller_module, "system_text_scale", lambda: 1.2)
+    theme_controller = create_theme_controller()
+    assert theme_controller.current_theme.font_sizes.body == 17
+    theme_controller.set_text_size(200)
+    assert theme_controller.text_scale == pytest.approx(2.4)
+    assert theme_controller.current_theme.font_sizes.body == 34

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import astuple, dataclass, replace
 
 FONT_FAMILIES = ("Inter", "Segoe UI", "Noto Sans", "Liberation Sans", "Arial", "sans-serif")
 MONOSPACE_FONT_FAMILIES = (
@@ -78,6 +78,9 @@ class FontSizes:
     title: int = 19
     heading: int = 24
 
+    def scaled(self, factor: float) -> "FontSizes":
+        return FontSizes(*(max(1, round(size * factor)) for size in astuple(self)))
+
 
 @dataclass(frozen=True)
 class FontWeights:
@@ -94,6 +97,10 @@ class Theme:
     radii: Radii = Radii()
     font_sizes: FontSizes = FontSizes()
     font_weights: FontWeights = FontWeights()
+
+    def with_text_scale(self, factor: float) -> "Theme":
+        font_sizes = FontSizes().scaled(factor)
+        return self if font_sizes == self.font_sizes else replace(self, font_sizes=font_sizes)
 
 
 LIGHT_THEME = Theme(

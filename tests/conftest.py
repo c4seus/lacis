@@ -85,11 +85,13 @@ def settings(isolated_user_settings: Path) -> QSettings:
 
 @pytest.fixture
 def theme_controller(qapp: QApplication, settings: QSettings) -> Iterator[ThemeController]:
+    font = qapp.font()
     controller = ThemeController(qapp, settings)
     yield controller
     qapp.styleHints().colorSchemeChanged.disconnect(controller.follow_system_colour_scheme)
     qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")
+    qapp.setFont(font)
 
 
 @pytest.fixture
