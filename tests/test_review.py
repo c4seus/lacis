@@ -13,17 +13,20 @@ from lacis.identity.homonyms import Confidence
 from lacis.overview import InvestigationOverview, overview_of
 from lacis.review import (
     QueueEntity,
+    ReviewNews,
     ReviewQueue,
     RunningCollection,
     expansion_cancelled_message,
     expansion_message,
     notices_cancelled_message,
     notices_message,
+    review_news,
     review_queue,
 )
 from lacis.signals.signal import Severity, Signal
 from lacis.signals.store import SignalReport
-from lacis.storage.entities import EntityKind
+from lacis.storage.entities import CollectedEntity, EntityKind, person_identifier
+from lacis.storage.graph_store import GraphStore
 
 
 @pytest.fixture
@@ -242,3 +245,50 @@ def test_a_running_collection_tells_where_it_stands() -> None:
     progressed = replace(collection, progress=ExpansionProgress(3, 1))
     assert progressed.status_text == "3 requêtes, 1 nouvelle entité"
     assert replace(progressed, cancelling=True).status_text == "Annulation en cours…"
+
+
+def test_news_name_the_new_signals_and_homonyms() -> None:
+    signals = frozenset({("phoenix_scheme", "company:1"), ("creation_burst", "person:1")})
+    homonyms = frozenset({("person:1", "person:2")})
+    assert ReviewNews().message == ""
+    assert ReviewNews(signals).message == "À examiner : 2 nouveaux signaux d'alerte."
+    assert ReviewNews(homonyms=homonyms).message == ("À examiner : 1 nouvel homonyme à vérifier.")
+    assert ReviewNews(signals, homonyms).message == (
+        "À examiner : 2 nouveaux signaux d'alerte et 1 nouvel homonyme à vérifier."
+    )
+
+
+def test_news_gather_what_two_recomputations_found() -> None:
+    first = ReviewNews(frozenset({("phoenix_scheme", "company:1")}))
+    second = ReviewNews(frozenset({("phoenix_scheme", "company:1"), ("creation_burst", "a")}))
+    assert (first | second).message == "À examiner : 2 nouveaux signaux d'alerte."
+
+
+def test_the_news_of_a_recomputation_are_what_it_added(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    before = overview_with(builder, report_of())
+    after = overview_with(builder, phoenix_report(scenario))
+    namesake = person_identifier("DUPONT", "Jean", "1980-05", "999999998")
+    GraphStore(builder.connection).save_entity(
+        CollectedEntity(
+            namesake,
+            "Jean DUPONT",
+            {"last_name": "DUPONT", "first_names": "Jean", "birth_month": "1980-05"},
+        ),
+        builder.response,
+    )
+    proposed = overview_with(builder, phoenix_report(scenario))
+    news = review_news(before, proposed)
+    assert news.signals == frozenset({("phoenix_scheme", scenario.dupont_services)})
+    assert news.homonyms == frozenset(proposal.pair.people for proposal in proposed.proposals)
+    assert any(namesake in people for people in news.homonyms)
+    assert review_news(after, after) == ReviewNews()
+
+
+def test_signals_that_become_available_again_are_not_news(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    unavailable = overview_with(builder, None)
+    available = overview_with(builder, phoenix_report(scenario))
+    assert review_news(unavailable, available).signals == frozenset()
