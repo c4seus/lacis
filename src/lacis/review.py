@@ -210,3 +210,50 @@ class RunningCollection:
     @property
     def cancel_name(self) -> str:
         return f"Annuler : {self.title}"
+
+
+NEWS_PREFIX = "À examiner : "
+
+
+@dataclass(frozen=True)
+class ReviewNews:
+    signals: frozenset[tuple[str, str]] = frozenset()
+    homonyms: frozenset[tuple[str, str]] = frozenset()
+
+    def __or__(self, other: "ReviewNews") -> "ReviewNews":
+        return ReviewNews(self.signals | other.signals, self.homonyms | other.homonyms)
+
+    @property
+    def message(self) -> str:
+        parts = []
+        if self.signals:
+            parts.append(
+                counted(len(self.signals), "nouveau signal d'alerte", "nouveaux signaux d'alerte")
+            )
+        if self.homonyms:
+            parts.append(
+                counted(
+                    len(self.homonyms),
+                    "nouvel homonyme à vérifier",
+                    "nouveaux homonymes à vérifier",
+                )
+            )
+        return f"{NEWS_PREFIX}{' et '.join(parts)}." if parts else ""
+
+
+def signal_keys(overview: InvestigationOverview) -> frozenset[tuple[str, str]]:
+    signals = overview.report.signals if overview.report is not None else ()
+    return frozenset((signal.rule, signal.subject) for signal in signals)
+
+
+def homonym_keys(overview: InvestigationOverview) -> frozenset[tuple[str, str]]:
+    return frozenset(proposal.pair.people for proposal in overview.proposals)
+
+
+def review_news(previous: InvestigationOverview, current: InvestigationOverview) -> ReviewNews:
+    signals = (
+        signal_keys(current) - signal_keys(previous)
+        if previous.report is not None
+        else frozenset()
+    )
+    return ReviewNews(signals, homonym_keys(current) - homonym_keys(previous))
