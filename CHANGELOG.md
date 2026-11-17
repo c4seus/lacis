@@ -2,6 +2,12 @@
 
 All notable changes to Lacis are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow the [versioning policy](docs/versioning.md).
 
+## [Unreleased]
+
+### Added
+
+- Screen readers learn the role, state and value of the widgets that Lacis draws itself: entity chips are links to their entity and tell its kind, signal cards are groups with their explanation and score, the BODACC timeline is a list of notices, and the buttons that fold the « À examiner » column or the provenance of a link tell whether it is open.
+
 ## [0.2.0] - 2026-11-17
 
 This version fixes the issues raised by the first users of 0.1.0: directors are never merged on their name alone, and every link and decision can be traced and undone. Investigations opened with 0.2.0 are migrated and can no longer be opened with 0.1.0.
