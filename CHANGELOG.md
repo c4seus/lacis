@@ -6,6 +6,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Added
 
+- After an expansion or a decision, screen readers hear what is new to examine, such as « À examiner : 2 nouveaux signaux d'alerte et 1 nouvel homonyme à vérifier ». The announcement is polite, and the changes found within a second are grouped into one.
 - Screen readers learn the role, state and value of the widgets that Lacis draws itself: entity chips are links to their entity and tell its kind, signal cards are groups with their explanation and score, the BODACC timeline is a list of notices, and the buttons that fold the « À examiner » column or the provenance of a link tell whether it is open.
 
 ## [0.2.0] - 2026-11-17
