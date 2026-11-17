@@ -1,4 +1,5 @@
 from lacis.graph.drawing import EdgeKind, GraphDrawing, GraphEdge, GraphNode
+from lacis.graph.filters import GraphFilter
 from lacis.signals.facts import counted
 from lacis.storage.entities import EntityKind
 
@@ -59,3 +60,10 @@ def graph_summary(drawing: GraphDrawing) -> str:
     flagged = sum(1 for node in drawing.nodes if node.severity is not None)
     signals = counted(flagged, "entité signalée", "entités signalées")
     return f"{entities}, {links}, {signals}"
+
+
+def graph_description(drawing: GraphDrawing, graph_filter: GraphFilter) -> str:
+    summary = graph_summary(drawing)
+    if graph_filter.is_active:
+        return f"{summary}, {graph_filter.summary(drawing)}"
+    return summary
