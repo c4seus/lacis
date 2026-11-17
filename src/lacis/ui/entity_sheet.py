@@ -2,7 +2,7 @@ from collections.abc import Callable
 from typing import override
 
 from PySide6.QtCore import Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QGuiApplication, QKeyEvent, QMouseEvent
+from PySide6.QtGui import QAccessible, QDesktopServices, QGuiApplication, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -25,8 +25,10 @@ from lacis.details import (
     SignalCard,
     SourceLine,
 )
+from lacis.graph.drawing import KIND_LABELS
 from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
 from lacis.signals.facts import counted
+from lacis.ui.accessibility import ScoreLabel
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.graph_legend import KindSwatch
 from lacis.ui.notice_timeline import NoticeTimeline
@@ -70,6 +72,7 @@ def badge(text: str, tone: str, parent: QWidget) -> QLabel:
 
 
 class ReferenceChip(QFrame):
+    accessible_role = QAccessible.Role.Link
     chosen = Signal(str)
 
     def __init__(self, reference: Reference, parent: QWidget | None = None) -> None:
@@ -79,6 +82,7 @@ class ReferenceChip(QFrame):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAccessibleName(f"Sélectionner {reference.label}")
+        self.setAccessibleDescription(KIND_LABELS[reference.kind])
         self.label = QLabel(reference.label, self)
         self.label.setProperty("tone", "chip")
         layout = QHBoxLayout(self)
@@ -90,10 +94,13 @@ class ReferenceChip(QFrame):
     def add_swatch(self, swatch: QWidget) -> None:
         self.swatch_layout.insertWidget(0, swatch)
 
+    def activate(self) -> None:
+        self.chosen.emit(self.reference.identifier)
+
     @override
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() is Qt.MouseButton.LeftButton:
-            self.chosen.emit(self.reference.identifier)
+            self.activate()
             event.accept()
             return
         super().mousePressEvent(event)
@@ -101,7 +108,7 @@ class ReferenceChip(QFrame):
     @override
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() in ACTIVATING_KEYS:
-            self.chosen.emit(self.reference.identifier)
+            self.activate()
             event.accept()
             return
         super().keyPressEvent(event)
@@ -136,6 +143,8 @@ class SectionTitle(QWidget):
 
 
 class SignalCardView(QFrame):
+    accessible_role = QAccessible.Role.Grouping
+
     def __init__(self, card: SignalCard, sheet: "EntitySheet") -> None:
         super().__init__(sheet.content)
         self.card = card
@@ -146,7 +155,7 @@ class SignalCardView(QFrame):
         self.severity_badge = badge(card.severity.label, card.severity.value, self)
         self.title_label = QLabel(card.title, self)
         self.title_label.setProperty("tone", "card-heading")
-        self.score_label = QLabel(card.written_score, self)
+        self.score_label = ScoreLabel(card.written_score, card.score_value, self)
         self.score_label.setProperty("tone", "queue-score")
         head.addWidget(self.severity_badge)
         head.addWidget(self.title_label, 1)
@@ -164,6 +173,10 @@ class SignalCardView(QFrame):
         layout.addWidget(self.explanation_label)
         layout.addWidget(references)
         self.setAccessibleName(f"{card.title}, sévérité {card.severity.label.lower()}")
+        self.setAccessibleDescription(card.explanation)
+
+    def accessible_value(self) -> str:
+        return self.card.written_score
 
 
 class LinkRow(QWidget):

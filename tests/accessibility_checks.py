@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAccessible
+from PySide6.QtGui import QAccessible, QAccessibleActionInterface, QAccessibleInterface
 from PySide6.QtWidgets import QAbstractButton, QWidget
 
 
@@ -43,3 +43,19 @@ def tab_order(window: QWidget) -> list[QWidget]:
             order.append(widget)
         widget = widget.nextInFocusChain()
     return order
+
+
+def interface_of(widget: QWidget) -> QAccessibleInterface:
+    interface = QAccessible.queryAccessibleInterface(widget)
+    assert interface is not None
+    return interface
+
+
+def text_of(widget: QWidget, text: QAccessible.Text) -> str:
+    return interface_of(widget).text(text)
+
+
+def press(widget: QWidget) -> None:
+    actions = interface_of(widget).actionInterface()
+    assert actions is not None
+    actions.doAction(QAccessibleActionInterface.pressAction())

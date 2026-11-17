@@ -15,6 +15,7 @@ from lacis.storage.collection_log import CollectionLog
 from lacis.storage.investigations import InvestigationLibrary
 from lacis.storage.locations import CONFIGURATION_DIRECTORY_VARIABLE, DATA_DIRECTORY_VARIABLE
 from lacis.storage.responses import ResponseStore
+from lacis.ui.accessibility import AccessibleInterfaces
 
 OFFSCREEN_SCREEN_CONFIGURATION = Path(__file__).with_name("offscreen-screen.json")
 
@@ -27,6 +28,11 @@ def offscreen_platform_with_full_hd_screen() -> str:
 @pytest.fixture(scope="session")
 def qapp_args() -> list[str]:
     return ["lacis-tests", "-platform", offscreen_platform_with_full_hd_screen()]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def accessible_interfaces() -> None:
+    AccessibleInterfaces.install()
 
 
 @pytest.fixture(autouse=True)

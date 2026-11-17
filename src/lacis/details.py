@@ -86,8 +86,12 @@ class SignalCard:
     references: tuple[Reference, ...]
 
     @property
+    def score_value(self) -> str:
+        return f"{self.score:.2f}".replace(".", ",")
+
+    @property
     def written_score(self) -> str:
-        return f"score {self.score:.2f}".replace(".", ",")
+        return f"score {self.score_value}"
 
 
 @dataclass(frozen=True)
