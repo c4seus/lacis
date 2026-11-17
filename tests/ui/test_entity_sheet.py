@@ -3,12 +3,12 @@ from dataclasses import replace
 
 import pytest
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QAccessible, QGuiApplication
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QLabel, QWidget
 from pytestqt.qtbot import QtBot
 
-from accessibility_checks import interactive_widgets_without_accessible_name
+from accessibility_checks import interactive_widgets_without_accessible_name, interface_of, press
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
@@ -366,3 +366,34 @@ def test_a_same_person_link_comes_from_the_decision_of_the_investigator(
         "Provenance du lien Même personne Jean Pierre DUPONT : Décision de l'enquêteur"
     )
     assert interactive_widgets_without_accessible_name(sheet) == []
+
+
+def test_a_reference_chip_is_a_link_to_an_entity_of_some_kind(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    chip = sheet.signal_cards[0].chips[1]
+    interface = interface_of(chip)
+    assert interface.role() is QAccessible.Role.Link
+    assert interface.text(QAccessible.Text.Name) == "Sélectionner Jean DUPONT"
+    assert interface.text(QAccessible.Text.Description) == "personne"
+    assert interface.state().focusable
+    with qtbot.waitSignal(sheet.entity_chosen) as chosen:
+        press(chip)
+    assert chosen.args == [scenario.jean]
+
+
+def test_a_signal_card_is_a_group_with_its_explanation_and_score(
+    sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    [card] = sheet.signal_cards
+    interface = interface_of(card)
+    assert interface.role() is QAccessible.Role.Grouping
+    assert interface.text(QAccessible.Text.Name) == "Schéma phénix, sévérité forte"
+    assert interface.text(QAccessible.Text.Description) == card.card.explanation
+    assert interface.text(QAccessible.Text.Value) == "score 0,85"
+    score = interface_of(card.score_label)
+    assert score.role() is QAccessible.Role.StaticText
+    assert score.text(QAccessible.Text.Name) == "Score"
+    assert score.text(QAccessible.Text.Value) == "0,85"

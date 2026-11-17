@@ -25,6 +25,7 @@ from lacis.review import (
     ReviewQueue,
 )
 from lacis.storage.homonym_decisions import HomonymDecision
+from lacis.ui.accessibility import ScoreLabel
 from lacis.ui.graph_legend import KindSwatch
 
 QUEUE_LIST_ACCESSIBLE_NAME = "Éléments à examiner"
@@ -80,7 +81,7 @@ class QueueRow(QFrame):
         self.title_label = QLabel(title or entity.label, self)
         self.title_label.setProperty("tone", "queue-title")
         self.title_label.setWordWrap(True)
-        self.score_label = QLabel(entity.written_score, self)
+        self.score_label = ScoreLabel(entity.written_score, entity.written_score, self)
         self.score_label.setProperty("tone", "queue-score")
         self.score_label.setVisible(entity.score is not None)
         self.detail_label = detail_label(entity.explanation, self)

@@ -3,9 +3,11 @@ from dataclasses import replace
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QAccessible
 from PySide6.QtTest import QTest
 from pytestqt.qtbot import QtBot
 
+from accessibility_checks import interface_of
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
@@ -165,3 +167,13 @@ def test_unavailable_signals_are_explained(review_list: ReviewQueueList) -> None
     review_list.show_queue(ReviewQueue((), (), (), "Le fichier signals.toml est invalide."))
     assert review_list.group_titles[0] == "Signaux indisponibles"
     assert review_list.empty_labels[0].text() == "Le fichier signals.toml est invalide."
+
+
+def test_the_score_of_a_row_is_exposed_as_its_value(
+    review_list: ReviewQueueList, scenario: PlumbersScenario
+) -> None:
+    row = next(row for row in review_list.rows if row.entity.identifier == scenario.acme)
+    score = interface_of(row.score_label)
+    assert score.role() is QAccessible.Role.StaticText
+    assert score.text(QAccessible.Text.Name) == "Score"
+    assert score.text(QAccessible.Text.Value) == "0,85"
