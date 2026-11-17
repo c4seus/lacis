@@ -1,8 +1,9 @@
 from PySide6.QtCore import QObject
+from PySide6.QtGui import QAccessible
 from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
-from accessibility_checks import interface_of
+from accessibility_checks import interface_of, press
 from lacis.design.icons import IconFactory
 from lacis.graph.leads import Lead
 from lacis.identity.homonyms import (
@@ -114,6 +115,22 @@ def test_the_rail_shows_the_signal_count_and_describes_the_queue(
     assert rail.expand_button.accessibleDescription() == (
         "signaux indisponibles, 0 homonyme, 2 pistes"
     )
+
+
+def test_the_collapse_buttons_tell_whether_the_queue_is_expanded(
+    qtbot: QtBot, icon_factory: IconFactory
+) -> None:
+    column = QueueColumn(icon_factory)
+    rail = QueueRail(icon_factory)
+    qtbot.addWidget(column)
+    qtbot.addWidget(rail)
+    collapse = interface_of(column.collapse_button)
+    expand = interface_of(rail.expand_button)
+    assert (collapse.role(), expand.role()) == (QAccessible.Role.Button, QAccessible.Role.Button)
+    assert (collapse.state().expandable, collapse.state().expanded) == (True, True)
+    assert (expand.state().expandable, expand.state().expanded) == (True, False)
+    with qtbot.waitSignal(column.collapse_button.clicked):
+        press(column.collapse_button)
 
 
 def test_a_widget_without_a_role_keeps_the_interface_of_qt(qtbot: QtBot) -> None:

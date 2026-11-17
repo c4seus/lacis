@@ -28,7 +28,7 @@ from lacis.details import (
 from lacis.graph.drawing import KIND_LABELS
 from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
 from lacis.signals.facts import counted
-from lacis.ui.accessibility import ScoreLabel
+from lacis.ui.accessibility import DisclosureToggle, ScoreLabel
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.graph_legend import KindSwatch
 from lacis.ui.notice_timeline import NoticeTimeline
@@ -188,8 +188,7 @@ class LinkRow(QWidget):
         self.role_label.setFixedWidth(LINK_ROLE_WIDTH)
         self.role_label.setWordWrap(True)
         self.chip = sheet.reference_chip(line.reference, self)
-        self.provenance_button = QPushButton(f"{PROVENANCE_TEXT} · {line.provenance}", self)
-        self.provenance_button.setCheckable(True)
+        self.provenance_button = DisclosureToggle(f"{PROVENANCE_TEXT} · {line.provenance}", self)
         self.provenance_button.setProperty("variant", "link")
         self.provenance_button.setProperty("compact", True)
         self.provenance_button.setAccessibleName(
