@@ -4,6 +4,8 @@ from lacis.design.tokens import Theme
 
 TEXT_MINIMUM_RATIO = 4.5
 LARGE_TEXT_AND_INTERFACE_MINIMUM_RATIO = 3.0
+HIGH_CONTRAST_TEXT_MINIMUM_RATIO = 7.0
+HIGH_CONTRAST_INTERFACE_MINIMUM_RATIO = 4.5
 LINEAR_CHANNEL_THRESHOLD = 0.04045
 LINEAR_CHANNEL_DIVISOR = 12.92
 GAMMA_OFFSET = 0.055
@@ -20,6 +22,10 @@ class ContrastRequirement:
     foreground: str
     background: str
     minimum_ratio: float
+    high_contrast_ratio: float
+
+    def ratio_for(self, theme: Theme) -> float:
+        return self.high_contrast_ratio if theme.high_contrast else self.minimum_ratio
 
 
 @dataclass(frozen=True)
@@ -27,12 +33,13 @@ class ContrastFailure:
     theme_name: str
     requirement: ContrastRequirement
     ratio: float
+    minimum_ratio: float
 
     def describe(self) -> str:
         return (
             f"{self.theme_name}: {self.requirement.foreground} on "
             f"{self.requirement.background} is {self.ratio:.2f}:1, "
-            f"below {self.requirement.minimum_ratio}:1"
+            f"below {self.minimum_ratio}:1"
         )
 
 
@@ -63,7 +70,9 @@ def text_requirements(
     foregrounds: tuple[str, ...], backgrounds: tuple[str, ...]
 ) -> list[ContrastRequirement]:
     return [
-        ContrastRequirement(foreground, background, TEXT_MINIMUM_RATIO)
+        ContrastRequirement(
+            foreground, background, TEXT_MINIMUM_RATIO, HIGH_CONTRAST_TEXT_MINIMUM_RATIO
+        )
         for foreground in foregrounds
         for background in backgrounds
     ]
@@ -73,7 +82,12 @@ def interface_requirements(
     foregrounds: tuple[str, ...], backgrounds: tuple[str, ...]
 ) -> list[ContrastRequirement]:
     return [
-        ContrastRequirement(foreground, background, LARGE_TEXT_AND_INTERFACE_MINIMUM_RATIO)
+        ContrastRequirement(
+            foreground,
+            background,
+            LARGE_TEXT_AND_INTERFACE_MINIMUM_RATIO,
+            HIGH_CONTRAST_INTERFACE_MINIMUM_RATIO,
+        )
         for foreground in foregrounds
         for background in backgrounds
     ]
@@ -107,21 +121,34 @@ CONTRAST_REQUIREMENTS = (
     *text_requirements(("high_severity",), ("background",)),
     *text_requirements(("text_on_accent",), ("high_severity",)),
     *[
-        ContrastRequirement(status_colour, f"soft_{status_colour}", TEXT_MINIMUM_RATIO)
+        requirement
         for status_colour in STATUS_COLOURS
+        for requirement in text_requirements((status_colour,), (f"soft_{status_colour}",))
     ],
+    *text_requirements(("text", "muted_text", "identity"), ("graph_background",)),
     *interface_requirements(("strong_border", "accent"), SURFACES),
     *interface_requirements((*ENTITY_KIND_COLOURS, "graph_edge"), ("graph_background",)),
+    *interface_requirements(
+        ("high_severity", "medium_severity", "low_severity"), ("graph_background",)
+    ),
 )
+HIGH_CONTRAST_REQUIREMENTS = (*interface_requirements(("border",), SURFACES),)
+
+
+def requirements_for(theme: Theme) -> tuple[ContrastRequirement, ...]:
+    if theme.high_contrast:
+        return (*CONTRAST_REQUIREMENTS, *HIGH_CONTRAST_REQUIREMENTS)
+    return CONTRAST_REQUIREMENTS
 
 
 def contrast_failures(theme: Theme) -> list[ContrastFailure]:
     failures = []
-    for requirement in CONTRAST_REQUIREMENTS:
+    for requirement in requirements_for(theme):
         ratio = contrast_ratio(
             getattr(theme.colours, requirement.foreground),
             getattr(theme.colours, requirement.background),
         )
-        if ratio < requirement.minimum_ratio:
-            failures.append(ContrastFailure(theme.name, requirement, ratio))
+        minimum_ratio = requirement.ratio_for(theme)
+        if ratio < minimum_ratio:
+            failures.append(ContrastFailure(theme.name, requirement, ratio, minimum_ratio))
     return failures

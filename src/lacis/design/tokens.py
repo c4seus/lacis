@@ -97,6 +97,7 @@ class Theme:
     radii: Radii = Radii()
     font_sizes: FontSizes = FontSizes()
     font_weights: FontWeights = FontWeights()
+    high_contrast: bool = False
 
     def with_text_scale(self, factor: float) -> "Theme":
         font_sizes = FontSizes().scaled(factor)
@@ -136,7 +137,7 @@ LIGHT_THEME = Theme(
         address="#1f9a6e",
         establishment="#379db3",
         foreign_company="#8a5cd6",
-        identity="#c03ab8",
+        identity="#bc37b4",
         graph_background="#fbfbfc",
         graph_grid="#eef0f3",
         graph_edge="#8893a4",
@@ -183,4 +184,86 @@ DARK_THEME = Theme(
     ),
 )
 
-THEMES = (LIGHT_THEME, DARK_THEME)
+HIGH_CONTRAST_LIGHT_THEME = Theme(
+    name="high-contrast-light",
+    high_contrast=True,
+    colours=Colours(
+        background="#ffffff",
+        surface="#ffffff",
+        raised_surface="#f2f2f2",
+        border="#6b6b6b",
+        strong_border="#000000",
+        text="#000000",
+        muted_text="#1f1f1f",
+        faint_text="#333333",
+        accent="#0033b3",
+        soft_accent="#dde6ff",
+        text_on_accent="#ffffff",
+        high_severity="#8f0000",
+        soft_high_severity="#ffe5e5",
+        medium_severity="#803a00",
+        soft_medium_severity="#fff0e0",
+        low_severity="#5c4600",
+        soft_low_severity="#fff8d6",
+        information="#1f1f1f",
+        soft_information="#ededed",
+        success="#00592f",
+        soft_success="#e0f5ea",
+        closed="#3d3d3d",
+        soft_closed="#ebebeb",
+        demonstration="#5c3a00",
+        soft_demonstration="#fff2d6",
+        company="#1f4fd1",
+        person="#9a5200",
+        address="#00704d",
+        establishment="#006b80",
+        foreign_company="#6a2fc4",
+        identity="#8a0f78",
+        graph_background="#ffffff",
+        graph_grid="#f0f0f0",
+        graph_edge="#4d4d4d",
+    ),
+)
+
+HIGH_CONTRAST_DARK_THEME = Theme(
+    name="high-contrast-dark",
+    high_contrast=True,
+    colours=Colours(
+        background="#000000",
+        surface="#000000",
+        raised_surface="#141414",
+        border="#9a9a9a",
+        strong_border="#ffffff",
+        text="#ffffff",
+        muted_text="#e6e6e6",
+        faint_text="#cccccc",
+        accent="#ffd60a",
+        soft_accent="#2b2400",
+        text_on_accent="#000000",
+        high_severity="#ff8080",
+        soft_high_severity="#330000",
+        medium_severity="#ffb366",
+        soft_medium_severity="#331a00",
+        low_severity="#ffe14d",
+        soft_low_severity="#2e2600",
+        information="#e6e6e6",
+        soft_information="#1f1f1f",
+        success="#66e0a3",
+        soft_success="#002614",
+        closed="#d9d9d9",
+        soft_closed="#262626",
+        demonstration="#ffd27a",
+        soft_demonstration="#2e2200",
+        company="#8fb3ff",
+        person="#ffbf47",
+        address="#4de0a8",
+        establishment="#5ce1f5",
+        foreign_company="#d1a8ff",
+        identity="#ff8ae8",
+        graph_background="#000000",
+        graph_grid="#1a1a1a",
+        graph_edge="#b3b3b3",
+    ),
+)
+
+THEMES = (LIGHT_THEME, DARK_THEME, HIGH_CONTRAST_LIGHT_THEME, HIGH_CONTRAST_DARK_THEME)
