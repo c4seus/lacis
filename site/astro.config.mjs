@@ -70,6 +70,7 @@ export default defineConfig({
                                 "guide/entites-etrangeres",
                                 "guide/signaux",
                                 "guide/preuves",
+                                "guide/notes",
                                 "guide/raccourcis-clavier",
                             ],
                         },
