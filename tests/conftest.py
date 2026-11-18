@@ -8,6 +8,7 @@ import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtWidgets import QApplication
 
+from lacis.design.fonts import load_bundled_fonts
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.diagnostics import LOG_DIRECTORY_VARIABLE, LOGGER_NAME
@@ -33,6 +34,11 @@ def qapp_args() -> list[str]:
 @pytest.fixture(scope="session", autouse=True)
 def accessible_interfaces() -> None:
     AccessibleInterfaces.install()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def bundled_fonts(qapp: QApplication) -> None:
+    load_bundled_fonts()
 
 
 @pytest.fixture(autouse=True)
