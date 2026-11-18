@@ -125,7 +125,10 @@ class MainWindow(QMainWindow):
         list_action.setChecked(self.investigation_page.is_list_shown())
         list_action.toggled.connect(self.investigation_page.toggle_list)
         self.investigation_page.list_toggled.connect(list_action.setChecked)
-        self.motion = MotionController(self.theme_controller.application, self)
+        self.motion = MotionController(self.theme_controller.application, self.settings, self)
+        motion_action = self.main_menu_bar.reduced_motion_action
+        motion_action.setChecked(self.motion.chosen)
+        motion_action.toggled.connect(self.motion.set_chosen)
         progress_panel = self.investigation_page.graph_area.progress_panel
         self.motion.reduced_changed.connect(progress_panel.reduce_motion)
         progress_panel.reduce_motion(self.motion.reduced)

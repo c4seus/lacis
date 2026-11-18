@@ -18,6 +18,7 @@ CLOSE_INVESTIGATION_SHORTCUT = QKeySequence("Ctrl+W")
 QUEUE_ACTION_TEXT = "&Colonne À examiner"
 QUEUE_SHORTCUT = QKeySequence("Ctrl+1")
 LIST_ACTION_TEXT = "Vue &liste du graphe"
+REDUCED_MOTION_ACTION_TEXT = "Réduire les a&nimations"
 LIST_SHORTCUT = QKeySequence("Ctrl+L")
 QUIT_SHORTCUT = QKeySequence("Ctrl+Q")
 ZOOM_IN_ACTION_TEXT = "Zoom &avant"
@@ -105,6 +106,9 @@ class MainMenuBar(QMenuBar):
         self.view_menu.addMenu(theme_menu)
         self.text_size_menu = TextSizeMenu(theme_menu.theme_controller, self.view_menu)
         self.view_menu.addMenu(self.text_size_menu)
+        self.reduced_motion_action = QAction(REDUCED_MOTION_ACTION_TEXT, self)
+        self.reduced_motion_action.setCheckable(True)
+        self.view_menu.addAction(self.reduced_motion_action)
 
     def create_investigation_menu(self) -> None:
         self.search_action = QAction(SEARCH_ACTION_TEXT, self)

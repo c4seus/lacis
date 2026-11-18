@@ -2,12 +2,17 @@ from collections.abc import Callable, Iterator
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
 from lacis.design import motion
-from lacis.design.motion import MotionController, is_reduced_motion, motion_hints_of
+from lacis.design.motion import (
+    REDUCED_MOTION_SETTING_KEY,
+    MotionController,
+    is_reduced_motion,
+    motion_hints_of,
+)
 
 REDUCED_MOTION = SimpleNamespace(name="ReducedMotion")
 NO_PREFERENCE = SimpleNamespace(name="NoPreference")
@@ -18,11 +23,13 @@ ControllerFactory = Callable[[], MotionController]
 
 
 @pytest.fixture
-def create_motion_controller(qapp: QApplication) -> Iterator[ControllerFactory]:
+def create_motion_controller(
+    qapp: QApplication, settings: QSettings
+) -> Iterator[ControllerFactory]:
     created: list[MotionController] = []
 
     def create() -> MotionController:
-        controller = MotionController(qapp)
+        controller = MotionController(qapp, settings)
         created.append(controller)
         return controller
 
@@ -43,25 +50,56 @@ def animated_menus() -> Iterator[None]:
 
 
 def test_motion_is_kept_by_default(create_motion_controller: ControllerFactory) -> None:
-    assert not create_motion_controller().reduced
+    controller = create_motion_controller()
+    assert not controller.chosen
+    assert not controller.reduced
 
 
-def test_reduced_motion_turns_the_effects_of_qt_off_and_back_on(
+def test_choosing_reduced_motion_turns_the_effects_of_qt_off_and_back_on(
     qtbot: QtBot, animated_menus: None, create_motion_controller: ControllerFactory
 ) -> None:
     controller = create_motion_controller()
     assert QApplication.isEffectEnabled(ANIMATED_MENU)
     with qtbot.waitSignal(controller.reduced_changed) as reduced:
-        controller.follow_system(REDUCED_MOTION)
+        controller.set_chosen(True)
     assert reduced.args == [True]
     assert controller.reduced
     assert not any(QApplication.isEffectEnabled(effect) for effect in Qt.UIEffect)
-    controller.follow_system(NO_PREFERENCE)
-    assert not controller.reduced
+    controller.set_chosen(False)
     assert QApplication.isEffectEnabled(ANIMATED_MENU)
-    controller.follow_system(REDUCED_MOTION)
+    controller.set_chosen(True)
     controller.stop()
     assert QApplication.isEffectEnabled(ANIMATED_MENU)
+
+
+def test_choosing_the_same_motion_again_changes_nothing(
+    qtbot: QtBot, create_motion_controller: ControllerFactory
+) -> None:
+    controller = create_motion_controller()
+    with qtbot.assertNotEmitted(controller.reduced_changed):
+        controller.set_chosen(False)
+
+
+def test_the_choice_stays_in_place_after_a_restart(
+    settings: QSettings, create_motion_controller: ControllerFactory
+) -> None:
+    create_motion_controller().set_chosen(True)
+    assert settings.value(REDUCED_MOTION_SETTING_KEY, type=bool) is True
+    assert create_motion_controller().reduced
+
+
+def test_the_system_can_ask_for_reduced_motion(
+    create_motion_controller: ControllerFactory,
+) -> None:
+    controller = create_motion_controller()
+    controller.follow_system(REDUCED_MOTION)
+    assert controller.system_reduced
+    assert controller.reduced
+    controller.set_chosen(True)
+    controller.follow_system(NO_PREFERENCE)
+    assert controller.reduced
+    controller.set_chosen(False)
+    assert not controller.reduced
 
 
 @pytest.mark.skipif(not QT_TELLS_THE_SYSTEM_MOTION, reason="Qt tells the system motion lately")
@@ -77,7 +115,7 @@ def test_the_system_motion_comes_from_qt(
     assert not controller.reduced
 
 
-def test_without_a_system_motion_from_qt_motion_is_kept(
+def test_without_a_system_motion_from_qt_only_the_choice_counts(
     monkeypatch: pytest.MonkeyPatch, create_motion_controller: ControllerFactory
 ) -> None:
     assert motion_hints_of(object()) is None
@@ -86,6 +124,8 @@ def test_without_a_system_motion_from_qt_motion_is_kept(
     controller = create_motion_controller()
     assert controller.hints is None
     assert not controller.reduced
+    controller.set_chosen(True)
+    assert controller.reduced
 
 
 def test_only_the_reduced_preference_counts_as_reduced_motion() -> None:
