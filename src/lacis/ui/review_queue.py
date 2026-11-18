@@ -203,6 +203,7 @@ class ReviewQueueList(QScrollArea):
         self.queue = ReviewQueue((), (), ())
         self.rows: list[QueueRow] = []
         self.expand_buttons: dict[str, QPushButton] = {}
+        self.lead_rows: dict[str, QueueRow] = {}
         self.decision_buttons: list[QPushButton] = []
         self.group_labels: list[QLabel] = []
         self.empty_labels: list[QLabel] = []
@@ -224,6 +225,7 @@ class ReviewQueueList(QScrollArea):
         self.content_layout.setSpacing(4)
         self.rows = []
         self.expand_buttons = {}
+        self.lead_rows = {}
         self.decision_buttons = []
         self.group_labels = []
         self.empty_labels = []
@@ -309,6 +311,7 @@ class ReviewQueueList(QScrollArea):
                 )
             )
             self.expand_buttons[lead.identifier] = button
+            self.lead_rows[lead.identifier] = row
             row.set_corner(button)
         self.show_expanding(self.expanding)
 
@@ -316,6 +319,8 @@ class ReviewQueueList(QScrollArea):
         self.expanding = set(expanding)
         for identifier, button in self.expand_buttons.items():
             running = identifier in self.expanding
+            if running and button.hasFocus():
+                self.lead_rows[identifier].setFocus(Qt.FocusReason.OtherFocusReason)
             button.setEnabled(not running)
             button.setText(EXPANDING_TEXT if running else EXPAND_TEXT)
 

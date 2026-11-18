@@ -201,3 +201,15 @@ def test_a_narrow_row_moves_its_score_or_button_under_its_title(
     qtbot.waitUntil(lambda: row.corner_beside_title)
     lead = next(row for row in review_list.rows if row.entity.identifier == scenario.holding)
     assert lead.corner is review_list.expand_buttons[scenario.holding]
+
+
+def test_the_focus_goes_to_the_row_when_its_button_is_disabled(
+    review_list: ReviewQueueList, queue: ReviewQueue
+) -> None:
+    review_list.activateWindow()
+    lead = queue.leads[0].identifier
+    review_list.expand_buttons[lead].setFocus()
+    review_list.show_expanding({lead})
+    assert review_list.lead_rows[lead].hasFocus()
+    review_list.show_expanding({queue.leads[1].identifier})
+    assert review_list.lead_rows[lead].hasFocus()
