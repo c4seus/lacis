@@ -1,3 +1,4 @@
+import shutil
 from datetime import date
 from pathlib import Path
 
@@ -115,7 +116,7 @@ def test_writing_or_erasing_a_note_reads_the_investigation_again(
 def test_a_note_that_cannot_be_saved_is_reported(
     window: MainWindow, library: InvestigationLibrary
 ) -> None:
-    library.delete(INVESTIGATION_NAME)
+    shutil.rmtree(library.directory_of(INVESTIGATION_NAME))
     write(window, "Perdu ?")
     assert window.notification_area.notifications[-1].message
 
