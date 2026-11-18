@@ -5,6 +5,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAccessible
 from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
 from accessibility_checks import interface_of
@@ -203,6 +204,54 @@ def test_a_narrow_row_moves_its_score_or_button_under_its_title(
     assert lead.corner is review_list.expand_buttons[scenario.holding]
 
 
+def without_lead(queue: ReviewQueue, identifier: str) -> ReviewQueue:
+    leads = tuple(lead for lead in queue.leads if lead.identifier != identifier)
+    return replace(queue, leads=leads)
+
+
+def test_the_focus_goes_to_the_next_lead_once_a_lead_is_expanded(
+    review_list: ReviewQueueList, queue: ReviewQueue
+) -> None:
+    review_list.activateWindow()
+    first, second = queue.leads[0].identifier, queue.leads[1].identifier
+    review_list.expand_buttons[first].setFocus()
+    review_list.show_expanding({first})
+    assert review_list.lead_rows[first].hasFocus()
+    review_list.show_queue(without_lead(queue, first))
+    assert review_list.lead_rows[second].hasFocus()
+
+
+def test_the_focus_goes_to_the_previous_lead_once_the_last_one_is_expanded(
+    review_list: ReviewQueueList, queue: ReviewQueue
+) -> None:
+    review_list.activateWindow()
+    last, previous = queue.leads[-1].identifier, queue.leads[-2].identifier
+    review_list.expand_buttons[last].setFocus()
+    review_list.show_queue(without_lead(queue, last))
+    assert review_list.expand_buttons[previous].hasFocus()
+
+
+def test_the_focus_goes_to_the_next_row_once_a_homonym_is_decided(
+    review_list: ReviewQueueList, queue: ReviewQueue
+) -> None:
+    review_list.activateWindow()
+    sections = [row.section for row in review_list.rows]
+    decided = sections.index("Homonymes à vérifier")
+    review_list.decision_buttons[0].setFocus()
+    review_list.show_queue(replace(queue, homonyms=queue.homonyms[1:]))
+    assert review_list.expand_buttons[review_list.rows[decided].entity.identifier].hasFocus()
+
+
+def test_the_focus_stays_on_a_row_that_remains(
+    review_list: ReviewQueueList, queue: ReviewQueue
+) -> None:
+    review_list.activateWindow()
+    kept = queue.leads[-1].identifier
+    review_list.lead_rows[kept].setFocus()
+    review_list.show_queue(without_lead(queue, queue.leads[0].identifier))
+    assert review_list.lead_rows[kept].hasFocus()
+
+
 def test_the_focus_goes_to_the_row_when_its_button_is_disabled(
     review_list: ReviewQueueList, queue: ReviewQueue
 ) -> None:
@@ -210,6 +259,43 @@ def test_the_focus_goes_to_the_row_when_its_button_is_disabled(
     lead = queue.leads[0].identifier
     review_list.expand_buttons[lead].setFocus()
     review_list.show_expanding({lead})
+    review_list.show_queue(queue)
     assert review_list.lead_rows[lead].hasFocus()
-    review_list.show_expanding({queue.leads[1].identifier})
-    assert review_list.lead_rows[lead].hasFocus()
+
+
+def test_the_focus_goes_to_the_column_once_it_is_empty(
+    review_list: ReviewQueueList, queue: ReviewQueue
+) -> None:
+    review_list.activateWindow()
+    review_list.rows[0].setFocus()
+    review_list.show_queue(ReviewQueue((), (), ()))
+    assert review_list.hasFocus()
+
+
+def test_a_queue_shown_without_the_focus_leaves_the_focus_alone(
+    qtbot: QtBot, review_list: ReviewQueueList, queue: ReviewQueue
+) -> None:
+    review_list.activateWindow()
+    review_list.rows[0].clearFocus()
+    review_list.show_queue(queue)
+    assert QApplication.focusWidget() is None
+
+
+def test_the_focus_goes_to_the_row_of_a_neighbour_that_is_expanding(
+    review_list: ReviewQueueList, queue: ReviewQueue
+) -> None:
+    review_list.activateWindow()
+    first, second = queue.leads[0].identifier, queue.leads[1].identifier
+    review_list.show_expanding({second})
+    review_list.expand_buttons[first].setFocus()
+    review_list.show_queue(without_lead(queue, first))
+    assert review_list.lead_rows[second].hasFocus()
+
+
+def test_the_focus_goes_to_the_row_of_a_neighbour_without_the_same_button(
+    review_list: ReviewQueueList, queue: ReviewQueue
+) -> None:
+    review_list.activateWindow()
+    review_list.decision_buttons[1].setFocus()
+    review_list.show_queue(replace(queue, homonyms=()))
+    assert review_list.lead_rows[queue.leads[0].identifier].hasFocus()
