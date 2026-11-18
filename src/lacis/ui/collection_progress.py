@@ -65,6 +65,7 @@ class CollectionProgressPanel(QFrame):
         self.setAccessibleName(PANEL_ACCESSIBLE_NAME)
         self.setFixedWidth(PANEL_WIDTH)
         self.rows: dict[str, CollectionProgressRow] = {}
+        self.reduced_motion = False
         self.rows_layout = QVBoxLayout(self)
         self.rows_layout.setContentsMargins(12, 10, 12, 10)
         self.rows_layout.setSpacing(12)
@@ -83,11 +84,18 @@ class CollectionProgressPanel(QFrame):
                 known.show_collection(collection)
                 continue
             added = CollectionProgressRow(collection, self)
+            added.bar.setVisible(not self.reduced_motion)
             added.cancel_requested.connect(self.cancel_requested)
             self.rows[collection.identifier] = added
             self.rows_layout.addWidget(added)
             added.show()
         self.setVisible(bool(self.rows))
+        self.fit()
+
+    def reduce_motion(self, reduced: bool) -> None:
+        self.reduced_motion = reduced
+        for row in self.rows.values():
+            row.bar.setVisible(not reduced)
         self.fit()
 
     def fit(self) -> None:
