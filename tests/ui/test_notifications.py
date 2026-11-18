@@ -9,6 +9,7 @@ from accessibility_checks import interactive_widgets_without_accessible_name, ta
 from lacis.design.icons import IconFactory
 from lacis.ui import announcements
 from lacis.ui.notifications import (
+    KIND_ICON_SIZE,
     MAXIMUM_NOTIFICATIONS,
     MAXIMUM_WIDTH,
     WINDOW_MARGIN,
@@ -152,3 +153,23 @@ def test_notifications_follow_the_size_of_the_window(host: Host) -> None:
     area = host.area.geometry()
     assert area.width() == 400 - 2 * WINDOW_MARGIN
     assert area.bottom() + 1 == 500 - WINDOW_MARGIN
+
+
+@pytest.mark.parametrize(
+    ("kind", "icon_name", "spoken"),
+    [
+        (NotificationKind.SUCCESS, "success", "Succès"),
+        (NotificationKind.INFORMATION, "information", "Information"),
+        (NotificationKind.ERROR, "error", "Erreur"),
+    ],
+    ids=str,
+)
+def test_each_kind_of_notification_has_its_own_icon(
+    host: Host, icon_factory: IconFactory, kind: NotificationKind, icon_name: str, spoken: str
+) -> None:
+    notification = host.area.notify(ADDED, kind)
+    shown = notification.kind_icon.pixmap().toImage()
+    expected = icon_factory.icon(icon_name).pixmap(KIND_ICON_SIZE, KIND_ICON_SIZE).toImage()
+    assert shown == expected
+    assert notification.kind_icon.accessibleName() == spoken
+    assert notification.kind_icon.x() < notification.message_label.x()

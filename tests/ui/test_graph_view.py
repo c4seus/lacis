@@ -1,4 +1,5 @@
 import sqlite3
+from dataclasses import replace
 
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
@@ -40,6 +41,7 @@ from lacis.ui.graph_view import (
     ARROW_LENGTH,
     CLOSED_FILL_OPACITY,
     GRAPH_ACCESSIBLE_NAME,
+    RING_GAP,
     RING_WIDTH,
     SELECTION_OPACITY,
     GraphView,
@@ -54,6 +56,7 @@ from lacis.ui.graph_view import (
     node_border,
     node_fill,
     ring_path,
+    ring_paths,
     ring_pen,
     selection_area,
     selection_colour,
@@ -380,6 +383,20 @@ def test_each_severity_rings_in_its_colour(colours: Colours) -> None:
     assert ring_pen(colours, Severity.HIGH).widthF() == RING_WIDTH
 
 
+def test_each_severity_has_its_own_ring_pattern() -> None:
+    assert ring_pen(COLOURS, Severity.HIGH).style() == Qt.PenStyle.SolidLine
+    assert ring_pen(COLOURS, Severity.MEDIUM).style() == Qt.PenStyle.SolidLine
+    assert ring_pen(COLOURS, Severity.LOW).style() == Qt.PenStyle.CustomDashLine
+    company = node(EntityKind.COMPANY)
+    assert ring_paths(company) == []
+    rings = {severity: ring_paths(replace(company, severity=severity)) for severity in Severity}
+    assert [len(rings[severity]) for severity in Severity] == [1, 1, 2]
+    inner, outer = rings[Severity.HIGH]
+    assert outer.boundingRect().width() - inner.boundingRect().width() == pytest.approx(
+        2 * (RING_WIDTH + RING_GAP)
+    )
+
+
 def test_the_ring_follows_the_shape_three_pixels_away() -> None:
     company = node(EntityKind.COMPANY)
     ring = ring_path(company)
@@ -603,3 +620,19 @@ def test_the_graph_stays_readable_in_high_contrast(theme: Theme) -> None:
     ]
     for colour in written:
         assert contrast_ratio(hexadecimal(colour), background) >= HIGH_CONTRAST_TEXT_MINIMUM_RATIO
+
+
+def test_hovering_an_entity_writes_its_kind_state_and_severity(
+    qtbot: QtBot,
+    icon_factory: IconFactory,
+    investigation_connection: sqlite3.Connection,
+    scenario: PlumbersScenario,
+) -> None:
+    view = shown_view(qtbot, icon_factory, flagged_drawing(investigation_connection, scenario))
+    items = view.graph_scene.node_items
+    assert items[scenario.dupont_services].toolTip() == (
+        "DUPONT SERVICES, entreprise, fermée, 2 liens, signal de sévérité forte"
+    )
+    assert items[scenario.holding].toolTip() == (
+        "HOLDING DUPONT, entreprise, connue comme dirigeante seulement, 1 lien"
+    )
