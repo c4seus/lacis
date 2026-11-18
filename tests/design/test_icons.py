@@ -161,6 +161,9 @@ def theme_controller(qapp: QApplication, settings: QSettings) -> Iterator[ThemeC
     controller = ThemeController(qapp, settings)
     yield controller
     qapp.styleHints().colorSchemeChanged.disconnect(controller.follow_system_colour_scheme)
+    qapp.styleHints().accessibility().contrastPreferenceChanged.disconnect(
+        controller.follow_system_contrast
+    )
     qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")
 

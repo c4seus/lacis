@@ -19,7 +19,13 @@ from lacis.design.theme_controller import (
     read_theme_preference,
     theme_for_colour_scheme,
 )
-from lacis.design.tokens import DARK_THEME, LIGHT_THEME, Theme
+from lacis.design.tokens import (
+    DARK_THEME,
+    HIGH_CONTRAST_DARK_THEME,
+    HIGH_CONTRAST_LIGHT_THEME,
+    LIGHT_THEME,
+    Theme,
+)
 
 ControllerFactory = Callable[[], ThemeController]
 
@@ -39,6 +45,9 @@ def create_theme_controller(
     yield create
     for controller in created_controllers:
         qapp.styleHints().colorSchemeChanged.disconnect(controller.follow_system_colour_scheme)
+        qapp.styleHints().accessibility().contrastPreferenceChanged.disconnect(
+            controller.follow_system_contrast
+        )
     qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")
     qapp.setFont(font)
@@ -236,3 +245,73 @@ def test_the_text_size_adds_to_the_font_size_of_the_system(
     theme_controller.set_text_size(200)
     assert theme_controller.text_scale == pytest.approx(2.4)
     assert theme_controller.current_theme.font_sizes.body == 34
+
+
+def system_contrast_turns(qapp: QApplication, contrast: Qt.ContrastPreference) -> None:
+    qapp.styleHints().accessibility().contrastPreferenceChanged.emit(contrast)
+
+
+@pytest.mark.parametrize(
+    ("colour_scheme", "expected_theme"),
+    [
+        (Qt.ColorScheme.Light, HIGH_CONTRAST_LIGHT_THEME),
+        (Qt.ColorScheme.Dark, HIGH_CONTRAST_DARK_THEME),
+        (Qt.ColorScheme.Unknown, HIGH_CONTRAST_LIGHT_THEME),
+    ],
+    ids=["light", "dark", "unknown"],
+)
+def test_each_system_colour_scheme_has_its_high_contrast_theme(
+    colour_scheme: Qt.ColorScheme, expected_theme: Theme
+) -> None:
+    assert theme_for_colour_scheme(colour_scheme, high_contrast=True) is expected_theme
+
+
+def test_without_a_choice_high_contrast_follows_the_system(
+    qapp: QApplication, qtbot: QtBot, create_theme_controller: ControllerFactory
+) -> None:
+    theme_controller = create_theme_controller()
+    system_turns(qapp, Qt.ColorScheme.Dark)
+    with qtbot.waitSignal(theme_controller.theme_changed) as high_contrast_signal:
+        system_contrast_turns(qapp, Qt.ContrastPreference.HighContrast)
+    assert high_contrast_signal.args == [HIGH_CONTRAST_DARK_THEME]
+    assert theme_controller.high_contrast
+    system_turns(qapp, Qt.ColorScheme.Light)
+    assert theme_controller.current_theme is HIGH_CONTRAST_LIGHT_THEME
+    assert qapp.styleSheet() == build_style_sheet(HIGH_CONTRAST_LIGHT_THEME)
+    system_contrast_turns(qapp, Qt.ContrastPreference.NoPreference)
+    assert theme_controller.current_theme is LIGHT_THEME
+    assert not theme_controller.high_contrast
+
+
+def test_a_forced_light_or_dark_theme_ignores_the_high_contrast_of_the_system(
+    qapp: QApplication, create_theme_controller: ControllerFactory
+) -> None:
+    theme_controller = create_theme_controller()
+    theme_controller.set_preference(ThemePreference.DARK)
+    system_contrast_turns(qapp, Qt.ContrastPreference.HighContrast)
+    assert theme_controller.current_theme is DARK_THEME
+    assert not theme_controller.high_contrast
+
+
+def test_the_high_contrast_choice_follows_the_light_or_dark_scheme_of_the_system(
+    qapp: QApplication, create_theme_controller: ControllerFactory
+) -> None:
+    theme_controller = create_theme_controller()
+    theme_controller.set_preference(ThemePreference.HIGH_CONTRAST)
+    assert theme_controller.high_contrast
+    system_turns(qapp, Qt.ColorScheme.Dark)
+    assert theme_controller.current_theme is HIGH_CONTRAST_DARK_THEME
+    system_turns(qapp, Qt.ColorScheme.Light)
+    assert theme_controller.current_theme is HIGH_CONTRAST_LIGHT_THEME
+    system_contrast_turns(qapp, Qt.ContrastPreference.NoPreference)
+    assert theme_controller.current_theme is HIGH_CONTRAST_LIGHT_THEME
+
+
+def test_the_high_contrast_choice_keeps_the_text_size(
+    create_theme_controller: ControllerFactory,
+) -> None:
+    theme_controller = create_theme_controller()
+    theme_controller.set_text_size(150)
+    theme_controller.set_preference(ThemePreference.HIGH_CONTRAST)
+    assert theme_controller.current_theme.high_contrast
+    assert theme_controller.current_theme.font_sizes.body == 21

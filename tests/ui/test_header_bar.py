@@ -220,6 +220,7 @@ def test_the_theme_button_opens_the_theme_choice(
         "&Système",
         "&Clair",
         "S&ombre",
+        "Contraste é&levé",
     ]
     header_bar.theme_menu.preference_actions[ThemePreference.DARK].trigger()
     assert theme_controller.preference == ThemePreference.DARK
@@ -231,6 +232,7 @@ def test_the_theme_button_opens_the_theme_choice(
         (ThemePreference.SYSTEM, "monitor"),
         (ThemePreference.LIGHT, "sun"),
         (ThemePreference.DARK, "moon"),
+        (ThemePreference.HIGH_CONTRAST, "contrast"),
     ],
 )
 def test_the_theme_button_shows_the_current_choice(

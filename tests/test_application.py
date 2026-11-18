@@ -64,6 +64,9 @@ def remove_theme_controllers_created_by_main(
         qapp.styleHints().colorSchemeChanged.disconnect(
             theme_controller.follow_system_colour_scheme
         )
+        qapp.styleHints().accessibility().contrastPreferenceChanged.disconnect(
+            theme_controller.follow_system_contrast
+        )
         theme_controller.setParent(None)
     qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")
