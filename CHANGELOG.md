@@ -6,6 +6,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Added
 
+- The accessibility audit grid, in `docs/accessibility-audit.md`, applies WCAG 2.2 level AA to Lacis, says why some criteria do not apply, and gives the keyboard steps that check the others in the « faux plombiers » demo investigation, with a result for Orca on Linux and NVDA on Windows, in the light and dark themes, and in high contrast and at 200 % text where they matter.
 - Lacis reduces motion when the system asks for it, or from View › Réduire les animations: the busy bar of running collections disappears, its written progress stays, and the effects of menus and tooltips stop. Zoom, fit and layout changes stay instant in both modes.
 - No information relies on colour alone. The severity rings of the graph are double for a strong signal, single for a medium one and dashed for a weak one; hovering an entity writes its kind, its state and its severity; the score of the Entities tab writes the severity next to it; and each notification shows an icon for its kind. Tests check the graph colours against protanopia, deuteranopia and tritanopia simulations.
 - High contrast themes, light and dark, where text reaches 7:1 and borders, icons and graph colours 4.5:1. They apply when the system is in high contrast mode and the theme follows the system, and « Contraste élevé » in View › Thème forces them.

@@ -222,6 +222,7 @@ Established acronyms of the domain stay as they are: `siren`, `siret`, `naf`, `b
 - **Text is in French**, with French typography: non-breaking space before `:`, `;`, `?` and `!`, French quotation marks « ».
 - **Colours, spacing and fonts come from the design tokens.** No hard-coded colour in a widget.
 - **Accessibility is part of the definition of done.** Every interactive widget has an accessible name, is reachable with the keyboard in a logical order and shows a visible focus. A custom-painted widget provides a `QAccessibleInterface`. A test checks that every interactive widget has a name.
+- **The accessibility audit follows its grid.** The [accessibility audit grid](docs/accessibility-audit.md) applies WCAG 2.2 level AA to Lacis, and gives the keyboard steps that check each criterion in the « faux plombiers » demo investigation, with Orca on Linux and NVDA on Windows. Its results and the issues they opened are recorded in it. A change to a widget that the grid checks is checked again with the steps of its criteria.
 - **Both themes are checked.** A visible change comes with screenshots in the light and the dark theme.
 
 ## Website
