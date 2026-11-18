@@ -54,7 +54,8 @@ def person_attributes(first_names: str, birth_month: str | None) -> Attributes:
 
 @pytest.fixture
 def library(tmp_path: Path) -> InvestigationLibrary:
-    older = InvestigationLibrary(tmp_path, migrations=MIGRATIONS[:-1])
+    before_split = MIGRATIONS.index(split_people_by_company)
+    older = InvestigationLibrary(tmp_path, migrations=MIGRATIONS[:before_split])
     older.create("ancienne", "Qui sont les Dupont ?")
     with older.open("ancienne") as opened:
         save_former_people(opened.connection)
