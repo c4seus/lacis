@@ -9,6 +9,7 @@ from pytestqt.qtbot import QtBot
 from lacis.design import motion
 from lacis.design.motion import (
     REDUCED_MOTION_SETTING_KEY,
+    UI_EFFECTS,
     MotionController,
     is_reduced_motion,
     motion_hints_of,
@@ -64,7 +65,7 @@ def test_choosing_reduced_motion_turns_the_effects_of_qt_off_and_back_on(
         controller.set_chosen(True)
     assert reduced.args == [True]
     assert controller.reduced
-    assert not any(QApplication.isEffectEnabled(effect) for effect in Qt.UIEffect)
+    assert not any(QApplication.isEffectEnabled(effect) for effect in UI_EFFECTS)
     controller.set_chosen(False)
     assert QApplication.isEffectEnabled(ANIMATED_MENU)
     controller.set_chosen(True)

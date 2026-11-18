@@ -5,6 +5,15 @@ from PySide6.QtWidgets import QApplication
 
 REDUCED_MOTION_SETTING_KEY = "appearance/reduced_motion"
 REDUCED_MOTION_NAME = "ReducedMotion"
+UI_EFFECTS = (
+    Qt.UIEffect.UI_General,
+    Qt.UIEffect.UI_AnimateMenu,
+    Qt.UIEffect.UI_FadeMenu,
+    Qt.UIEffect.UI_AnimateCombo,
+    Qt.UIEffect.UI_AnimateTooltip,
+    Qt.UIEffect.UI_FadeTooltip,
+    Qt.UIEffect.UI_AnimateToolBox,
+)
 
 
 def is_reduced_motion(preference: object) -> bool:
@@ -34,7 +43,7 @@ class MotionController(QObject):
             self.system_reduced = is_reduced_motion(self.hints.motionPreference())
             self.hints.motionPreferenceChanged.connect(self.follow_system)
         self.default_effects = {
-            effect: QApplication.isEffectEnabled(effect) for effect in Qt.UIEffect
+            effect: QApplication.isEffectEnabled(effect) for effect in UI_EFFECTS
         }
         self.apply()
 
