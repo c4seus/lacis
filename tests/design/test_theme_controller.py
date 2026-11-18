@@ -1,4 +1,5 @@
 from collections.abc import Callable, Iterator
+from types import SimpleNamespace
 
 import pytest
 from PySide6.QtCore import QSettings, Qt
@@ -13,8 +14,10 @@ from lacis.design.theme_controller import (
     TEXT_SIZE_SETTING_KEY,
     TEXT_SIZES,
     THEME_PREFERENCE_SETTING_KEY,
+    SystemContrast,
     ThemeController,
     ThemePreference,
+    is_high_contrast,
     read_text_size,
     read_theme_preference,
     theme_for_colour_scheme,
@@ -44,10 +47,7 @@ def create_theme_controller(
 
     yield create
     for controller in created_controllers:
-        qapp.styleHints().colorSchemeChanged.disconnect(controller.follow_system_colour_scheme)
-        qapp.styleHints().accessibility().contrastPreferenceChanged.disconnect(
-            controller.follow_system_contrast
-        )
+        controller.stop_following_the_system()
     qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")
     qapp.setFont(font)
@@ -247,8 +247,13 @@ def test_the_text_size_adds_to_the_font_size_of_the_system(
     assert theme_controller.current_theme.font_sizes.body == 34
 
 
-def system_contrast_turns(qapp: QApplication, contrast: Qt.ContrastPreference) -> None:
-    qapp.styleHints().accessibility().contrastPreferenceChanged.emit(contrast)
+HIGH_CONTRAST = SimpleNamespace(name="HighContrast")
+NO_PREFERENCE = SimpleNamespace(name="NoPreference")
+QT_FOLLOWS_THE_SYSTEM_CONTRAST = hasattr(Qt, "ContrastPreference")
+
+
+def system_contrast_turns(theme_controller: ThemeController, contrast: object) -> None:
+    theme_controller.system_contrast.follow(contrast)
 
 
 @pytest.mark.parametrize(
@@ -272,13 +277,13 @@ def test_without_a_choice_high_contrast_follows_the_system(
     theme_controller = create_theme_controller()
     system_turns(qapp, Qt.ColorScheme.Dark)
     with qtbot.waitSignal(theme_controller.theme_changed) as high_contrast_signal:
-        system_contrast_turns(qapp, Qt.ContrastPreference.HighContrast)
+        system_contrast_turns(theme_controller, HIGH_CONTRAST)
     assert high_contrast_signal.args == [HIGH_CONTRAST_DARK_THEME]
     assert theme_controller.high_contrast
     system_turns(qapp, Qt.ColorScheme.Light)
     assert theme_controller.current_theme is HIGH_CONTRAST_LIGHT_THEME
     assert qapp.styleSheet() == build_style_sheet(HIGH_CONTRAST_LIGHT_THEME)
-    system_contrast_turns(qapp, Qt.ContrastPreference.NoPreference)
+    system_contrast_turns(theme_controller, NO_PREFERENCE)
     assert theme_controller.current_theme is LIGHT_THEME
     assert not theme_controller.high_contrast
 
@@ -288,7 +293,7 @@ def test_a_forced_light_or_dark_theme_ignores_the_high_contrast_of_the_system(
 ) -> None:
     theme_controller = create_theme_controller()
     theme_controller.set_preference(ThemePreference.DARK)
-    system_contrast_turns(qapp, Qt.ContrastPreference.HighContrast)
+    system_contrast_turns(theme_controller, HIGH_CONTRAST)
     assert theme_controller.current_theme is DARK_THEME
     assert not theme_controller.high_contrast
 
@@ -303,7 +308,7 @@ def test_the_high_contrast_choice_follows_the_light_or_dark_scheme_of_the_system
     assert theme_controller.current_theme is HIGH_CONTRAST_DARK_THEME
     system_turns(qapp, Qt.ColorScheme.Light)
     assert theme_controller.current_theme is HIGH_CONTRAST_LIGHT_THEME
-    system_contrast_turns(qapp, Qt.ContrastPreference.NoPreference)
+    system_contrast_turns(theme_controller, NO_PREFERENCE)
     assert theme_controller.current_theme is HIGH_CONTRAST_LIGHT_THEME
 
 
@@ -315,3 +320,35 @@ def test_the_high_contrast_choice_keeps_the_text_size(
     theme_controller.set_preference(ThemePreference.HIGH_CONTRAST)
     assert theme_controller.current_theme.high_contrast
     assert theme_controller.current_theme.font_sizes.body == 21
+
+
+@pytest.mark.skipif(
+    not QT_FOLLOWS_THE_SYSTEM_CONTRAST, reason="Qt tells the system contrast from 6.10"
+)
+def test_the_system_contrast_comes_from_qt(
+    qapp: QApplication, create_theme_controller: ControllerFactory
+) -> None:
+    theme_controller = create_theme_controller()
+    hints = qapp.styleHints().accessibility()
+    hints.contrastPreferenceChanged.emit(Qt.ContrastPreference.HighContrast)
+    assert theme_controller.current_theme.high_contrast
+    hints.contrastPreferenceChanged.emit(Qt.ContrastPreference.NoPreference)
+    assert not theme_controller.current_theme.high_contrast
+
+
+def test_without_a_system_contrast_from_qt_only_the_choice_brings_high_contrast(
+    qtbot: QtBot,
+) -> None:
+    system_contrast = SystemContrast(object())
+    assert system_contrast.hints is None
+    assert not system_contrast.high_contrast
+    system_contrast.stop()
+    with qtbot.waitSignal(system_contrast.changed) as changed:
+        system_contrast.follow(HIGH_CONTRAST)
+    assert changed.args == [True]
+
+
+def test_only_the_high_contrast_preference_counts_as_high_contrast() -> None:
+    assert is_high_contrast(HIGH_CONTRAST)
+    assert not is_high_contrast(NO_PREFERENCE)
+    assert not is_high_contrast(None)

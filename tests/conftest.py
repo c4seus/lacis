@@ -88,10 +88,7 @@ def theme_controller(qapp: QApplication, settings: QSettings) -> Iterator[ThemeC
     font = qapp.font()
     controller = ThemeController(qapp, settings)
     yield controller
-    qapp.styleHints().colorSchemeChanged.disconnect(controller.follow_system_colour_scheme)
-    qapp.styleHints().accessibility().contrastPreferenceChanged.disconnect(
-        controller.follow_system_contrast
-    )
+    controller.stop_following_the_system()
     qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")
     qapp.setFont(font)
