@@ -152,7 +152,7 @@ def test_the_sheet_of_a_company_shows_its_notices_and_refreshes_them(
     sheet.show_details(details)
     assert sheet.timeline is not None
     assert sheet.refresh_button is not None
-    assert sheet.section_titles[0].accessibleName() == "Annonces BODACC, 1"
+    assert sheet.section_titles[1].accessibleName() == "Annonces BODACC, 1"
     assert sheet.refresh_button.accessibleName() == "Rafraîchir les annonces de DUPONT SERVICES"
     with qtbot.waitSignal(sheet.notices_refresh_requested) as requested:
         sheet.refresh_button.click()

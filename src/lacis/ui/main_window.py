@@ -1,7 +1,7 @@
 import sqlite3
 from typing import override
 
-from PySide6.QtCore import QByteArray, QSettings, QSize, Qt
+from PySide6.QtCore import QByteArray, QSettings, QSize, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QResizeEvent
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
 
@@ -19,6 +19,7 @@ from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE as UNREADABLE
 from lacis.storage.investigations import InvestigationLibrary
 from lacis.storage.locations import investigations_directory
+from lacis.storage.notes import NoteStore
 from lacis.ui.about_dialog import AboutDialog
 from lacis.ui.header_bar import HOME_TRAIL, HeaderBar
 from lacis.ui.home_screen import HomeScreen
@@ -168,6 +169,7 @@ class MainWindow(QMainWindow):
         )
         sheet = self.investigation_page.details_panel.entity_sheet
         sheet.raw_requested.connect(self.show_raw_response)
+        sheet.note_edited.connect(self.save_note)
         self.investigation_page.details_panel.journal_tab.raw_requested.connect(
             self.show_raw_response
         )
@@ -300,6 +302,22 @@ class MainWindow(QMainWindow):
             return
         self.investigation_page.details_panel.show_details(details)
 
+    def save_note(self, identifier: str, text: str) -> None:
+        if self.current_investigation is None:
+            return
+        try:
+            with self.library.open(self.current_investigation) as opened:
+                store = NoteStore(opened.connection)
+                had_note = store.note(identifier) is not None
+                note = store.save(identifier, text)
+        except (InvestigationError, sqlite3.DatabaseError) as problem:
+            message = str(problem) if isinstance(problem, InvestigationError) else UNREADABLE
+            self.show_failure(message)
+            return
+        self.investigation_page.details_panel.entity_sheet.show_saved_note(identifier, note)
+        if had_note is (note is None):
+            QTimer.singleShot(0, self.refresh_overview)
+
     def show_raw_response(self, response_identifier: int) -> None:
         if self.current_investigation is None:
             return
@@ -332,6 +350,7 @@ class MainWindow(QMainWindow):
         self.previous_overview = None
 
     def show_home(self) -> None:
+        self.investigation_page.details_panel.entity_sheet.flush_note()
         self.review_actions.stop()
         self.forget_news()
         self.stop_layout()
@@ -380,6 +399,7 @@ class MainWindow(QMainWindow):
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
+        self.investigation_page.details_panel.entity_sheet.flush_note()
         self.review_actions.stop()
         self.stop_layout()
         self.stop_moves()

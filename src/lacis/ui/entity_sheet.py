@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import replace
 from typing import override
 
 from PySide6.QtCore import QEvent, Qt, QUrl, Signal
@@ -29,10 +30,12 @@ from lacis.details import (
 from lacis.graph.drawing import KIND_LABELS
 from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
 from lacis.signals.facts import counted
+from lacis.storage.notes import EntityNote
 from lacis.ui.accessibility import DisclosureToggle, ScoreLabel
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.focus_chain import place_after
 from lacis.ui.graph_legend import KindSwatch
+from lacis.ui.note_editor import NoteEditor
 from lacis.ui.notice_timeline import NoticeTimeline
 
 EMPTY_TEXT = "La fiche de l'entité sélectionnée s'affichera ici."
@@ -45,6 +48,9 @@ DEPTH_MENU_HINT = "Alt+Flèche bas ou touche Menu pour choisir la profondeur"
 DIRECTORY_TEXT = "Annuaire"
 DIRECTORY_TOOLTIP = "Ouvrir la fiche dans l'Annuaire des entreprises"
 SIGNALS_TITLE = "Signaux d'alerte"
+NOTES_TITLE = "Notes"
+NOTE_WRITTEN_TEXT = "1 note"
+NO_NOTE_COUNT_TEXT = "aucune"
 NOTICES_TITLE = "Annonces BODACC"
 REFRESH_NOTICES_TEXT = "Rafraîchir"
 LINKS_TITLE = "Liens"
@@ -59,6 +65,10 @@ COPIED_MESSAGE = "« {value} » copié dans le presse-papiers."
 ACTIVATING_KEYS = {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}
 LINK_ROLE_WIDTH = 110
 LINK_INDENT = LINK_ROLE_WIDTH + 8
+
+
+def note_count(note: EntityNote | None) -> str:
+    return NO_NOTE_COUNT_TEXT if note is None else NOTE_WRITTEN_TEXT
 
 
 def role_width(label: QLabel) -> int:
@@ -197,7 +207,12 @@ class SectionTitle(QWidget):
         if action is not None:
             action.setParent(self)
             layout.addWidget(action)
-        self.setAccessibleName(f"{title}, {count}")
+        self.title = title
+        self.show_count(count)
+
+    def show_count(self, count: str) -> None:
+        self.count_label.setText(count)
+        self.setAccessibleName(f"{self.title}, {count}")
 
 
 class SignalCardView(QFrame):
@@ -364,6 +379,7 @@ class EntitySheet(QScrollArea):
     notices_refresh_requested = Signal(str, str)
     decision_withdrawal_requested = Signal(object, object)
     expandable_changed = Signal(bool)
+    note_edited = Signal(str, str)
 
     def __init__(
         self,
@@ -391,6 +407,8 @@ class EntitySheet(QScrollArea):
         self.decision_rows: list[DecisionRow] = []
         self.source_rows: list[SourceRow] = []
         self.section_titles: list[SectionTitle] = []
+        self.note_editor: NoteEditor | None = None
+        self.note_title: SectionTitle | None = None
         self.show_details(None)
 
     def reference_chip(self, reference: Reference, parent: QWidget) -> ReferenceChip:
@@ -401,6 +419,11 @@ class EntitySheet(QScrollArea):
         return chip
 
     def show_details(self, details: EntityDetails | None) -> None:
+        if self.only_the_note_differs(details):
+            self.details = details
+            return
+        kept_text = self.kept_note_text(details)
+        self.flush_note()
         self.details = details
         previous = self.takeWidget()
         if previous is not None:
@@ -418,12 +441,14 @@ class EntitySheet(QScrollArea):
         self.section_titles = []
         self.timeline = None
         self.refresh_button = None
+        self.note_editor = None
         if details is None:
             self.empty_label = wrapped_label(EMPTY_TEXT, "faint", self.content)
             self.content_layout.addWidget(self.empty_label)
         else:
             self.add_head(details)
             self.add_signals(details)
+            self.add_note(details, kept_text)
             self.add_notices(details)
             self.add_links(details)
             self.add_decisions(details)
@@ -517,6 +542,36 @@ class EntitySheet(QScrollArea):
             view = SignalCardView(card, self)
             self.signal_cards.append(view)
             self.content_layout.addWidget(view)
+
+    def add_note(self, details: EntityDetails, kept_text: str | None) -> None:
+        self.add_section_title(NOTES_TITLE, note_count(details.note))
+        self.note_title = self.section_titles[-1]
+        self.note_editor = NoteEditor(details.identifier, details.name, details.note, self.content)
+        if kept_text is not None:
+            self.note_editor.keep_text(kept_text)
+        self.note_editor.edited.connect(self.note_edited)
+        self.content_layout.addWidget(self.note_editor)
+
+    def only_the_note_differs(self, details: EntityDetails | None) -> bool:
+        if details is None or self.details is None:
+            return False
+        return replace(details, note=self.details.note) == self.details
+
+    def kept_note_text(self, details: EntityDetails | None) -> str | None:
+        editor = self.note_editor
+        if details is None or editor is None or editor.identifier != details.identifier:
+            return None
+        return editor.text()
+
+    def flush_note(self) -> None:
+        if self.note_editor is not None:
+            self.note_editor.flush()
+
+    def show_saved_note(self, identifier: str, note: EntityNote | None) -> None:
+        editor, title = self.note_editor, self.note_title
+        if editor is not None and title is not None and editor.identifier == identifier:
+            editor.show_saved(note)
+            title.show_count(note_count(note))
 
     def add_notices(self, details: EntityDetails) -> None:
         if not details.has_notices:
