@@ -2,7 +2,7 @@ import sqlite3
 from dataclasses import replace
 
 import pytest
-from PySide6.QtCore import QSize, Qt, QUrl
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QAccessible, QGuiApplication
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QLabel, QWidget
@@ -132,6 +132,44 @@ def test_the_depth_menu_chooses_how_far_to_expand(
     with qtbot.waitSignal(sheet.expansion_requested) as requested:
         sheet.expand_button.click()
     assert requested.args == [scenario.dupont_services, "DUPONT SERVICES", 1, False]
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        (Qt.Key.Key_Down, Qt.KeyboardModifier.AltModifier),
+        (Qt.Key.Key_Menu, Qt.KeyboardModifier.NoModifier),
+    ],
+)
+def test_the_keyboard_opens_the_depth_menu(
+    qtbot: QtBot,
+    sheet: EntitySheet,
+    builder: InvestigationBuilder,
+    scenario: PlumbersScenario,
+    keys: tuple[Qt.Key, Qt.KeyboardModifier],
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    menu = sheet.depth_menu
+
+    def choose_the_second_depth() -> None:
+        QTest.keyClick(menu, Qt.Key.Key_Down)
+        QTest.keyClick(menu, Qt.Key.Key_Down)
+        QTest.keyClick(menu, Qt.Key.Key_Return)
+
+    menu.aboutToShow.connect(lambda: QTimer.singleShot(0, choose_the_second_depth))
+    with qtbot.waitSignal(sheet.expansion_requested) as requested:
+        QTest.keyClick(sheet.expand_button, *keys)
+    assert requested.args == [scenario.dupont_services, "DUPONT SERVICES", 2, False]
+    assert not menu.isVisible()
+
+
+def test_other_keys_leave_the_depth_menu_closed(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    with qtbot.assertNotEmitted(sheet.depth_menu.aboutToShow):
+        QTest.keyClick(sheet.expand_button, Qt.Key.Key_Down)
+        QTest.keyClick(sheet.expand_button, Qt.Key.Key_Up, Qt.KeyboardModifier.AltModifier)
 
 
 def test_expanding_again_refreshes_the_entity(
