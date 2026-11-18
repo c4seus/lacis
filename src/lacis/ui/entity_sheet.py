@@ -109,6 +109,23 @@ def badge(text: str, tone: str, parent: QWidget) -> QLabel:
     return label
 
 
+class ExpandButton(QToolButton):
+    @override
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self.opens_menu(event):
+            event.accept()
+            self.showMenu()
+            return
+        super().keyPressEvent(event)
+
+    @staticmethod
+    def opens_menu(event: QKeyEvent) -> bool:
+        if event.key() == Qt.Key.Key_Menu:
+            return True
+        with_alt = bool(event.modifiers() & Qt.KeyboardModifier.AltModifier)
+        return event.key() == Qt.Key.Key_Down and with_alt
+
+
 class ReferenceChip(QFrame):
     accessible_role = QAccessible.Role.Link
     chosen = Signal(str)
@@ -454,7 +471,7 @@ class EntitySheet(QScrollArea):
     def add_actions(self, details: EntityDetails) -> None:
         actions = FlowLayout(horizontal_spacing=6, vertical_spacing=6)
         actions.setContentsMargins(0, 10, 0, 2)
-        self.expand_button = QToolButton(self.content)
+        self.expand_button = ExpandButton(self.content)
         self.expand_button.setObjectName("expandButton")
         self.expand_button.setText(EXPAND_AGAIN_TEXT if details.expanded else EXPAND_TEXT)
         self.expand_button.setAccessibleName(self.expand_button.text())
