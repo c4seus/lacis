@@ -10,9 +10,21 @@ from pytestqt.qtbot import QtBot
 from accessibility_checks import accessible_name
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
+from lacis.design.contrast import (
+    HIGH_CONTRAST_INTERFACE_MINIMUM_RATIO,
+    HIGH_CONTRAST_TEXT_MINIMUM_RATIO,
+    contrast_ratio,
+)
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController, ThemePreference
-from lacis.design.tokens import DARK_THEME, LIGHT_THEME, Colours
+from lacis.design.tokens import (
+    DARK_THEME,
+    HIGH_CONTRAST_DARK_THEME,
+    HIGH_CONTRAST_LIGHT_THEME,
+    LIGHT_THEME,
+    Colours,
+    Theme,
+)
 from lacis.graph.drawing import (
     EdgeKind,
     GraphDrawing,
@@ -38,6 +50,7 @@ from lacis.ui.graph_view import (
     edge_label_font,
     edge_pen,
     kind_colour,
+    label_colour,
     node_border,
     node_fill,
     ring_path,
@@ -562,3 +575,31 @@ def test_a_simple_click_moves_nothing(
     with qtbot.assertNotEmitted(view.entities_moved, wait=10):
         drag(view, view.mapFromScene(holding.pos()), view.mapFromScene(holding.pos()))
     assert holding.isSelected()
+
+
+def hexadecimal(colour: QColor) -> str:
+    return colour.name(QColor.NameFormat.HexRgb)
+
+
+@pytest.mark.parametrize(
+    "theme", [HIGH_CONTRAST_LIGHT_THEME, HIGH_CONTRAST_DARK_THEME], ids=lambda theme: theme.name
+)
+def test_the_graph_stays_readable_in_high_contrast(theme: Theme) -> None:
+    colours = theme.colours
+    background = colours.graph_background
+    drawn = [
+        *(kind_colour(colours, kind) for kind in EntityKind),
+        *(edge_pen(colours, kind).color() for kind in EdgeKind),
+        *(severity_colour(colours, severity) for severity in Severity),
+        QColor(colours.faint_text),
+    ]
+    for colour in drawn:
+        assert (
+            contrast_ratio(hexadecimal(colour), background)
+            >= HIGH_CONTRAST_INTERFACE_MINIMUM_RATIO
+        )
+    written = [label_colour(colours, kind) for kind in EntityKind] + [
+        edge_label_colour(colours, kind) for kind in EdgeKind
+    ]
+    for colour in written:
+        assert contrast_ratio(hexadecimal(colour), background) >= HIGH_CONTRAST_TEXT_MINIMUM_RATIO
