@@ -17,6 +17,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Changed
 
+- Alt+Down or the Menu key opens the depth menu of the « Étendre » button, so every depth of an expansion can be chosen with the keyboard.
 - Tab reaches the rows of the review column, the widgets of the entity sheet and the breadcrumb in their own region of the window, in the order of the screen, instead of after every other widget.
 - The link colour of the graph is slightly stronger in the light and dark themes, so that links stay visible to colour blind eyes.
 - The « même personne » colour of the light theme is slightly darker, so that its labels on the graph reach 4.5:1.

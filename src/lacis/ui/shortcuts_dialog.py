@@ -21,6 +21,7 @@ TREE_ACCESSIBLE_NAME = "Liste des raccourcis clavier"
 COLUMN_TITLES = ("Action", "Raccourci")
 SEQUENCE_SEPARATOR = " ou "
 GRAPH_GROUP_TITLE = "Dans le graphe"
+DEPTH_MENU_LINE = ("Choisir la profondeur, sur le bouton Étendre", "Alt+Bas ou Menu")
 GRAPH_KEYS = (
     ("Aller à l'entité voisine", "Flèches"),
     ("Déplacer la vue", "Maj+Flèches"),
@@ -70,6 +71,7 @@ def shortcut_groups(menu_bar: MainMenuBar) -> tuple[ShortcutGroup, ...]:
             (
                 action_line(menu_bar.search_action),
                 action_line(menu_bar.expand_action),
+                ShortcutLine(*DEPTH_MENU_LINE),
                 action_line(menu_bar.undo_action, "Annuler la dernière décision"),
                 action_line(menu_bar.redo_action, "Rétablir la décision annulée"),
                 action_line(menu_bar.new_investigation_action),

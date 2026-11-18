@@ -14,7 +14,7 @@ from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.details import EntityDetails, entity_details
 from lacis.signals.signal import Severity
-from lacis.ui.entity_sheet import LINK_ROLE_WIDTH, EntitySheet, RoleLabel
+from lacis.ui.entity_sheet import DEPTH_MENU_HINT, LINK_ROLE_WIDTH, EntitySheet, RoleLabel
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.raw_response_dialog import RawResponseDialog
 
@@ -170,6 +170,7 @@ def test_other_keys_leave_the_depth_menu_closed(
     with qtbot.assertNotEmitted(sheet.depth_menu.aboutToShow):
         QTest.keyClick(sheet.expand_button, Qt.Key.Key_Down)
         QTest.keyClick(sheet.expand_button, Qt.Key.Key_Up, Qt.KeyboardModifier.AltModifier)
+    assert sheet.expand_button.accessibleDescription() == DEPTH_MENU_HINT
 
 
 def test_expanding_again_refreshes_the_entity(
