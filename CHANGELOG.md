@@ -6,6 +6,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Added
 
+- No information relies on colour alone. The severity rings of the graph are double for a strong signal, single for a medium one and dashed for a weak one; hovering an entity writes its kind, its state and its severity; the score of the Entities tab writes the severity next to it; and each notification shows an icon for its kind. Tests check the graph colours against protanopia, deuteranopia and tritanopia simulations.
 - High contrast themes, light and dark, where text reaches 7:1 and borders, icons and graph colours 4.5:1. They apply when the system is in high contrast mode and the theme follows the system, and « Contraste élevé » in View › Thème forces them.
 - Lacis follows the font size of the system, and View › Taille du texte enlarges every text from 100 % to 200 %. At 200 %, on a 1280 × 800 screen, no text is cut and every control remains reachable: long lines wrap, and buttons that no longer fit side by side move to the next line.
 - The graph has a list view, for screen readers and the keyboard. The « Vue liste » button above the graph, or Ctrl+L, shows its entities grouped by kind, each with its links, and screen readers hear each entity with its kind and its number of links. Moving through the list selects the entity in the graph and opens its details, Enter on a link goes to the entity it leads to, and the list follows the filters of the graph.
@@ -14,6 +15,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Changed
 
+- The link colour of the graph is slightly stronger in the light and dark themes, so that links stay visible to colour blind eyes.
 - The « même personne » colour of the light theme is slightly darker, so that its labels on the graph reach 4.5:1.
 - The provenance button of a « Même personne » link reads « Provenance · Décision », shorter, so that it fits with a larger text. Its accessible name still says « Décision de l'enquêteur ».
 
