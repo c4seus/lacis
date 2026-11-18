@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Any
 
 from PySide6.QtCore import QObject, QSettings, Qt, Signal
 from PySide6.QtGui import QColor, QPalette
@@ -24,6 +25,7 @@ class ThemePreference(StrEnum):
 
 THEME_PREFERENCE_SETTING_KEY = "appearance/theme"
 TEXT_SIZE_SETTING_KEY = "appearance/text_size"
+HIGH_CONTRAST_NAME = "HighContrast"
 TEXT_SIZES = (100, 125, 150, 175, 200)
 DEFAULT_TEXT_SIZE = 100
 FORCED_COLOUR_SCHEMES = {
@@ -58,6 +60,31 @@ def read_text_size(settings: QSettings) -> int:
     return size if size in TEXT_SIZES else DEFAULT_TEXT_SIZE
 
 
+def is_high_contrast(contrast: object) -> bool:
+    return getattr(contrast, "name", None) == HIGH_CONTRAST_NAME
+
+
+class SystemContrast(QObject):
+    changed = Signal(bool)
+
+    def __init__(self, style_hints: object, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        accessibility = getattr(style_hints, "accessibility", None)
+        self.hints: Any = None if accessibility is None else accessibility()
+        self.high_contrast = False
+        if self.hints is not None:
+            self.high_contrast = is_high_contrast(self.hints.contrastPreference())
+            self.hints.contrastPreferenceChanged.connect(self.follow)
+
+    def follow(self, contrast: object) -> None:
+        self.high_contrast = is_high_contrast(contrast)
+        self.changed.emit(self.high_contrast)
+
+    def stop(self) -> None:
+        if self.hints is not None:
+            self.hints.contrastPreferenceChanged.disconnect(self.follow)
+
+
 class ThemeController(QObject):
     theme_changed = Signal(Theme)
     preference_changed = Signal(ThemePreference)
@@ -70,8 +97,7 @@ class ThemeController(QObject):
         self.application = application
         self.settings = settings
         self.style_hints = application.styleHints()
-        self.accessibility_hints = self.style_hints.accessibility()
-        self.system_contrast = self.accessibility_hints.contrastPreference()
+        self.system_contrast = SystemContrast(self.style_hints, self)
         self.colour_scheme = self.style_hints.colorScheme()
         self.current_theme = LIGHT_THEME
         self.base_theme = LIGHT_THEME
@@ -79,7 +105,7 @@ class ThemeController(QObject):
         self.text_size = read_text_size(settings)
         self.system_text_scale = system_text_scale()
         self.style_hints.colorSchemeChanged.connect(self.follow_system_colour_scheme)
-        self.accessibility_hints.contrastPreferenceChanged.connect(self.follow_system_contrast)
+        self.system_contrast.changed.connect(self.follow_system_contrast)
         self.apply_preference()
 
     def set_preference(self, preference: ThemePreference) -> None:
@@ -104,8 +130,7 @@ class ThemeController(QObject):
     def high_contrast(self) -> bool:
         if self.preference == ThemePreference.HIGH_CONTRAST:
             return True
-        system_high_contrast = self.system_contrast == Qt.ContrastPreference.HighContrast
-        return self.preference == ThemePreference.SYSTEM and system_high_contrast
+        return self.preference == ThemePreference.SYSTEM and self.system_contrast.high_contrast
 
     def apply_preference(self) -> None:
         forced_colour_scheme = FORCED_COLOUR_SCHEMES.get(self.preference)
@@ -130,8 +155,11 @@ class ThemeController(QObject):
                 theme_for_colour_scheme(colour_scheme, high_contrast=self.high_contrast)
             )
 
-    def follow_system_contrast(self, contrast: Qt.ContrastPreference) -> None:
-        self.system_contrast = contrast
+    def stop_following_the_system(self) -> None:
+        self.style_hints.colorSchemeChanged.disconnect(self.follow_system_colour_scheme)
+        self.system_contrast.stop()
+
+    def follow_system_contrast(self, high_contrast: bool) -> None:
         if self.preference == ThemePreference.SYSTEM:
             self.follow_system_colour_scheme(self.colour_scheme)
 
