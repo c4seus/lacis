@@ -1,8 +1,10 @@
+from dataclasses import dataclass
 from typing import override
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeyEvent, QMouseEvent, QResizeEvent
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -27,7 +29,7 @@ from lacis.review import (
 from lacis.storage.homonym_decisions import HomonymDecision
 from lacis.ui.accessibility import ScoreLabel
 from lacis.ui.flow_layout import FlowLayout
-from lacis.ui.focus_chain import place_after
+from lacis.ui.focus_chain import focusable_descendants, place_after
 from lacis.ui.graph_legend import KindSwatch
 
 QUEUE_LIST_ACCESSIBLE_NAME = "Éléments à examiner"
@@ -76,6 +78,7 @@ class QueueRow(QFrame):
     ) -> None:
         super().__init__(parent)
         self.entity = entity
+        self.section = ""
         self.setObjectName("queueRow")
         self.setProperty("selected", False)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -187,6 +190,19 @@ def action_button(text: str, accessible_name: str, parent: QWidget) -> QPushButt
     return button
 
 
+@dataclass(frozen=True)
+class QueueFocus:
+    section: str
+    identifier: str
+    row_index: int
+    section_index: int
+    widget_index: int
+
+
+def focus_targets(row: QueueRow) -> list[QWidget]:
+    return [row, *focusable_descendants(row)]
+
+
 class ReviewQueueList(QScrollArea):
     entity_chosen = Signal(str)
     decision_requested = Signal(object, object, object)
@@ -214,6 +230,7 @@ class ReviewQueueList(QScrollArea):
         self.show_queue(self.queue)
 
     def show_queue(self, queue: ReviewQueue) -> None:
+        focus = self.queue_focus()
         self.queue = queue
         previous = self.takeWidget()
         if previous is not None:
@@ -236,6 +253,46 @@ class ReviewQueueList(QScrollArea):
         self.setWidget(self.content)
         place_after(self, self.content)
         self.mark_selected(self.selected_identifier)
+        self.restore_focus(focus)
+
+    def neighbour(self, focus: QueueFocus) -> QueueRow:
+        section = self.section_rows(focus.section)
+        same = [row for row in section if row.entity.identifier == focus.identifier]
+        if same:
+            return same[0]
+        if section:
+            return section[min(focus.section_index, len(section) - 1)]
+        return self.rows[min(focus.row_index, len(self.rows) - 1)]
+
+    def queue_focus(self) -> QueueFocus | None:
+        focused = QApplication.focusWidget()
+        for row_index, row in enumerate(self.rows):
+            targets = focus_targets(row)
+            if focused in targets:
+                return QueueFocus(
+                    row.section,
+                    row.entity.identifier,
+                    row_index,
+                    self.section_rows(row.section).index(row),
+                    targets.index(focused),
+                )
+        return None
+
+    def section_rows(self, section: str) -> list[QueueRow]:
+        return [row for row in self.rows if row.section == section]
+
+    def restore_focus(self, focus: QueueFocus | None) -> None:
+        if focus is None:
+            return
+        if not self.rows:
+            self.setFocus(Qt.FocusReason.OtherFocusReason)
+            return
+        row = self.neighbour(focus)
+        targets = focus_targets(row)
+        target = targets[focus.widget_index] if focus.widget_index < len(targets) else row
+        if not target.isEnabled():
+            target = row
+        target.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def add_group_title(self, text: str) -> None:
         label = group_title(text, self.content)
@@ -248,8 +305,9 @@ class ReviewQueueList(QScrollArea):
         self.empty_labels.append(label)
         self.content_layout.addWidget(label)
 
-    def add_row(self, entity: QueueEntity, title: str = "") -> QueueRow:
+    def add_row(self, entity: QueueEntity, section: str, title: str = "") -> QueueRow:
         row = QueueRow(entity, self.colours_provider, title, self.content)
+        row.section = section
         row.activated.connect(self.entity_chosen)
         self.rows.append(row)
         self.content_layout.addWidget(row)
@@ -266,7 +324,7 @@ class ReviewQueueList(QScrollArea):
         for group in queue.signal_groups:
             self.add_group_title(group.title)
             for entity in group.entities:
-                self.add_row(entity)
+                self.add_row(entity, group.title)
 
     def add_homonyms(self, queue: ReviewQueue) -> None:
         self.add_group_title(HOMONYMS_TITLE)
@@ -276,7 +334,7 @@ class ReviewQueueList(QScrollArea):
             self.add_homonym(entry)
 
     def add_homonym(self, entry: HomonymEntry) -> None:
-        row = self.add_row(entry.first, entry.title)
+        row = self.add_row(entry.first, HOMONYMS_TITLE, entry.title)
         badge = QLabel(entry.confidence_label, row)
         badge.setProperty("tone", "badge-outline")
         row.score_label.hide()
@@ -303,7 +361,7 @@ class ReviewQueueList(QScrollArea):
         if not queue.leads:
             self.add_empty_text(NO_LEAD_TEXT)
         for lead in queue.leads:
-            row = self.add_row(lead)
+            row = self.add_row(lead, LEADS_TITLE)
             button = action_button(EXPAND_TEXT, f"{EXPAND_TEXT} {lead.label}", row)
             button.clicked.connect(
                 lambda checked=False, chosen=lead: self.expansion_requested.emit(
