@@ -44,6 +44,9 @@ FLAGGED_TEXT = "Signalées seulement"
 FLAGGED_ACCESSIBLE_NAME = "N'afficher que les entités signalées"
 SORT_ACCESSIBLE_NAME = "Trier les entités par"
 NO_STATUS_TEXT = "sans état"
+NOTED_TEXT = "Oui"
+NOTED_SPOKEN_TEXT = "avec une note"
+NOT_NOTED_SPOKEN_TEXT = "sans note"
 LAST_TEXT = chr(0xFFFF)
 
 
@@ -53,6 +56,7 @@ class EntityColumn(IntEnum):
     STATUS = 2
     SCORE = 3
     LINKS = 4
+    NOTE = 5
 
 
 COLUMN_TITLES = {
@@ -61,6 +65,7 @@ COLUMN_TITLES = {
     EntityColumn.STATUS: "État",
     EntityColumn.SCORE: "Score",
     EntityColumn.LINKS: "Liens",
+    EntityColumn.NOTE: "Note",
 }
 SORT_CHOICES = (
     ("Score", EntityColumn.SCORE, Qt.SortOrder.DescendingOrder),
@@ -80,6 +85,8 @@ def sort_value(row: EntityRow, column: EntityColumn) -> str | float:
     if column is EntityColumn.SCORE:
         rank, score = row.sort_score
         return rank * 10 + score
+    if column is EntityColumn.NOTE:
+        return float(row.noted)
     return float(row.links)
 
 
@@ -90,6 +97,7 @@ def shown_text(row: EntityRow, column: EntityColumn) -> str:
         EntityColumn.STATUS: row.status_text,
         EntityColumn.SCORE: row.shown_score,
         EntityColumn.LINKS: str(row.links),
+        EntityColumn.NOTE: NOTED_TEXT if row.noted else "",
     }
     return texts[column]
 
@@ -103,6 +111,8 @@ def spoken_text(row: EntityRow, column: EntityColumn) -> str:
         return row.spoken_score
     if column is EntityColumn.LINKS:
         return f"{row.links} lien{'s' if row.links > 1 else ''}"
+    if column is EntityColumn.NOTE:
+        return NOTED_SPOKEN_TEXT if row.noted else NOT_NOTED_SPOKEN_TEXT
     return shown_text(row, column)
 
 

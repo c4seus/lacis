@@ -169,6 +169,7 @@ def test_the_table_speaks_its_cells_and_is_reached_with_the_keyboard(tab: Entiti
         "État",
         "Score",
         "Liens",
+        "Note",
     ]
     assert model.headerData(0, Qt.Orientation.Vertical) is None
 

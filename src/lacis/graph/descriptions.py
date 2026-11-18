@@ -5,6 +5,7 @@ from lacis.storage.entities import EntityKind
 
 CLOSED_WORDS = {EntityKind.COMPANY: "fermée", EntityKind.ESTABLISHMENT: "fermé"}
 PARTIAL_WORDS = "connue comme dirigeante seulement"
+NOTED_WORDS = "avec une note"
 EMPTY_GRAPH_TEXT = "Graphe vide"
 
 
@@ -28,6 +29,8 @@ def entity_summary(drawing: GraphDrawing, node: GraphNode) -> str:
     parts.append(counted(len(edges_of(drawing, node.identifier)), "lien", "liens"))
     if node.severity is not None:
         parts.append(f"signal de sévérité {node.severity.label.lower()}")
+    if node.noted:
+        parts.append(NOTED_WORDS)
     return ", ".join(parts)
 
 

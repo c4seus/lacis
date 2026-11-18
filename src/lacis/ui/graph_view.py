@@ -70,6 +70,10 @@ RING_COUNTS = {Severity.HIGH: 2, Severity.MEDIUM: 1, Severity.LOW: 1}
 LOW_RING_DASH_PATTERN = (1.5, 1.2)
 SELECTION_OPACITY = 0.22
 SELECTION_PADDING = 12.0
+NOTE_MARKER_WIDTH = 9.0
+NOTE_MARKER_HEIGHT = 11.0
+NOTE_MARKER_FOLD = 3.0
+NOTE_MARKER_PEN_WIDTH = 1.2
 EDGE_WIDTHS = {EdgeKind.DIRECTS: 1.6, EdgeKind.STRUCTURE: 1.0, EdgeKind.IDENTITY: 2.0}
 IDENTITY_DASH_PATTERN = (3.0, 2.0)
 ARROW_LENGTH = 8.0
@@ -237,6 +241,40 @@ def ring_pen(colours: Colours, severity: Severity) -> QPen:
     return pen
 
 
+def note_marker_area(node: GraphNode) -> QRectF:
+    return QRectF(
+        node.size / 2 - NOTE_MARKER_WIDTH / 2,
+        -node.size / 2 - NOTE_MARKER_HEIGHT / 2,
+        NOTE_MARKER_WIDTH,
+        NOTE_MARKER_HEIGHT,
+    )
+
+
+def note_marker_path(node: GraphNode) -> QPainterPath:
+    return note_page_path(note_marker_area(node))
+
+
+def note_page_path(area: QRectF) -> QPainterPath:
+    path = QPainterPath()
+    path.moveTo(area.left(), area.top())
+    path.lineTo(area.right() - NOTE_MARKER_FOLD, area.top())
+    path.lineTo(area.right(), area.top() + NOTE_MARKER_FOLD)
+    path.lineTo(area.right(), area.bottom())
+    path.lineTo(area.left(), area.bottom())
+    path.closeSubpath()
+    for line in (0.45, 0.7):
+        y = area.top() + area.height() * line
+        path.moveTo(area.left() + 2, y)
+        path.lineTo(area.right() - 2, y)
+    return path
+
+
+def draw_note_page(painter: QPainter, path: QPainterPath, colours: Colours) -> None:
+    painter.setPen(QPen(QColor(colours.text), NOTE_MARKER_PEN_WIDTH))
+    painter.setBrush(QColor(colours.raised_surface))
+    painter.drawPath(path)
+
+
 def selection_area(node: GraphNode) -> QRectF:
     half_size = node.size / 2 + SELECTION_PADDING
     return QRectF(-half_size, -half_size, half_size * 2, half_size * 2)
@@ -333,7 +371,8 @@ class NodeItem(QGraphicsItem):
         label_area = self.label_area.adjusted(
             -LABEL_PADDING, -LABEL_PADDING, LABEL_PADDING, LABEL_PADDING
         )
-        return shape_area.united(label_area)
+        marker_area = note_marker_area(self.node).adjusted(-1, -1, 1, 1)
+        return shape_area.united(label_area).united(marker_area)
 
     @override
     def shape(self) -> QPainterPath:
@@ -361,6 +400,8 @@ class NodeItem(QGraphicsItem):
         painter.setPen(node_border(colours, self.node))
         painter.setBrush(node_fill(colours, self.node))
         painter.drawPath(self.path)
+        if self.node.noted:
+            draw_note_page(painter, note_marker_path(self.node), colours)
         draw_label_background(painter, self.label_area, colours)
         painter.setFont(self.font)
         painter.setPen(label_colour(colours, self.node.kind))

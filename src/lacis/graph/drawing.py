@@ -16,6 +16,7 @@ from lacis.signals.signal import Severity
 from lacis.signals.store import SignalReport
 from lacis.storage.entities import Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.notes import NoteStore
 from lacis.storage.positions import Position, PositionStore
 
 IDENTITY_LABEL = "même personne"
@@ -69,6 +70,7 @@ class GraphNode:
     y: float
     severity: Severity | None = None
     placed: bool = True
+    noted: bool = False
 
     @property
     def shape(self) -> NodeShape:
@@ -233,6 +235,7 @@ def graph_drawing(
     known = stored_points(connection)
     positions = structure.initial_positions(known)
     severities = flagged_entities(report)
+    noted = NoteStore(connection).noted()
     nodes = tuple(
         GraphNode(
             identifier=entity.identifier,
@@ -244,6 +247,7 @@ def graph_drawing(
             y=positions[entity.identifier][1],
             severity=severities.get(entity.identifier),
             placed=entity.identifier in known,
+            noted=entity.identifier in noted,
         )
         for entity in structure.entities
     )

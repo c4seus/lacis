@@ -10,13 +10,17 @@ from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.graph_view import (
+    NOTE_MARKER_HEIGHT,
+    NOTE_MARKER_WIDTH,
     RING_COUNTS,
     RING_GAP,
     RING_WIDTH,
     arrow_head,
+    draw_note_page,
     edge_colour,
     edge_pen,
     kind_colour,
+    note_page_path,
     ring_pen,
     shape_path,
 )
@@ -26,6 +30,7 @@ LEGEND_SWATCH_SIZE = 10
 RING_SWATCH_SIZE = 16
 LINK_SWATCH_WIDTH = 22
 SIGNAL_LEGEND_TEXT = "Signal :"
+NOTE_LEGEND_TEXT = "Note"
 KIND_ENTRIES = (
     (EntityKind.COMPANY, "Entreprise"),
     (EntityKind.PERSON, "Personne"),
@@ -119,6 +124,21 @@ class RingSwatch(QWidget):
         painter.end()
 
 
+class NoteSwatch(QWidget):
+    def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.colours_provider = colours_provider
+        self.setFixedSize(int(NOTE_MARKER_WIDTH) + 2, int(NOTE_MARKER_HEIGHT) + 2)
+
+    @override
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        area = QRectF(1, 1, NOTE_MARKER_WIDTH, NOTE_MARKER_HEIGHT)
+        draw_note_page(painter, note_page_path(area), self.colours_provider())
+        painter.end()
+
+
 class GraphLegend(QFrame):
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -141,6 +161,8 @@ class GraphLegend(QFrame):
         signals.addWidget(signal_label)
         for severity, text in SEVERITY_ENTRIES:
             self.add_entry(signals, RingSwatch(severity, colours_provider, self), text, "legend")
+        notes = self.add_row(layout)
+        self.add_entry(notes, NoteSwatch(colours_provider, self), NOTE_LEGEND_TEXT, "legend")
         self.setAccessibleDescription(", ".join(self.texts))
 
     def add_row(self, layout: QVBoxLayout) -> FlowLayout:
