@@ -14,6 +14,7 @@ from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.details import EntityDetails, entity_details
 from lacis.signals.signal import Severity
+from lacis.storage.notes import NoteStore
 from lacis.ui.entity_sheet import DEPTH_MENU_HINT, LINK_ROLE_WIDTH, EntitySheet, RoleLabel
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.raw_response_dialog import RawResponseDialog
@@ -293,7 +294,7 @@ def test_medium_and_low_signals_have_their_own_colour(
         assert sheet.signal_cards[0].property("severity") == severity.value
 
 
-def test_an_entity_without_signals_links_or_sources_shows_only_its_head(
+def test_an_entity_without_signals_links_or_sources_shows_its_head_and_its_notes(
     sheet: EntitySheet, builder: InvestigationBuilder
 ) -> None:
     lonely = builder.address("1 PLACE DU CAPITOLE 31000 TOULOUSE")
@@ -301,7 +302,7 @@ def test_an_entity_without_signals_links_or_sources_shows_only_its_head(
     details = entity_details(builder.connection, lonely, None)
     assert details is not None
     sheet.show_details(details)
-    assert sheet.section_titles == []
+    assert [title.title for title in sheet.section_titles] == ["Notes"]
     assert not sheet.facts.isVisible()
 
 
@@ -491,3 +492,66 @@ def test_a_role_label_widens_with_its_font(qtbot: QtBot) -> None:
     label.setStyleSheet("font-size: 40px;")
     assert label.width() > LINK_ROLE_WIDTH
     assert label.width() >= label.fontMetrics().horizontalAdvance("Directeur")
+
+
+def test_the_notes_section_edits_the_note_of_the_entity(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    NoteStore(builder.connection).save(scenario.acme, "Gérant de paille ?")
+    shown(sheet, builder, scenario, scenario.acme)
+    editor = sheet.note_editor
+    assert editor is not None
+    assert editor.text() == "Gérant de paille ?"
+    notes_title = next(title for title in sheet.section_titles if title.title == "Notes")
+    assert notes_title.accessibleName() == "Notes, 1 note"
+    editor.editor.setPlainText("Gérant de paille.")
+    with qtbot.waitSignal(sheet.note_edited) as edited:
+        editor.flush()
+    assert edited.args == [scenario.acme, "Gérant de paille."]
+    sheet.show_saved_note(scenario.dupont_services, None)
+    assert notes_title.accessibleName() == "Notes, 1 note"
+    sheet.show_saved_note(scenario.acme, None)
+    assert notes_title.accessibleName() == "Notes, aucune"
+
+
+def test_a_saved_note_does_not_rebuild_the_sheet(
+    sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.acme)
+    editor = sheet.note_editor
+    NoteStore(builder.connection).save(scenario.acme, "Gérant de paille ?")
+    details = details_of(builder, scenario, scenario.acme)
+    sheet.show_details(details)
+    assert sheet.note_editor is editor
+    assert sheet.details == details
+
+
+def test_leaving_an_entity_saves_its_note(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.acme)
+    editor = sheet.note_editor
+    assert editor is not None
+    editor.editor.setPlainText("À revoir.")
+    with qtbot.waitSignal(sheet.note_edited) as edited:
+        shown(sheet, builder, scenario, scenario.dupont_services)
+    assert edited.args == [scenario.acme, "À revoir."]
+    assert sheet.note_editor is not None
+    assert sheet.note_editor.text() == ""
+
+
+def test_rebuilding_the_sheet_keeps_the_text_being_written(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.acme)
+    editor = sheet.note_editor
+    assert editor is not None
+    editor.editor.setPlainText("Texte en cours")
+    builder.company("NOUVELLE SOCIETE", identifier="company:999999999")
+    details = entity_details(builder.connection, scenario.acme, None)
+    assert details is not None
+    with qtbot.waitSignal(sheet.note_edited):
+        sheet.show_details(details)
+    assert sheet.note_editor is not editor
+    assert sheet.note_editor is not None
+    assert sheet.note_editor.text() == "Texte en cours"

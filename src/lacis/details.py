@@ -17,6 +17,7 @@ from lacis.signals.store import SignalReport
 from lacis.storage.entities import Attributes, Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
+from lacis.storage.notes import EntityNote, NoteStore
 from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore
 from lacis.storage.responses import ResponseStore, ResponseSummary
 
@@ -221,6 +222,7 @@ class EntityDetails:
     sources: tuple[SourceLine, ...]
     notices: tuple[NoticeLine, ...] = ()
     decisions: tuple[DecisionLine, ...] = ()
+    note: EntityNote | None = None
 
     @property
     def kind_label(self) -> str:
@@ -546,6 +548,7 @@ def entity_details(
         sources=tuple(reversed(sources)),
         notices=tuple(notice_lines(connection, identifier)),
         decisions=tuple(decision_lines(connection, identifier)),
+        note=NoteStore(connection).note(identifier),
     )
 
 
