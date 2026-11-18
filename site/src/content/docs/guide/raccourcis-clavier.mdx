@@ -9,7 +9,7 @@ import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
 import keyboardShortcutsDark from "../../../assets/screenshots/keyboard-shortcuts-dark.webp";
 import keyboardShortcutsLight from "../../../assets/screenshots/keyboard-shortcuts-light.webp";
 
-Tout ce que fait Lacis se fait aussi au clavier. Cette page rassemble ses raccourcis, puis le choix du thème, la taille du texte et ce que Lacis prévoit pour les lecteurs d'écran.
+Tout ce que fait Lacis se fait aussi au clavier. Cette page rassemble ses raccourcis, puis le choix du thème, la taille du texte, les animations et ce que Lacis prévoit pour les lecteurs d'écran.
 
 ## Afficher les raccourcis
 
@@ -88,12 +88,19 @@ Lacis suit la taille du texte de votre système : si vous l'avez agrandie, les 
 
 À 200 %, même sur un écran de 1280 × 800, aucun texte n'est coupé : les lignes trop longues passent à la ligne, et les boutons qui ne tiennent plus côte à côte passent en dessous. Le facteur d'échelle de l'écran, réglé dans votre système, agrandit en plus toute la fenêtre, icônes comprises.
 
+## Réduire les animations
+
+Le zoom, l'ajustement du graphe à la fenêtre et sa réorganisation sont toujours instantanés. Deux choses bougent seulement : la barre des collectes en cours, et les effets que votre système peut donner aux menus et aux info-bulles.
+
+Cochez **Affichage › Réduire les animations** pour les arrêter : la barre disparaît, le texte de la progression reste, et les menus et info-bulles s'ouvrent sans effet. Lacis retient ce choix. Il réduit aussi les animations quand votre système le demande, si votre version de Qt sait le lui dire.
+
 ## Accessibilité
 
 Lacis est conçu pour être utilisé avec un lecteur d'écran, comme Orca sous Linux ou NVDA sous Windows :
 
 - chaque bouton, champ et liste a un nom accessible, y compris les boutons qui n'affichent qu'une icône ;
 - les éléments propres à Lacis annoncent aussi leur rôle et leur état : une puce d'entité se lit comme un lien vers une entreprise, une personne ou une adresse, une carte de signal comme un groupe avec son explication et son score, la frise des annonces BODACC comme une liste, et les boutons qui replient la colonne « À examiner » ou déplient la provenance d'un lien disent s'ils sont ouverts ou fermés ;
+- les animations se réduisent avec le système, ou depuis le menu **Affichage**, comme expliqué dans [Réduire les animations](#réduire-les-animations) ;
 - aucune information ne passe par la couleur seule : chaque type d'entité a sa forme, chaque type de lien son trait, chaque sévérité son anneau et son nom, et chaque notification son icône ;
 - un [contraste élevé](#choisir-le-thème) suit celui du système, ou s'impose depuis le choix du thème ;
 - le texte s'agrandit jusqu'à 200 % sans être coupé, comme expliqué dans [Agrandir le texte](#agrandir-le-texte) ;
