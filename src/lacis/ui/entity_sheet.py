@@ -41,6 +41,7 @@ EXPAND_TEXT = "Étendre"
 EXPAND_AGAIN_TEXT = "Étendre à nouveau"
 DEPTH_TEXT = "Profondeur {depth}"
 DEPTH_MENU_ACCESSIBLE_NAME = "Choisir la profondeur d'extension"
+DEPTH_MENU_HINT = "Alt+Flèche bas ou touche Menu pour choisir la profondeur"
 DIRECTORY_TEXT = "Annuaire"
 DIRECTORY_TOOLTIP = "Ouvrir la fiche dans l'Annuaire des entreprises"
 SIGNALS_TITLE = "Signaux d'alerte"
@@ -475,6 +476,7 @@ class EntitySheet(QScrollArea):
         self.expand_button.setObjectName("expandButton")
         self.expand_button.setText(EXPAND_AGAIN_TEXT if details.expanded else EXPAND_TEXT)
         self.expand_button.setAccessibleName(self.expand_button.text())
+        self.expand_button.setAccessibleDescription(DEPTH_MENU_HINT)
         self.expand_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         self.expand_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.depth_menu = QMenu(self.expand_button)
