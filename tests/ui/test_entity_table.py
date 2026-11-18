@@ -148,7 +148,7 @@ def test_the_table_speaks_its_cells_and_is_reached_with_the_keyboard(tab: Entiti
     assert dupont.data(IDENTIFIER_ROLE) == "company:1"
     assert dupont.data(TONE_ROLE) is None
     assert model.index(0, EntityColumn.STATUS).data(TONE_ROLE) == "closed"
-    assert model.index(0, EntityColumn.SCORE).data() == "0,85"
+    assert model.index(0, EntityColumn.SCORE).data() == "0,85 · forte"
     assert model.index(0, EntityColumn.SCORE).data(TONE_ROLE) == "high"
     assert model.index(0, EntityColumn.SCORE).data(spoken) == "score 0,85, gravité forte"
     assert model.index(0, EntityColumn.SCORE).data(Qt.ItemDataRole.TextAlignmentRole) == (

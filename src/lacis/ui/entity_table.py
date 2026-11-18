@@ -88,7 +88,7 @@ def shown_text(row: EntityRow, column: EntityColumn) -> str:
         EntityColumn.NAME: row.label,
         EntityColumn.KIND: row.kind_label,
         EntityColumn.STATUS: row.status_text,
-        EntityColumn.SCORE: row.written_score,
+        EntityColumn.SCORE: row.shown_score,
         EntityColumn.LINKS: str(row.links),
     }
     return texts[column]
