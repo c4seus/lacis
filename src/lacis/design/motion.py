@@ -1,8 +1,9 @@
 from typing import Any
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, QSettings, Qt, Signal
 from PySide6.QtWidgets import QApplication
 
+REDUCED_MOTION_SETTING_KEY = "appearance/reduced_motion"
 REDUCED_MOTION_NAME = "ReducedMotion"
 
 
@@ -19,9 +20,13 @@ def motion_hints_of(style_hints: object) -> Any:
 class MotionController(QObject):
     reduced_changed = Signal(bool)
 
-    def __init__(self, application: QApplication, parent: QObject | None = None) -> None:
+    def __init__(
+        self, application: QApplication, settings: QSettings, parent: QObject | None = None
+    ) -> None:
         super().__init__(parent)
         self.application = application
+        self.settings = settings
+        self.chosen = settings.value(REDUCED_MOTION_SETTING_KEY, False, type=bool) is True
         self.style_hints = application.styleHints()
         self.hints = motion_hints_of(self.style_hints)
         self.system_reduced = False
@@ -35,7 +40,15 @@ class MotionController(QObject):
 
     @property
     def reduced(self) -> bool:
-        return self.system_reduced
+        return self.chosen or self.system_reduced
+
+    def set_chosen(self, chosen: bool) -> None:
+        if chosen == self.chosen:
+            return
+        self.chosen = chosen
+        self.settings.setValue(REDUCED_MOTION_SETTING_KEY, chosen)
+        self.settings.sync()
+        self.apply()
 
     def follow_system(self, preference: object) -> None:
         self.system_reduced = is_reduced_motion(preference)
