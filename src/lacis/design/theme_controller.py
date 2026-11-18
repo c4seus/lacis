@@ -6,13 +6,20 @@ from PySide6.QtWidgets import QApplication
 
 from lacis.design.fonts import application_font, system_text_scale
 from lacis.design.style_sheet import build_style_sheet
-from lacis.design.tokens import DARK_THEME, LIGHT_THEME, Theme
+from lacis.design.tokens import (
+    DARK_THEME,
+    HIGH_CONTRAST_DARK_THEME,
+    HIGH_CONTRAST_LIGHT_THEME,
+    LIGHT_THEME,
+    Theme,
+)
 
 
 class ThemePreference(StrEnum):
     SYSTEM = "system"
     LIGHT = "light"
     DARK = "dark"
+    HIGH_CONTRAST = "high-contrast"
 
 
 THEME_PREFERENCE_SETTING_KEY = "appearance/theme"
@@ -25,8 +32,13 @@ FORCED_COLOUR_SCHEMES = {
 }
 
 
-def theme_for_colour_scheme(colour_scheme: Qt.ColorScheme) -> Theme:
-    return DARK_THEME if colour_scheme == Qt.ColorScheme.Dark else LIGHT_THEME
+def theme_for_colour_scheme(
+    colour_scheme: Qt.ColorScheme, *, high_contrast: bool = False
+) -> Theme:
+    dark = colour_scheme == Qt.ColorScheme.Dark
+    if high_contrast:
+        return HIGH_CONTRAST_DARK_THEME if dark else HIGH_CONTRAST_LIGHT_THEME
+    return DARK_THEME if dark else LIGHT_THEME
 
 
 def read_theme_preference(settings: QSettings) -> ThemePreference:
@@ -58,12 +70,16 @@ class ThemeController(QObject):
         self.application = application
         self.settings = settings
         self.style_hints = application.styleHints()
+        self.accessibility_hints = self.style_hints.accessibility()
+        self.system_contrast = self.accessibility_hints.contrastPreference()
+        self.colour_scheme = self.style_hints.colorScheme()
         self.current_theme = LIGHT_THEME
         self.base_theme = LIGHT_THEME
         self.preference = read_theme_preference(settings)
         self.text_size = read_text_size(settings)
         self.system_text_scale = system_text_scale()
         self.style_hints.colorSchemeChanged.connect(self.follow_system_colour_scheme)
+        self.accessibility_hints.contrastPreferenceChanged.connect(self.follow_system_contrast)
         self.apply_preference()
 
     def set_preference(self, preference: ThemePreference) -> None:
@@ -84,11 +100,18 @@ class ThemeController(QObject):
         self.apply_theme(self.base_theme)
         self.text_size_changed.emit(self.text_size)
 
+    @property
+    def high_contrast(self) -> bool:
+        if self.preference == ThemePreference.HIGH_CONTRAST:
+            return True
+        system_high_contrast = self.system_contrast == Qt.ContrastPreference.HighContrast
+        return self.preference == ThemePreference.SYSTEM and system_high_contrast
+
     def apply_preference(self) -> None:
         forced_colour_scheme = FORCED_COLOUR_SCHEMES.get(self.preference)
         if forced_colour_scheme is None:
             self.style_hints.setColorScheme(Qt.ColorScheme.Unknown)
-            self.apply_theme(theme_for_colour_scheme(self.style_hints.colorScheme()))
+            self.follow_system_colour_scheme(self.style_hints.colorScheme())
             return
         self.style_hints.setColorScheme(forced_colour_scheme)
         self.apply_theme(theme_for_colour_scheme(forced_colour_scheme))
@@ -101,8 +124,16 @@ class ThemeController(QObject):
         self.application.setPalette(palette)
 
     def follow_system_colour_scheme(self, colour_scheme: Qt.ColorScheme) -> None:
+        self.colour_scheme = colour_scheme
+        if self.preference not in FORCED_COLOUR_SCHEMES:
+            self.apply_theme(
+                theme_for_colour_scheme(colour_scheme, high_contrast=self.high_contrast)
+            )
+
+    def follow_system_contrast(self, contrast: Qt.ContrastPreference) -> None:
+        self.system_contrast = contrast
         if self.preference == ThemePreference.SYSTEM:
-            self.apply_theme(theme_for_colour_scheme(colour_scheme))
+            self.follow_system_colour_scheme(self.colour_scheme)
 
     def apply_theme(self, theme: Theme) -> None:
         self.base_theme = theme

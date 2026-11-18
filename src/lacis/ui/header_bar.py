@@ -51,6 +51,7 @@ THEME_PREFERENCE_ICONS = {
     ThemePreference.SYSTEM: "monitor",
     ThemePreference.LIGHT: "sun",
     ThemePreference.DARK: "moon",
+    ThemePreference.HIGH_CONTRAST: "contrast",
 }
 
 

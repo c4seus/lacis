@@ -15,6 +15,9 @@ def theme_controller(qapp: QApplication, settings: QSettings) -> Iterator[ThemeC
     controller = ThemeController(qapp, settings)
     yield controller
     qapp.styleHints().colorSchemeChanged.disconnect(controller.follow_system_colour_scheme)
+    qapp.styleHints().accessibility().contrastPreferenceChanged.disconnect(
+        controller.follow_system_contrast
+    )
     qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")
 
@@ -30,12 +33,17 @@ def test_the_menu_offers_the_three_choices_in_french(
 ) -> None:
     menu = create_menu(qtbot, theme_controller)
     assert menu.title() == "&Thème"
-    assert [action.text() for action in menu.actions()] == ["&Système", "&Clair", "S&ombre"]
+    assert [action.text() for action in menu.actions()] == [
+        "&Système",
+        "&Clair",
+        "S&ombre",
+        "Contraste é&levé",
+    ]
 
 
 def test_the_current_choice_is_checked(qtbot: QtBot, theme_controller: ThemeController) -> None:
     menu = create_menu(qtbot, theme_controller)
-    assert [action.isChecked() for action in menu.actions()] == [True, False, False]
+    assert [action.isChecked() for action in menu.actions()] == [True, False, False, False]
 
 
 def test_choosing_an_entry_applies_and_checks_it(
@@ -45,7 +53,7 @@ def test_choosing_an_entry_applies_and_checks_it(
     menu.preference_actions[ThemePreference.DARK].trigger()
     assert theme_controller.preference == ThemePreference.DARK
     assert theme_controller.current_theme is DARK_THEME
-    assert [action.isChecked() for action in menu.actions()] == [False, False, True]
+    assert [action.isChecked() for action in menu.actions()] == [False, False, True, False]
 
 
 def test_the_menu_follows_a_choice_made_elsewhere(

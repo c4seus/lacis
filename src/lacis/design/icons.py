@@ -14,6 +14,7 @@ ICON_NAMES = (
     "chevron-down",
     "close",
     "collapse",
+    "contrast",
     "copy",
     "expand",
     "external",
