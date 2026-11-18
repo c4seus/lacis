@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLay
 
 from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
+from lacis.design.motion import MotionController
 from lacis.design.theme_controller import ThemeController
 from lacis.details import entity_details, raw_response
 from lacis.graph.background import BackgroundJob, CollectionSettings, layout_job, move_job
@@ -124,6 +125,10 @@ class MainWindow(QMainWindow):
         list_action.setChecked(self.investigation_page.is_list_shown())
         list_action.toggled.connect(self.investigation_page.toggle_list)
         self.investigation_page.list_toggled.connect(list_action.setChecked)
+        self.motion = MotionController(self.theme_controller.application, self)
+        progress_panel = self.investigation_page.graph_area.progress_panel
+        self.motion.reduced_changed.connect(progress_panel.reduce_motion)
+        progress_panel.reduce_motion(self.motion.reduced)
         self.investigation_page.entities_moved.connect(self.save_moved_positions)
         self.investigation_page.graph_area.layout_requested.connect(self.lay_out_again)
         graph_view = self.investigation_page.graph_view
