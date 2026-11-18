@@ -31,6 +31,7 @@ from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
 from lacis.signals.facts import counted
 from lacis.ui.accessibility import DisclosureToggle, ScoreLabel
 from lacis.ui.flow_layout import FlowLayout
+from lacis.ui.focus_chain import place_after
 from lacis.ui.graph_legend import KindSwatch
 from lacis.ui.notice_timeline import NoticeTimeline
 
@@ -411,6 +412,7 @@ class EntitySheet(QScrollArea):
             self.add_sources(details)
         self.content_layout.addStretch(1)
         self.setWidget(self.content)
+        place_after(self, self.content)
         self.show_running(self.running)
 
     def add_head(self, details: EntityDetails) -> None:
