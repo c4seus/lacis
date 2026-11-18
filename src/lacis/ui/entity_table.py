@@ -1,4 +1,3 @@
-import unicodedata
 from collections.abc import Callable
 from enum import IntEnum
 from typing import override
@@ -24,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from lacis.design.icons import ColoursProvider
+from lacis.graph.listing import sortable
 from lacis.tables import EntityRow, entities_summary
 from lacis.ui.data_table import (
     IDENTIFIER_ROLE,
@@ -70,11 +70,6 @@ SORT_CHOICES = (
 )
 
 
-def sortable(text: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", text.casefold())
-    return "".join(character for character in decomposed if not unicodedata.combining(character))
-
-
 def sort_value(row: EntityRow, column: EntityColumn) -> str | float:
     if column is EntityColumn.NAME:
         return sortable(row.label)
@@ -93,7 +88,7 @@ def shown_text(row: EntityRow, column: EntityColumn) -> str:
         EntityColumn.NAME: row.label,
         EntityColumn.KIND: row.kind_label,
         EntityColumn.STATUS: row.status_text,
-        EntityColumn.SCORE: row.written_score,
+        EntityColumn.SCORE: row.shown_score,
         EntityColumn.LINKS: str(row.links),
     }
     return texts[column]

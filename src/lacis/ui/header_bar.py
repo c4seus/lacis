@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import override
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
     QFocusEvent,
     QIcon,
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from lacis import __version__
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController, ThemePreference
+from lacis.ui.focus_chain import place_after
 from lacis.ui.help_menu import HelpMenu
 from lacis.ui.theme_menu import ThemeMenu
 
@@ -51,6 +52,7 @@ THEME_PREFERENCE_ICONS = {
     ThemePreference.SYSTEM: "monitor",
     ThemePreference.LIGHT: "sun",
     ThemePreference.DARK: "moon",
+    ThemePreference.HIGH_CONTRAST: "contrast",
 }
 
 
@@ -98,6 +100,16 @@ class SearchField(QLineEdit):
 
 def displayed_version(version: str) -> str:
     return f"v{version.split(LOCAL_VERSION_SEPARATOR, 1)[0]}"
+
+
+class ShortcutHint(QLabel):
+    font_changed = Signal()
+
+    @override
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self.font_changed.emit()
 
 
 class IconMark(QWidget):
@@ -156,6 +168,7 @@ class Breadcrumb(QWidget):
             self.step_labels.append(step_label)
             self.trail_layout.addWidget(step_label)
         self.setAccessibleDescription(f" {BREADCRUMB_SEPARATOR} ".join(trail))
+        place_after(self, self)
 
     def create_link(self, text: str, position: int) -> QPushButton:
         link = QPushButton(text, self)
@@ -172,9 +185,13 @@ class Breadcrumb(QWidget):
 
 
 def create_icon_button(
-    icon: QIcon, accessible_name: str, tooltip: str, parent: QWidget
+    icon: QIcon,
+    accessible_name: str,
+    tooltip: str,
+    parent: QWidget,
+    button: QToolButton | None = None,
 ) -> QToolButton:
-    button = QToolButton(parent)
+    button = button or QToolButton(parent)
     button.setProperty("variant", "icon")
     button.setIcon(icon)
     button.setFixedSize(ICON_BUTTON_SIZE)
@@ -196,7 +213,7 @@ class HeaderBar(QWidget):
         self.icon_factory = icon_factory
         self.setObjectName("headerBar")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setFixedHeight(HEADER_BAR_HEIGHT)
+        self.setMinimumHeight(HEADER_BAR_HEIGHT)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.create_brand()
         self.create_search()
@@ -215,12 +232,9 @@ class HeaderBar(QWidget):
         self.search_field.setPlaceholderText(SEARCH_PLACEHOLDER)
         self.search_field.setAccessibleName(SEARCH_ACCESSIBLE_NAME)
         self.search_field.setAccessibleDescription(SEARCH_SHORTCUT_DESCRIPTION)
-        self.shortcut_hint = QLabel(SEARCH_SHORTCUT_HINT, self.search_field)
+        self.shortcut_hint = ShortcutHint(SEARCH_SHORTCUT_HINT, self.search_field)
         self.shortcut_hint.setProperty("tone", "kbd")
-        self.shortcut_hint.adjustSize()
-        self.search_field.setTextMargins(
-            SEARCH_TEXT_LEFT_MARGIN, 0, self.shortcut_hint.width() + SEARCH_HINT_RIGHT_MARGIN, 0
-        )
+        self.shortcut_hint.font_changed.connect(self.place_search_icon)
         self.search_field.entered.connect(self.show_shortcut_hint)
         self.search_field.left.connect(self.show_shortcut_hint)
         self.search_field.resized.connect(self.place_search_icon)
@@ -296,6 +310,9 @@ class HeaderBar(QWidget):
             (self.search_field.height() - self.search_icon.height()) // 2,
         )
         self.shortcut_hint.adjustSize()
+        self.search_field.setTextMargins(
+            SEARCH_TEXT_LEFT_MARGIN, 0, self.shortcut_hint.width() + SEARCH_HINT_RIGHT_MARGIN, 0
+        )
         self.shortcut_hint.move(
             self.search_field.width() - self.shortcut_hint.width() - SEARCH_HINT_RIGHT_MARGIN,
             (self.search_field.height() - self.shortcut_hint.height()) // 2,

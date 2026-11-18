@@ -305,6 +305,79 @@ def test_the_controls_show_only_with_a_graph(area: GraphArea) -> None:
     assert area.empty_label.isVisible()
 
 
+def test_the_list_chip_switches_between_the_graph_and_its_list_view(
+    qtbot: QtBot, area: GraphArea
+) -> None:
+    chip = area.list_chip
+    assert chip.isVisible()
+    assert chip.isCheckable()
+    assert chip.focusPolicy() & Qt.FocusPolicy.TabFocus
+    assert chip.accessibleName() == "Vue liste"
+    assert chip.toolTip() == "Vue liste (Ctrl+L)"
+    assert chip.x() > area.filter_chip.geometry().right()
+    assert chip.y() == area.filter_chip.y()
+    area.graph_view.setFocus()
+    with qtbot.waitSignal(area.list_toggled) as toggled:
+        chip.click()
+    assert toggled.args == [True]
+    assert area.is_list_shown()
+    assert area.shown_view() is area.graph_list
+    assert area.graph_list.isVisible()
+    assert area.graph_list.hasFocus()
+    assert not area.graph_view.isVisible()
+    assert not area.zoom_toolbar.isVisible()
+    assert not area.legend.isVisible()
+    assert area.filter_chip.isVisible()
+    assert area.graph_list.mapTo(area, QPoint(0, 0)).y() > chip.geometry().bottom()
+    with qtbot.assertNotEmitted(area.list_toggled):
+        area.show_list(True)
+    chip.click()
+    assert area.shown_view() is area.graph_view
+    assert area.graph_view.hasFocus()
+    assert area.zoom_toolbar.isVisible()
+    assert area.legend.isVisible()
+
+
+def test_switching_views_without_the_focus_leaves_the_focus_alone(area: GraphArea) -> None:
+    area.list_chip.setFocus()
+    area.show_list(True)
+    assert area.list_chip.hasFocus()
+    assert not area.graph_list.hasFocus()
+
+
+def test_tab_goes_from_the_chips_to_the_shown_view(area: GraphArea) -> None:
+    area.activateWindow()
+    area.filter_chip.setFocus()
+    QTest.keyClick(area.filter_chip, Qt.Key.Key_Tab)
+    assert area.list_chip.hasFocus()
+    QTest.keyClick(area.list_chip, Qt.Key.Key_Tab)
+    assert area.graph_view.hasFocus()
+    area.show_list(True)
+    area.list_chip.setFocus()
+    QTest.keyClick(area.list_chip, Qt.Key.Key_Tab)
+    assert area.graph_list.hasFocus()
+
+
+def test_the_hidden_graph_lets_the_list_speak_for_the_selection(
+    area: GraphArea, scenario: PlumbersScenario, heard: list[Announcement]
+) -> None:
+    area.show_list(True)
+    area.reveal(scenario.acme)
+    assert area.graph_list.selected_identifier() is None
+    assert heard == []
+    area.show_list(False)
+    area.reveal(scenario.holding)
+    assert heard[-1][0].startswith("HOLDING DUPONT, entreprise")
+
+
+def test_an_empty_graph_hides_the_list_chip(area: GraphArea) -> None:
+    area.show_list(True)
+    area.show_drawing(GraphDrawing())
+    assert not area.list_chip.isVisible()
+    assert not area.zoom_toolbar.isVisible()
+    assert area.empty_label.isVisible()
+
+
 def test_every_control_is_reachable_with_the_keyboard(
     qtbot: QtBot, icon_factory: IconFactory
 ) -> None:

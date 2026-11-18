@@ -8,6 +8,7 @@ THEME_MENU_ENTRIES = {
     ThemePreference.SYSTEM: "&Système",
     ThemePreference.LIGHT: "&Clair",
     ThemePreference.DARK: "S&ombre",
+    ThemePreference.HIGH_CONTRAST: "Contraste é&levé",
 }
 
 

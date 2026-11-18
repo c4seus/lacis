@@ -14,13 +14,14 @@ from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.graph.background import investigation_lock
 from lacis.graph.progress import ExpansionProgress
-from lacis.review import RunningCollection
+from lacis.review import ReviewNews, RunningCollection
 from lacis.storage.entities import EntityKind
 from lacis.storage.investigations import InvestigationLibrary
 from lacis.ui import announcements
 from lacis.ui.collection_progress import CollectionProgressPanel
 from lacis.ui.investigation_columns import OVERLAY_MARGIN, GraphArea
 from lacis.ui.main_window import MainWindow
+from lacis.ui.news_announcer import GROUPING_MILLISECONDS
 
 INVESTIGATION_NAME = "faux-plombiers-31"
 WAIT_MILLISECONDS = 10_000
@@ -192,3 +193,28 @@ def test_an_expansion_is_cancelled_from_its_progress(
         announcements.POLITE,
     )
     assert window.notification_area.notifications[-1].message == heard[-1][0]
+
+
+def test_what_an_expansion_adds_to_examine_is_announced_politely_once(
+    qtbot: QtBot, window: MainWindow, heard: Heard
+) -> None:
+    select_company(window)
+    heard.clear()
+    window.main_menu_bar.expand_action.trigger()
+    qtbot.waitUntil(lambda: not window.review_actions.expansions, timeout=WAIT_MILLISECONDS)
+    qtbot.waitUntil(
+        lambda: any(message.startswith("À examiner : ") for message, _ in heard),
+        timeout=WAIT_MILLISECONDS,
+    )
+    news = [heard_item for heard_item in heard if heard_item[0].startswith("À examiner : ")]
+    assert news == [("À examiner : 1 nouvel homonyme à vérifier.", announcements.POLITE)]
+
+
+def test_closing_the_investigation_forgets_the_news(
+    qtbot: QtBot, window: MainWindow, heard: Heard
+) -> None:
+    window.news.add(ReviewNews(homonyms=frozenset({("person:1", "person:2")})))
+    window.show_home()
+    qtbot.wait(GROUPING_MILLISECONDS + 100)
+    assert heard == []
+    assert window.previous_overview is None

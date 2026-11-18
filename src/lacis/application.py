@@ -27,6 +27,7 @@ from lacis.diagnostics import (
 )
 from lacis.product import APPLICATION_ID, PRODUCT_DESCRIPTION
 from lacis.storage.locations import DEMO_DIRECTORY_PREFIX, data_directory, use_data_directory
+from lacis.ui.accessibility import AccessibleInterfaces
 from lacis.ui.error_dialog import install_unexpected_error_handler
 from lacis.ui.main_window import MainWindow
 
@@ -65,6 +66,7 @@ def configure_application(application: QApplication) -> None:
     QLocale.setDefault(APPLICATION_LOCALE)
     load_bundled_fonts()
     application.setFont(application_font())
+    AccessibleInterfaces.install()
 
 
 def create_application(arguments: Sequence[str]) -> QApplication:

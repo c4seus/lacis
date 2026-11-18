@@ -1,4 +1,5 @@
 import sqlite3
+from dataclasses import replace
 
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
@@ -10,9 +11,21 @@ from pytestqt.qtbot import QtBot
 from accessibility_checks import accessible_name
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
+from lacis.design.contrast import (
+    HIGH_CONTRAST_INTERFACE_MINIMUM_RATIO,
+    HIGH_CONTRAST_TEXT_MINIMUM_RATIO,
+    contrast_ratio,
+)
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController, ThemePreference
-from lacis.design.tokens import DARK_THEME, LIGHT_THEME, Colours
+from lacis.design.tokens import (
+    DARK_THEME,
+    HIGH_CONTRAST_DARK_THEME,
+    HIGH_CONTRAST_LIGHT_THEME,
+    LIGHT_THEME,
+    Colours,
+    Theme,
+)
 from lacis.graph.drawing import (
     EdgeKind,
     GraphDrawing,
@@ -28,6 +41,7 @@ from lacis.ui.graph_view import (
     ARROW_LENGTH,
     CLOSED_FILL_OPACITY,
     GRAPH_ACCESSIBLE_NAME,
+    RING_GAP,
     RING_WIDTH,
     SELECTION_OPACITY,
     GraphView,
@@ -38,9 +52,11 @@ from lacis.ui.graph_view import (
     edge_label_font,
     edge_pen,
     kind_colour,
+    label_colour,
     node_border,
     node_fill,
     ring_path,
+    ring_paths,
     ring_pen,
     selection_area,
     selection_colour,
@@ -243,6 +259,19 @@ def test_the_legend_names_each_kind(qtbot: QtBot, icon_factory: IconFactory) -> 
     assert legend.accessibleName() == "Légende du graphe"
 
 
+def test_the_legend_wraps_its_entries_to_fit_a_narrow_graph(
+    qtbot: QtBot, icon_factory: IconFactory
+) -> None:
+    legend = GraphLegend(icon_factory.colours_provider)
+    qtbot.addWidget(legend)
+    legend.fit(2000)
+    one_line_height = legend.height()
+    assert legend.width() < 2000
+    legend.fit(200)
+    assert legend.width() == 200
+    assert legend.height() > one_line_height
+
+
 def test_the_graph_area_shows_the_legend_once_there_is_a_graph(
     qtbot: QtBot,
     icon_factory: IconFactory,
@@ -352,6 +381,20 @@ def test_each_severity_rings_in_its_colour(colours: Colours) -> None:
     assert severity_colour(colours, Severity.MEDIUM) == QColor(colours.medium_severity)
     assert severity_colour(colours, Severity.LOW) == QColor(colours.low_severity)
     assert ring_pen(colours, Severity.HIGH).widthF() == RING_WIDTH
+
+
+def test_each_severity_has_its_own_ring_pattern() -> None:
+    assert ring_pen(COLOURS, Severity.HIGH).style() == Qt.PenStyle.SolidLine
+    assert ring_pen(COLOURS, Severity.MEDIUM).style() == Qt.PenStyle.SolidLine
+    assert ring_pen(COLOURS, Severity.LOW).style() == Qt.PenStyle.CustomDashLine
+    company = node(EntityKind.COMPANY)
+    assert ring_paths(company) == []
+    rings = {severity: ring_paths(replace(company, severity=severity)) for severity in Severity}
+    assert [len(rings[severity]) for severity in Severity] == [1, 1, 2]
+    inner, outer = rings[Severity.HIGH]
+    assert outer.boundingRect().width() - inner.boundingRect().width() == pytest.approx(
+        2 * (RING_WIDTH + RING_GAP)
+    )
 
 
 def test_the_ring_follows_the_shape_three_pixels_away() -> None:
@@ -549,3 +592,47 @@ def test_a_simple_click_moves_nothing(
     with qtbot.assertNotEmitted(view.entities_moved, wait=10):
         drag(view, view.mapFromScene(holding.pos()), view.mapFromScene(holding.pos()))
     assert holding.isSelected()
+
+
+def hexadecimal(colour: QColor) -> str:
+    return colour.name(QColor.NameFormat.HexRgb)
+
+
+@pytest.mark.parametrize(
+    "theme", [HIGH_CONTRAST_LIGHT_THEME, HIGH_CONTRAST_DARK_THEME], ids=lambda theme: theme.name
+)
+def test_the_graph_stays_readable_in_high_contrast(theme: Theme) -> None:
+    colours = theme.colours
+    background = colours.graph_background
+    drawn = [
+        *(kind_colour(colours, kind) for kind in EntityKind),
+        *(edge_pen(colours, kind).color() for kind in EdgeKind),
+        *(severity_colour(colours, severity) for severity in Severity),
+        QColor(colours.faint_text),
+    ]
+    for colour in drawn:
+        assert (
+            contrast_ratio(hexadecimal(colour), background)
+            >= HIGH_CONTRAST_INTERFACE_MINIMUM_RATIO
+        )
+    written = [label_colour(colours, kind) for kind in EntityKind] + [
+        edge_label_colour(colours, kind) for kind in EdgeKind
+    ]
+    for colour in written:
+        assert contrast_ratio(hexadecimal(colour), background) >= HIGH_CONTRAST_TEXT_MINIMUM_RATIO
+
+
+def test_hovering_an_entity_writes_its_kind_state_and_severity(
+    qtbot: QtBot,
+    icon_factory: IconFactory,
+    investigation_connection: sqlite3.Connection,
+    scenario: PlumbersScenario,
+) -> None:
+    view = shown_view(qtbot, icon_factory, flagged_drawing(investigation_connection, scenario))
+    items = view.graph_scene.node_items
+    assert items[scenario.dupont_services].toolTip() == (
+        "DUPONT SERVICES, entreprise, fermée, 2 liens, signal de sévérité forte"
+    )
+    assert items[scenario.holding].toolTip() == (
+        "HOLDING DUPONT, entreprise, connue comme dirigeante seulement, 1 lien"
+    )

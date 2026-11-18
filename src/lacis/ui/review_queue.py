@@ -1,8 +1,10 @@
+from dataclasses import dataclass
 from typing import override
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QKeyEvent, QMouseEvent
+from PySide6.QtGui import QKeyEvent, QMouseEvent, QResizeEvent
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -25,6 +27,9 @@ from lacis.review import (
     ReviewQueue,
 )
 from lacis.storage.homonym_decisions import HomonymDecision
+from lacis.ui.accessibility import ScoreLabel
+from lacis.ui.flow_layout import FlowLayout
+from lacis.ui.focus_chain import focusable_descendants, place_after
 from lacis.ui.graph_legend import KindSwatch
 
 QUEUE_LIST_ACCESSIBLE_NAME = "Éléments à examiner"
@@ -35,6 +40,7 @@ DIFFERENT_PERSON_TEXT = "Personne différente"
 EXPAND_TEXT = "Étendre"
 EXPANDING_TEXT = "Extension…"
 SCORE_PREFIX = "score "
+FIRST_LINE_SPACING = 8
 ACTIVATING_KEYS = {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}
 
 
@@ -72,6 +78,7 @@ class QueueRow(QFrame):
     ) -> None:
         super().__init__(parent)
         self.entity = entity
+        self.section = ""
         self.setObjectName("queueRow")
         self.setProperty("selected", False)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -80,21 +87,64 @@ class QueueRow(QFrame):
         self.title_label = QLabel(title or entity.label, self)
         self.title_label.setProperty("tone", "queue-title")
         self.title_label.setWordWrap(True)
-        self.score_label = QLabel(entity.written_score, self)
+        self.score_label = ScoreLabel(entity.written_score, entity.written_score, self)
         self.score_label.setProperty("tone", "queue-score")
         self.score_label.setVisible(entity.score is not None)
         self.detail_label = detail_label(entity.explanation, self)
+        self.swatch = KindSwatch(entity.kind, colours_provider, self)
         self.first_line = QHBoxLayout()
-        self.first_line.setSpacing(8)
-        self.first_line.addWidget(KindSwatch(entity.kind, colours_provider, self))
+        self.first_line.setSpacing(FIRST_LINE_SPACING)
+        self.first_line.addWidget(self.swatch)
         self.first_line.addWidget(self.title_label, 1)
-        self.first_line.addWidget(self.score_label, 0, Qt.AlignmentFlag.AlignTop)
+        self.corner_line = QHBoxLayout()
+        self.corner_line.setContentsMargins(0, 0, 0, 0)
+        self.corner_line.addStretch(1)
         self.row_layout = QVBoxLayout(self)
         self.row_layout.setContentsMargins(10, 9, 10, 9)
         self.row_layout.setSpacing(3)
         self.row_layout.addLayout(self.first_line)
+        self.row_layout.addLayout(self.corner_line)
         self.row_layout.addWidget(self.detail_label)
+        self.corner: QWidget = self.score_label
+        self.corner_beside_title = False
+        self.set_corner(self.score_label)
         self.describe()
+
+    def set_corner(self, widget: QWidget) -> None:
+        for layout in (self.first_line, self.corner_line):
+            layout.removeWidget(self.corner)
+        self.corner = widget
+        widget.setMinimumWidth(1)
+        self.corner_beside_title = False
+        self.place_corner(beside_title=True)
+
+    def corner_fits_beside_title(self) -> bool:
+        margins = self.row_layout.contentsMargins()
+        needed = (
+            margins.left()
+            + margins.right()
+            + self.swatch.minimumWidth()
+            + 2 * FIRST_LINE_SPACING
+            + self.title_label.minimumSizeHint().width()
+            + self.corner.sizeHint().width()
+        )
+        return self.width() >= needed
+
+    def place_corner(self, *, beside_title: bool) -> None:
+        if beside_title == self.corner_beside_title:
+            return
+        self.corner_beside_title = beside_title
+        if beside_title:
+            self.corner_line.removeWidget(self.corner)
+            self.first_line.addWidget(self.corner, 0, Qt.AlignmentFlag.AlignTop)
+        else:
+            self.first_line.removeWidget(self.corner)
+            self.corner_line.insertWidget(0, self.corner)
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.place_corner(beside_title=self.corner_fits_beside_title())
 
     def describe(self) -> None:
         parts = [self.title_label.text(), KIND_LABELS[self.entity.kind]]
@@ -104,12 +154,10 @@ class QueueRow(QFrame):
         self.setAccessibleDescription(self.entity.explanation)
 
     def add_actions(self, buttons: list[QPushButton]) -> None:
-        actions = QHBoxLayout()
+        actions = FlowLayout(horizontal_spacing=6, vertical_spacing=6)
         actions.setContentsMargins(0, 4, 0, 0)
-        actions.setSpacing(6)
         for button in buttons:
             actions.addWidget(button)
-        actions.addStretch(1)
         self.row_layout.addLayout(actions)
 
     def set_selected(self, selected: bool) -> None:
@@ -142,6 +190,19 @@ def action_button(text: str, accessible_name: str, parent: QWidget) -> QPushButt
     return button
 
 
+@dataclass(frozen=True)
+class QueueFocus:
+    section: str
+    identifier: str
+    row_index: int
+    section_index: int
+    widget_index: int
+
+
+def focus_targets(row: QueueRow) -> list[QWidget]:
+    return [row, *focusable_descendants(row)]
+
+
 class ReviewQueueList(QScrollArea):
     entity_chosen = Signal(str)
     decision_requested = Signal(object, object, object)
@@ -158,6 +219,7 @@ class ReviewQueueList(QScrollArea):
         self.queue = ReviewQueue((), (), ())
         self.rows: list[QueueRow] = []
         self.expand_buttons: dict[str, QPushButton] = {}
+        self.lead_rows: dict[str, QueueRow] = {}
         self.decision_buttons: list[QPushButton] = []
         self.group_labels: list[QLabel] = []
         self.empty_labels: list[QLabel] = []
@@ -168,6 +230,7 @@ class ReviewQueueList(QScrollArea):
         self.show_queue(self.queue)
 
     def show_queue(self, queue: ReviewQueue) -> None:
+        focus = self.queue_focus()
         self.queue = queue
         previous = self.takeWidget()
         if previous is not None:
@@ -179,6 +242,7 @@ class ReviewQueueList(QScrollArea):
         self.content_layout.setSpacing(4)
         self.rows = []
         self.expand_buttons = {}
+        self.lead_rows = {}
         self.decision_buttons = []
         self.group_labels = []
         self.empty_labels = []
@@ -187,7 +251,48 @@ class ReviewQueueList(QScrollArea):
         self.add_leads(queue)
         self.content_layout.addStretch(1)
         self.setWidget(self.content)
+        place_after(self, self.content)
         self.mark_selected(self.selected_identifier)
+        self.restore_focus(focus)
+
+    def neighbour(self, focus: QueueFocus) -> QueueRow:
+        section = self.section_rows(focus.section)
+        same = [row for row in section if row.entity.identifier == focus.identifier]
+        if same:
+            return same[0]
+        if section:
+            return section[min(focus.section_index, len(section) - 1)]
+        return self.rows[min(focus.row_index, len(self.rows) - 1)]
+
+    def queue_focus(self) -> QueueFocus | None:
+        focused = QApplication.focusWidget()
+        for row_index, row in enumerate(self.rows):
+            targets = focus_targets(row)
+            if focused in targets:
+                return QueueFocus(
+                    row.section,
+                    row.entity.identifier,
+                    row_index,
+                    self.section_rows(row.section).index(row),
+                    targets.index(focused),
+                )
+        return None
+
+    def section_rows(self, section: str) -> list[QueueRow]:
+        return [row for row in self.rows if row.section == section]
+
+    def restore_focus(self, focus: QueueFocus | None) -> None:
+        if focus is None:
+            return
+        if not self.rows:
+            self.setFocus(Qt.FocusReason.OtherFocusReason)
+            return
+        row = self.neighbour(focus)
+        targets = focus_targets(row)
+        target = targets[focus.widget_index] if focus.widget_index < len(targets) else row
+        if not target.isEnabled():
+            target = row
+        target.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def add_group_title(self, text: str) -> None:
         label = group_title(text, self.content)
@@ -200,8 +305,9 @@ class ReviewQueueList(QScrollArea):
         self.empty_labels.append(label)
         self.content_layout.addWidget(label)
 
-    def add_row(self, entity: QueueEntity, title: str = "") -> QueueRow:
+    def add_row(self, entity: QueueEntity, section: str, title: str = "") -> QueueRow:
         row = QueueRow(entity, self.colours_provider, title, self.content)
+        row.section = section
         row.activated.connect(self.entity_chosen)
         self.rows.append(row)
         self.content_layout.addWidget(row)
@@ -218,7 +324,7 @@ class ReviewQueueList(QScrollArea):
         for group in queue.signal_groups:
             self.add_group_title(group.title)
             for entity in group.entities:
-                self.add_row(entity)
+                self.add_row(entity, group.title)
 
     def add_homonyms(self, queue: ReviewQueue) -> None:
         self.add_group_title(HOMONYMS_TITLE)
@@ -228,11 +334,11 @@ class ReviewQueueList(QScrollArea):
             self.add_homonym(entry)
 
     def add_homonym(self, entry: HomonymEntry) -> None:
-        row = self.add_row(entry.first, entry.title)
+        row = self.add_row(entry.first, HOMONYMS_TITLE, entry.title)
         badge = QLabel(entry.confidence_label, row)
         badge.setProperty("tone", "badge-outline")
         row.score_label.hide()
-        row.first_line.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+        row.set_corner(badge)
         row.setAccessibleName(f"{entry.title}, confiance {entry.confidence_label.lower()}")
         people = (entry.first.identifier, entry.second.identifier)
         labels = (entry.first.label, entry.second.label)
@@ -255,7 +361,7 @@ class ReviewQueueList(QScrollArea):
         if not queue.leads:
             self.add_empty_text(NO_LEAD_TEXT)
         for lead in queue.leads:
-            row = self.add_row(lead)
+            row = self.add_row(lead, LEADS_TITLE)
             button = action_button(EXPAND_TEXT, f"{EXPAND_TEXT} {lead.label}", row)
             button.clicked.connect(
                 lambda checked=False, chosen=lead: self.expansion_requested.emit(
@@ -263,13 +369,16 @@ class ReviewQueueList(QScrollArea):
                 )
             )
             self.expand_buttons[lead.identifier] = button
-            row.first_line.addWidget(button, 0, Qt.AlignmentFlag.AlignTop)
+            self.lead_rows[lead.identifier] = row
+            row.set_corner(button)
         self.show_expanding(self.expanding)
 
     def show_expanding(self, expanding: set[str]) -> None:
         self.expanding = set(expanding)
         for identifier, button in self.expand_buttons.items():
             running = identifier in self.expanding
+            if running and button.hasFocus():
+                self.lead_rows[identifier].setFocus(Qt.FocusReason.OtherFocusReason)
             button.setEnabled(not running)
             button.setText(EXPANDING_TEXT if running else EXPAND_TEXT)
 

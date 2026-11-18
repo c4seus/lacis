@@ -1,8 +1,8 @@
 from collections.abc import Callable
 from typing import override
 
-from PySide6.QtCore import Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QGuiApplication, QKeyEvent, QMouseEvent
+from PySide6.QtCore import QEvent, Qt, QUrl, Signal
+from PySide6.QtGui import QAccessible, QDesktopServices, QGuiApplication, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpacerItem,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -25,9 +26,12 @@ from lacis.details import (
     SignalCard,
     SourceLine,
 )
+from lacis.graph.drawing import KIND_LABELS
 from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
 from lacis.signals.facts import counted
+from lacis.ui.accessibility import DisclosureToggle, ScoreLabel
 from lacis.ui.flow_layout import FlowLayout
+from lacis.ui.focus_chain import place_after
 from lacis.ui.graph_legend import KindSwatch
 from lacis.ui.notice_timeline import NoticeTimeline
 
@@ -37,6 +41,7 @@ EXPAND_TEXT = "Étendre"
 EXPAND_AGAIN_TEXT = "Étendre à nouveau"
 DEPTH_TEXT = "Profondeur {depth}"
 DEPTH_MENU_ACCESSIBLE_NAME = "Choisir la profondeur d'extension"
+DEPTH_MENU_HINT = "Alt+Flèche bas ou touche Menu pour choisir la profondeur"
 DIRECTORY_TEXT = "Annuaire"
 DIRECTORY_TOOLTIP = "Ouvrir la fiche dans l'Annuaire des entreprises"
 SIGNALS_TITLE = "Signaux d'alerte"
@@ -53,6 +58,42 @@ FINGERPRINT_PREFIX = "Empreinte SHA-256 "
 COPIED_MESSAGE = "« {value} » copié dans le presse-papiers."
 ACTIVATING_KEYS = {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}
 LINK_ROLE_WIDTH = 110
+LINK_INDENT = LINK_ROLE_WIDTH + 8
+
+
+def role_width(label: QLabel) -> int:
+    label.ensurePolished()
+    metrics = label.fontMetrics()
+    longest_word = max(metrics.horizontalAdvance(word) for word in label.text().split() or [""])
+    margins = label.contentsMargins()
+    return max(LINK_ROLE_WIDTH, longest_word + margins.left() + margins.right() + 2)
+
+
+class RoleLabel(QLabel):
+    def __init__(self, text: str, parent: QWidget) -> None:
+        super().__init__(text, parent)
+        self.setProperty("tone", "muted")
+        self.setWordWrap(True)
+        self.fit()
+
+    def fit(self) -> None:
+        self.setFixedWidth(role_width(self))
+
+    @override
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self.fit()
+
+
+def indented_row(parent: QWidget | None = None) -> QHBoxLayout:
+    row = QHBoxLayout() if parent is None else QHBoxLayout(parent)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(0)
+    row.addSpacerItem(
+        QSpacerItem(LINK_INDENT, 0, QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+    )
+    return row
 
 
 def wrapped_label(text: str, tone: str, parent: QWidget) -> QLabel:
@@ -69,7 +110,25 @@ def badge(text: str, tone: str, parent: QWidget) -> QLabel:
     return label
 
 
+class ExpandButton(QToolButton):
+    @override
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self.opens_menu(event):
+            event.accept()
+            self.showMenu()
+            return
+        super().keyPressEvent(event)
+
+    @staticmethod
+    def opens_menu(event: QKeyEvent) -> bool:
+        if event.key() == Qt.Key.Key_Menu:
+            return True
+        with_alt = bool(event.modifiers() & Qt.KeyboardModifier.AltModifier)
+        return event.key() == Qt.Key.Key_Down and with_alt
+
+
 class ReferenceChip(QFrame):
+    accessible_role = QAccessible.Role.Link
     chosen = Signal(str)
 
     def __init__(self, reference: Reference, parent: QWidget | None = None) -> None:
@@ -79,8 +138,10 @@ class ReferenceChip(QFrame):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAccessibleName(f"Sélectionner {reference.label}")
+        self.setAccessibleDescription(KIND_LABELS[reference.kind])
         self.label = QLabel(reference.label, self)
         self.label.setProperty("tone", "chip")
+        self.label.setWordWrap(True)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 3, 8, 3)
         layout.setSpacing(6)
@@ -90,10 +151,13 @@ class ReferenceChip(QFrame):
     def add_swatch(self, swatch: QWidget) -> None:
         self.swatch_layout.insertWidget(0, swatch)
 
+    def activate(self) -> None:
+        self.chosen.emit(self.reference.identifier)
+
     @override
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() is Qt.MouseButton.LeftButton:
-            self.chosen.emit(self.reference.identifier)
+            self.activate()
             event.accept()
             return
         super().mousePressEvent(event)
@@ -101,7 +165,7 @@ class ReferenceChip(QFrame):
     @override
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() in ACTIVATING_KEYS:
-            self.chosen.emit(self.reference.identifier)
+            self.activate()
             event.accept()
             return
         super().keyPressEvent(event)
@@ -118,6 +182,7 @@ class SectionTitle(QWidget):
         super().__init__(parent)
         self.title_label = QLabel(title.upper(), self)
         self.title_label.setProperty("tone", "section-title")
+        self.title_label.setWordWrap(True)
         self.count_label = QLabel(count, self)
         self.count_label.setProperty("tone", "section-count")
         rule = QFrame(self)
@@ -136,6 +201,8 @@ class SectionTitle(QWidget):
 
 
 class SignalCardView(QFrame):
+    accessible_role = QAccessible.Role.Grouping
+
     def __init__(self, card: SignalCard, sheet: "EntitySheet") -> None:
         super().__init__(sheet.content)
         self.card = card
@@ -146,7 +213,8 @@ class SignalCardView(QFrame):
         self.severity_badge = badge(card.severity.label, card.severity.value, self)
         self.title_label = QLabel(card.title, self)
         self.title_label.setProperty("tone", "card-heading")
-        self.score_label = QLabel(card.written_score, self)
+        self.title_label.setWordWrap(True)
+        self.score_label = ScoreLabel(card.written_score, card.score_value, self)
         self.score_label.setProperty("tone", "queue-score")
         head.addWidget(self.severity_badge)
         head.addWidget(self.title_label, 1)
@@ -164,40 +232,41 @@ class SignalCardView(QFrame):
         layout.addWidget(self.explanation_label)
         layout.addWidget(references)
         self.setAccessibleName(f"{card.title}, sévérité {card.severity.label.lower()}")
+        self.setAccessibleDescription(card.explanation)
+
+    def accessible_value(self) -> str:
+        return self.card.written_score
 
 
 class LinkRow(QWidget):
     def __init__(self, line: LinkLine, sheet: "EntitySheet") -> None:
         super().__init__(sheet.content)
         self.line = line
-        self.role_label = QLabel(line.role, self)
-        self.role_label.setProperty("tone", "muted")
-        self.role_label.setFixedWidth(LINK_ROLE_WIDTH)
-        self.role_label.setWordWrap(True)
+        self.role_label = RoleLabel(line.role, self)
         self.chip = sheet.reference_chip(line.reference, self)
-        self.provenance_button = QPushButton(f"{PROVENANCE_TEXT} · {line.provenance}", self)
-        self.provenance_button.setCheckable(True)
+        self.provenance_button = DisclosureToggle(
+            f"{PROVENANCE_TEXT} · {line.short_provenance}", self
+        )
         self.provenance_button.setProperty("variant", "link")
         self.provenance_button.setProperty("compact", True)
         self.provenance_button.setAccessibleName(
             f"{PROVENANCE_TEXT} du lien {line.role} {line.reference.label} : {line.provenance}"
         )
         self.provenance_button.toggled.connect(self.show_provenance)
-        head = QHBoxLayout()
-        head.setSpacing(8)
+        head = FlowLayout(horizontal_spacing=8, vertical_spacing=2)
         head.addWidget(self.role_label)
         head.addWidget(self.chip)
-        head.addStretch(1)
         if line.closed:
             head.addWidget(badge("Fermé", "closed", self))
-        toggle = QHBoxLayout()
-        toggle.setContentsMargins(LINK_ROLE_WIDTH + 8, 0, 0, 0)
+        toggle = indented_row()
         toggle.addWidget(self.provenance_button)
         toggle.addStretch(1)
         self.provenance = QWidget(self)
-        provenance_layout = QVBoxLayout(self.provenance)
-        provenance_layout.setContentsMargins(LINK_ROLE_WIDTH + 8, 0, 0, 4)
+        provenance_row = indented_row(self.provenance)
+        provenance_row.setContentsMargins(0, 0, 0, 4)
+        provenance_layout = QVBoxLayout()
         provenance_layout.setSpacing(0)
+        provenance_row.addLayout(provenance_layout, 1)
         self.decision_label = wrapped_label(line.decided_on, "faint", self.provenance)
         self.decision_label.setVisible(bool(line.decided_on))
         provenance_layout.addWidget(self.decision_label)
@@ -225,6 +294,7 @@ class DecisionRow(QWidget):
         self.line = line
         self.text_label = QLabel(line.text, self)
         self.text_label.setProperty("tone", "muted")
+        self.text_label.setWordWrap(True)
         self.chip = sheet.reference_chip(line.other, self)
         self.date_label = QLabel(line.written_date, self)
         self.date_label.setProperty("tone", "faint")
@@ -232,11 +302,9 @@ class DecisionRow(QWidget):
         self.withdraw_button.setProperty("compact", True)
         self.withdraw_button.setAccessibleName(f"{WITHDRAW_ACCESSIBLE_PREFIX}{line.spoken}")
         self.withdraw_button.clicked.connect(self.withdraw)
-        head = QHBoxLayout()
-        head.setSpacing(8)
+        head = FlowLayout(horizontal_spacing=8, vertical_spacing=4)
         head.addWidget(self.text_label)
         head.addWidget(self.chip)
-        head.addStretch(1)
         head.addWidget(self.withdraw_button)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 2, 0, 2)
@@ -265,6 +333,7 @@ class SourceRow(QFrame):
         self.date_label.setProperty("tone", "muted")
         self.fingerprint_label = QLabel(f"{FINGERPRINT_PREFIX}{line.short_fingerprint}", self)
         self.fingerprint_label.setProperty("tone", "fingerprint")
+        self.fingerprint_label.setWordWrap(True)
         self.fingerprint_label.setToolTip(line.fingerprint)
         self.fingerprint_label.setAccessibleName(f"{FINGERPRINT_PREFIX}{line.fingerprint}")
         self.fingerprint_label.setTextInteractionFlags(
@@ -276,10 +345,9 @@ class SourceRow(QFrame):
             f"{RAW_RESPONSE_TEXT} {line.source_name} du {line.written_date}"
         )
         self.raw_button.clicked.connect(lambda: self.raw_requested.emit(line.response_identifier))
-        first = QHBoxLayout()
-        first.setSpacing(8)
+        first = FlowLayout(horizontal_spacing=8, vertical_spacing=2)
         first.addWidget(self.name_label)
-        first.addWidget(self.date_label, 1)
+        first.addWidget(self.date_label)
         first.addWidget(self.raw_button)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 6, 0, 6)
@@ -362,11 +430,11 @@ class EntitySheet(QScrollArea):
             self.add_sources(details)
         self.content_layout.addStretch(1)
         self.setWidget(self.content)
+        place_after(self, self.content)
         self.show_running(self.running)
 
     def add_head(self, details: EntityDetails) -> None:
-        kicker = QHBoxLayout()
-        kicker.setSpacing(6)
+        kicker = FlowLayout(horizontal_spacing=6, vertical_spacing=4)
         kind = QFrame(self.content)
         kind.setObjectName("kindBadge")
         kind_layout = QHBoxLayout(kind)
@@ -382,7 +450,6 @@ class EntitySheet(QScrollArea):
         ]
         for label in self.badge_labels:
             kicker.addWidget(label)
-        kicker.addStretch(1)
         self.content_layout.addLayout(kicker)
         self.name_label = wrapped_label(details.name, "heading", self.content)
         self.name_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -403,13 +470,13 @@ class EntitySheet(QScrollArea):
         self.content_layout.addWidget(self.expanded_label)
 
     def add_actions(self, details: EntityDetails) -> None:
-        actions = QHBoxLayout()
+        actions = FlowLayout(horizontal_spacing=6, vertical_spacing=6)
         actions.setContentsMargins(0, 10, 0, 2)
-        actions.setSpacing(6)
-        self.expand_button = QToolButton(self.content)
+        self.expand_button = ExpandButton(self.content)
         self.expand_button.setObjectName("expandButton")
         self.expand_button.setText(EXPAND_AGAIN_TEXT if details.expanded else EXPAND_TEXT)
         self.expand_button.setAccessibleName(self.expand_button.text())
+        self.expand_button.setAccessibleDescription(DEPTH_MENU_HINT)
         self.expand_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         self.expand_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.depth_menu = QMenu(self.expand_button)
@@ -435,7 +502,6 @@ class EntitySheet(QScrollArea):
         self.copy_button.clicked.connect(self.copy)
         for widget in (self.expand_button, self.directory_button, self.copy_button):
             actions.addWidget(widget)
-        actions.addStretch(1)
         self.content_layout.addLayout(actions)
 
     def add_section_title(self, title: str, count: str) -> None:

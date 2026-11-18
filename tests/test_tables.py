@@ -60,6 +60,7 @@ def test_each_entity_has_its_kind_status_score_and_links(
     assert dupont.severity is Severity.HIGH
     assert dupont.written_score == "0,85"
     assert dupont.spoken_score == "score 0,85, gravité forte"
+    assert dupont.shown_score == "0,85 · forte"
     assert dupont.flagged
     assert dupont.links == 3
     assert rows[scenario.acme].status_text == "Active"
@@ -75,6 +76,7 @@ def test_each_entity_has_its_kind_status_score_and_links(
     assert not address.flagged
     assert address.written_score == NO_SCORE_TEXT
     assert address.spoken_score == "aucun signal"
+    assert address.shown_score == NO_SCORE_TEXT
     assert address.sort_score == (-1, -1.0)
     assert dupont.sort_score == (Severity.HIGH.rank, 0.85)
 

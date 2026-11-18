@@ -1,6 +1,6 @@
 ---
 title: Clavier, thèmes et accessibilité
-description: "Mener une enquête au clavier avec les raccourcis de Lacis, choisir le thème clair ou sombre, et utiliser Lacis avec un lecteur d'écran."
+description: "Mener une enquête au clavier avec les raccourcis de Lacis, choisir le thème clair ou sombre, agrandir le texte, et utiliser Lacis avec un lecteur d'écran."
 sidebar:
   label: Raccourcis clavier
 ---
@@ -9,7 +9,7 @@ import ThemedScreenshot from "../../../components/ThemedScreenshot.astro";
 import keyboardShortcutsDark from "../../../assets/screenshots/keyboard-shortcuts-dark.webp";
 import keyboardShortcutsLight from "../../../assets/screenshots/keyboard-shortcuts-light.webp";
 
-Tout ce que fait Lacis se fait aussi au clavier. Cette page rassemble ses raccourcis, puis le choix du thème et ce que Lacis prévoit pour les lecteurs d'écran.
+Tout ce que fait Lacis se fait aussi au clavier. Cette page rassemble ses raccourcis, puis le choix du thème, la taille du texte, les animations et ce que Lacis prévoit pour les lecteurs d'écran.
 
 ## Afficher les raccourcis
 
@@ -28,6 +28,7 @@ Tout ce que fait Lacis se fait aussi au clavier. Cette page rassemble ses raccou
 | --- | --- |
 | Rechercher une entreprise | <kbd>Ctrl</kbd>+<kbd>F</kbd> ou <kbd>/</kbd> |
 | Étendre l'entité sélectionnée | <kbd>Ctrl</kbd>+<kbd>E</kbd> |
+| Choisir la profondeur, sur le bouton **Étendre** | <kbd>Alt</kbd>+<kbd>↓</kbd> ou <kbd>Menu</kbd> |
 | Annuler la dernière décision d'homonyme | <kbd>Ctrl</kbd>+<kbd>Z</kbd> |
 | Rétablir la décision annulée | <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>Z</kbd> |
 | Nouvelle enquête | <kbd>Ctrl</kbd>+<kbd>N</kbd> |
@@ -39,6 +40,7 @@ Dans la liste des résultats de recherche, <kbd>↑</kbd> et <kbd>↓</kbd> pass
 
 | Action | Raccourci |
 | --- | --- |
+| Passer du graphe à sa vue liste | <kbd>Ctrl</kbd>+<kbd>L</kbd> |
 | Zoom avant | <kbd>Ctrl</kbd>+<kbd>+</kbd> |
 | Zoom arrière | <kbd>Ctrl</kbd>+<kbd>-</kbd> |
 | Ajuster le graphe à la fenêtre | <kbd>Ctrl</kbd>+<kbd>0</kbd> |
@@ -79,13 +81,33 @@ Les menus s'ouvrent aussi avec <kbd>Alt</kbd> et la lettre soulignée de leur no
 
 Lacis a un thème clair et un thème sombre. Par défaut, il suit celui de votre système, et change avec lui. Pour en imposer un, choisissez **Système**, **Clair** ou **Sombre** dans **Affichage › Thème**, ou dans le menu du bouton de thème, en haut à droite de la fenêtre. Lacis retient votre choix.
 
+Lacis a aussi un contraste élevé, en clair et en sombre : les textes y atteignent un contraste de 7:1 et les bordures, icônes et couleurs du graphe 4,5:1. Il s'applique tout seul quand votre système est en contraste élevé et que le thème est sur **Système**. Pour l'imposer, choisissez **Contraste élevé** : Lacis prend alors sa version claire ou sombre selon votre système.
+
+## Agrandir le texte
+
+Lacis suit la taille du texte de votre système : si vous l'avez agrandie, les textes de Lacis grandissent d'autant. Pour les agrandir encore, choisissez une taille de 100 % à 200 % dans **Affichage › Taille du texte**. Lacis l'applique aussitôt et la retient.
+
+À 200 %, même sur un écran de 1280 × 800, aucun texte n'est coupé : les lignes trop longues passent à la ligne, et les boutons qui ne tiennent plus côte à côte passent en dessous. Le facteur d'échelle de l'écran, réglé dans votre système, agrandit en plus toute la fenêtre, icônes comprises.
+
+## Réduire les animations
+
+Le zoom, l'ajustement du graphe à la fenêtre et sa réorganisation sont toujours instantanés. Deux choses bougent seulement : la barre des collectes en cours, et les effets que votre système peut donner aux menus et aux info-bulles.
+
+Cochez **Affichage › Réduire les animations** pour les arrêter : la barre disparaît, le texte de la progression reste, et les menus et info-bulles s'ouvrent sans effet. Lacis retient ce choix. Il réduit aussi les animations quand votre système le demande, si votre version de Qt sait le lui dire.
+
 ## Accessibilité
 
 Lacis est conçu pour être utilisé avec un lecteur d'écran, comme Orca sous Linux ou NVDA sous Windows :
 
 - chaque bouton, champ et liste a un nom accessible, y compris les boutons qui n'affichent qu'une icône ;
+- les éléments propres à Lacis annoncent aussi leur rôle et leur état : une puce d'entité se lit comme un lien vers une entreprise, une personne ou une adresse, une carte de signal comme un groupe avec son explication et son score, la frise des annonces BODACC comme une liste, et les boutons qui replient la colonne « À examiner » ou déplient la provenance d'un lien disent s'ils sont ouverts ou fermés ;
+- les animations se réduisent avec le système, ou depuis le menu **Affichage**, comme expliqué dans [Réduire les animations](#réduire-les-animations) ;
+- aucune information ne passe par la couleur seule : chaque type d'entité a sa forme, chaque type de lien son trait, chaque sévérité son anneau et son nom, et chaque notification son icône ;
+- un [contraste élevé](#choisir-le-thème) suit celui du système, ou s'impose depuis le choix du thème ;
+- le texte s'agrandit jusqu'à 200 % sans être coupé, comme expliqué dans [Agrandir le texte](#agrandir-le-texte) ;
 - la touche <kbd>Tab</kbd> parcourt la fenêtre dans un ordre logique, de la barre de recherche aux colonnes de l'enquête, et le focus reste toujours visible ;
-- le nombre de résultats d'une recherche, la fin d'une extension et les erreurs sont annoncés au lecteur d'écran ;
-- le graphe se parcourt aux flèches, d'une entité à sa voisine, et chaque entité sélectionnée ouvre sa fiche, qui se lit comme un texte.
+- le nombre de résultats d'une recherche, le début et la fin d'une extension, et les erreurs sont annoncés au lecteur d'écran. Après une extension ou une décision, Lacis annonce aussi ce qu'il y a de nouveau à examiner, comme « À examiner : 2 nouveaux signaux d'alerte et 1 nouvel homonyme à vérifier ». Ces annonces attendent que le lecteur d'écran ait fini sa phrase, et les changements rapprochés sont regroupés en une seule ;
+- le graphe se parcourt aux flèches, d'une entité à sa voisine, et chaque entité sélectionnée ouvre sa fiche, qui se lit comme un texte ;
+- la [vue liste](/lacis/guide/premiere-enquete/#parcourir-le-graphe-en-liste) du graphe, avec <kbd>Ctrl</kbd>+<kbd>L</kbd>, range les entités par type dans une arborescence : le lecteur d'écran annonce chacune avec son type et son nombre de liens, et ses liens se déplient sous elle.
 
 Si un élément de Lacis reste inaccessible, [signalez-le](https://github.com/c4seus/lacis/issues/new/choose) : c'est un défaut à corriger.

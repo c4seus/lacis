@@ -649,13 +649,27 @@ QGraphicsView#graphView:focus {{
     border: 2px solid {colours.accent};
 }}
 
+QTreeView#graphList {{
+    border: 2px solid transparent;
+    border-radius: 0;
+    background-color: {colours.graph_background};
+}}
+
+QTreeView#graphList:focus {{
+    border: 2px solid {colours.accent};
+}}
+
+QTreeView#graphList::item {{
+    padding: 3px 4px;
+}}
+
 QFrame#graphToolbar {{
     border: 1px solid {colours.border};
     border-radius: {radii.medium}px;
     background-color: {colours.surface};
 }}
 
-QToolButton#filterChip {{
+QToolButton#filterChip, QToolButton#viewChip {{
     min-height: 0;
     padding: 4px 9px;
     border: 1px solid {colours.border};
@@ -665,12 +679,12 @@ QToolButton#filterChip {{
     font-size: {font_sizes.small}px;
 }}
 
-QToolButton#filterChip[active="true"] {{
+QToolButton#filterChip[active="true"], QToolButton#viewChip:checked {{
     border-color: {colours.accent};
     color: {colours.accent};
 }}
 
-QToolButton#filterChip:focus {{
+QToolButton#filterChip:focus, QToolButton#viewChip:focus {{
     padding: 3px 8px;
     border: 2px solid {colours.accent};
 }}

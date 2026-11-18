@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 
 from lacis.design.icons import ColoursProvider
 from lacis.design.tokens import FONT_FAMILIES, Colours
-from lacis.graph.descriptions import entity_description, entity_summary, graph_summary
+from lacis.graph.descriptions import entity_description, entity_summary, graph_description
 from lacis.graph.drawing import EdgeKind, GraphDrawing, GraphEdge, GraphNode, NodeShape
 from lacis.graph.filters import GraphFilter
 from lacis.graph.navigation import Direction, linked_towards, starting_entity
@@ -65,6 +65,9 @@ LABEL_PIXEL_SIZE = 12
 SMALL_LABEL_PIXEL_SIZE = 10
 RING_WIDTH = 3.0
 RING_OFFSET = 3.0
+RING_GAP = 1.5
+RING_COUNTS = {Severity.HIGH: 2, Severity.MEDIUM: 1, Severity.LOW: 1}
+LOW_RING_DASH_PATTERN = (1.5, 1.2)
 SELECTION_OPACITY = 0.22
 SELECTION_PADDING = 12.0
 EDGE_WIDTHS = {EdgeKind.DIRECTS: 1.6, EdgeKind.STRUCTURE: 1.0, EdgeKind.IDENTITY: 2.0}
@@ -215,13 +218,23 @@ def severity_colour(colours: Colours, severity: Severity) -> QColor:
     return QColor(tokens[severity])
 
 
-def ring_path(node: GraphNode) -> QPainterPath:
-    reach = BORDER_WIDTH / 2 + RING_OFFSET + RING_WIDTH / 2
+def ring_path(node: GraphNode, order: int = 0) -> QPainterPath:
+    reach = BORDER_WIDTH / 2 + RING_OFFSET + RING_WIDTH / 2 + order * (RING_WIDTH + RING_GAP)
     return shape_path(node.shape, node.size + reach * 2)
 
 
+def ring_paths(node: GraphNode) -> list[QPainterPath]:
+    if node.severity is None:
+        return []
+    return [ring_path(node, order) for order in range(RING_COUNTS[node.severity])]
+
+
 def ring_pen(colours: Colours, severity: Severity) -> QPen:
-    return QPen(severity_colour(colours, severity), RING_WIDTH)
+    pen = QPen(severity_colour(colours, severity), RING_WIDTH)
+    if severity is Severity.LOW:
+        pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        pen.setDashPattern(list(LOW_RING_DASH_PATTERN))
+    return pen
 
 
 def selection_area(node: GraphNode) -> QRectF:
@@ -251,6 +264,7 @@ class GraphScene(QGraphicsScene):
         self.node_items = {}
         for node in drawing.nodes:
             item = NodeItem(node)
+            item.setToolTip(entity_summary(drawing, node))
             self.addItem(item)
             self.node_items[node.identifier] = item
         self.edge_items = []
@@ -342,7 +356,8 @@ class NodeItem(QGraphicsItem):
         if self.node.severity is not None:
             painter.setPen(ring_pen(colours, self.node.severity))
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawPath(ring_path(self.node))
+            for path in ring_paths(self.node):
+                painter.drawPath(path)
         painter.setPen(node_border(colours, self.node))
         painter.setBrush(node_fill(colours, self.node))
         painter.drawPath(self.path)
@@ -505,17 +520,14 @@ class GraphView(QGraphicsView):
             return
         self.selected_identifier = identifier
         self.describe()
-        if identifier is not None:
+        if identifier is not None and self.isVisible():
             summary = entity_summary(self.drawing, self.drawing.require_node(identifier))
             announcements.announce(self, summary, announcements.POLITE)
         self.selection_changed.emit(identifier or "")
 
     def describe(self) -> None:
         if self.selected_identifier is None:
-            summary = graph_summary(self.drawing)
-            if self.graph_filter.is_active:
-                summary = f"{summary}, {self.graph_filter.summary(self.drawing)}"
-            self.setAccessibleDescription(summary)
+            self.setAccessibleDescription(graph_description(self.drawing, self.graph_filter))
         else:
             self.setAccessibleDescription(
                 entity_description(self.drawing, self.selected_identifier)

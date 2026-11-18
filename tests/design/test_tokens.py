@@ -3,7 +3,7 @@ from dataclasses import fields
 
 import pytest
 
-from lacis.design.tokens import DARK_THEME, LIGHT_THEME, THEMES, Colours, Theme
+from lacis.design.tokens import DARK_THEME, LIGHT_THEME, THEMES, Colours, FontSizes, Theme
 
 HEXADECIMAL_COLOUR = re.compile(r"#[0-9a-f]{6}")
 
@@ -60,3 +60,17 @@ def test_spacing_and_font_sizes_grow_with_their_step() -> None:
     ]
     assert spacing_values == sorted(spacing_values)
     assert font_size_values == sorted(font_size_values)
+
+
+def test_font_sizes_scale_and_round_to_whole_pixels() -> None:
+    assert FontSizes().scaled(2) == FontSizes(24, 26, 28, 32, 38, 48)
+    assert FontSizes().scaled(1.25) == FontSizes(15, 16, 18, 20, 24, 30)
+    assert FontSizes().scaled(0) == FontSizes(1, 1, 1, 1, 1, 1)
+
+
+def test_a_theme_keeps_its_colours_when_its_text_grows() -> None:
+    assert LIGHT_THEME.with_text_scale(1) is LIGHT_THEME
+    larger = DARK_THEME.with_text_scale(1.5)
+    assert larger.colours == DARK_THEME.colours
+    assert larger.font_sizes.body == 21
+    assert larger.with_text_scale(1) == DARK_THEME

@@ -8,7 +8,10 @@ from lacis.design.icons import ColoursProvider
 from lacis.graph.drawing import SHAPES, EdgeKind
 from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
+from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.graph_view import (
+    RING_COUNTS,
+    RING_GAP,
     RING_WIDTH,
     arrow_head,
     edge_colour,
@@ -20,6 +23,7 @@ from lacis.ui.graph_view import (
 
 LEGEND_ACCESSIBLE_NAME = "Légende du graphe"
 LEGEND_SWATCH_SIZE = 10
+RING_SWATCH_SIZE = 16
 LINK_SWATCH_WIDTH = 22
 SIGNAL_LEGEND_TEXT = "Signal :"
 KIND_ENTRIES = (
@@ -101,7 +105,7 @@ class RingSwatch(QWidget):
         super().__init__(parent)
         self.severity = severity
         self.colours_provider = colours_provider
-        self.setFixedSize(LEGEND_SWATCH_SIZE + 2, LEGEND_SWATCH_SIZE + 2)
+        self.setFixedSize(RING_SWATCH_SIZE, RING_SWATCH_SIZE)
 
     @override
     def paintEvent(self, event: QPaintEvent) -> None:
@@ -109,8 +113,9 @@ class RingSwatch(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(ring_pen(self.colours_provider(), self.severity))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        inset = RING_WIDTH / 2
-        painter.drawEllipse(QRectF(self.rect()).adjusted(inset, inset, -inset, -inset))
+        for order in range(RING_COUNTS[self.severity]):
+            inset = RING_WIDTH / 2 + order * (RING_WIDTH + RING_GAP)
+            painter.drawEllipse(QRectF(self.rect()).adjusted(inset, inset, -inset, -inset))
         painter.end()
 
 
@@ -136,25 +141,30 @@ class GraphLegend(QFrame):
         signals.addWidget(signal_label)
         for severity, text in SEVERITY_ENTRIES:
             self.add_entry(signals, RingSwatch(severity, colours_provider, self), text, "legend")
-        for row in (kinds, links, signals):
-            row.addStretch(1)
         self.setAccessibleDescription(", ".join(self.texts))
 
-    def add_row(self, layout: QVBoxLayout) -> QHBoxLayout:
-        row = QHBoxLayout()
-        row.setSpacing(10)
+    def add_row(self, layout: QVBoxLayout) -> FlowLayout:
+        row = FlowLayout(horizontal_spacing=10, vertical_spacing=4)
         layout.addLayout(row)
         return row
 
-    def add_entry(self, row: QHBoxLayout, swatch: QWidget, text: str, tone: str) -> None:
-        entry = QHBoxLayout()
-        entry.setSpacing(5)
-        entry.addWidget(swatch)
-        label = QLabel(text, self)
+    def add_entry(self, row: FlowLayout, swatch: QWidget, text: str, tone: str) -> None:
+        entry = QWidget(self)
+        entry_layout = QHBoxLayout(entry)
+        entry_layout.setContentsMargins(0, 0, 0, 0)
+        entry_layout.setSpacing(5)
+        swatch.setParent(entry)
+        entry_layout.addWidget(swatch)
+        label = QLabel(text, entry)
         label.setProperty("tone", tone)
-        entry.addWidget(label)
+        entry_layout.addWidget(label)
         self.entry_labels.append(label)
-        row.addLayout(entry)
+        row.addWidget(entry)
+
+    def fit(self, available_width: int) -> None:
+        self.adjustSize()
+        if self.width() > available_width:
+            self.resize(available_width, self.heightForWidth(available_width))
 
     @property
     def texts(self) -> list[str]:

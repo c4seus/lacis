@@ -7,11 +7,13 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLay
 
 from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
+from lacis.design.motion import MotionController
 from lacis.design.theme_controller import ThemeController
 from lacis.details import entity_details, raw_response
 from lacis.graph.background import BackgroundJob, CollectionSettings, layout_job, move_job
 from lacis.graph.expansion import MINIMUM_DEPTH
-from lacis.overview import read_overview
+from lacis.overview import InvestigationOverview, read_overview
+from lacis.review import review_news
 from lacis.signals.store import SignalReport
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE as UNREADABLE
@@ -22,6 +24,7 @@ from lacis.ui.header_bar import HOME_TRAIL, HeaderBar
 from lacis.ui.home_screen import HomeScreen
 from lacis.ui.investigation_page import InvestigationPage
 from lacis.ui.menu_bar import MainMenuBar
+from lacis.ui.news_announcer import NewsAnnouncer
 from lacis.ui.notifications import NotificationArea, NotificationKind
 from lacis.ui.raw_response_dialog import RawResponseDialog
 from lacis.ui.register_search_list import RegisterSearch, RegisterSearchPopup
@@ -78,6 +81,8 @@ class MainWindow(QMainWindow):
         self.connect_investigation_page()
         self.layout_job: BackgroundJob | None = None
         self.report: SignalReport | None = None
+        self.previous_overview: InvestigationOverview | None = None
+        self.news = NewsAnnouncer(self.investigation_page.queue_column)
         self.move_jobs: list[BackgroundJob] = []
         self.pages.addWidget(self.home_screen)
         self.pages.addWidget(self.investigation_page)
@@ -116,6 +121,17 @@ class MainWindow(QMainWindow):
         queue_action.setChecked(not self.investigation_page.is_queue_collapsed())
         queue_action.toggled.connect(self.investigation_page.toggle_queue)
         self.investigation_page.queue_toggled.connect(queue_action.setChecked)
+        list_action = self.main_menu_bar.list_action
+        list_action.setChecked(self.investigation_page.is_list_shown())
+        list_action.toggled.connect(self.investigation_page.toggle_list)
+        self.investigation_page.list_toggled.connect(list_action.setChecked)
+        self.motion = MotionController(self.theme_controller.application, self.settings, self)
+        motion_action = self.main_menu_bar.reduced_motion_action
+        motion_action.setChecked(self.motion.chosen)
+        motion_action.toggled.connect(self.motion.set_chosen)
+        progress_panel = self.investigation_page.graph_area.progress_panel
+        self.motion.reduced_changed.connect(progress_panel.reduce_motion)
+        progress_panel.reduce_motion(self.motion.reduced)
         self.investigation_page.entities_moved.connect(self.save_moved_positions)
         self.investigation_page.graph_area.layout_requested.connect(self.lay_out_again)
         graph_view = self.investigation_page.graph_view
@@ -169,6 +185,7 @@ class MainWindow(QMainWindow):
             self.home_screen.refresh()
             return
         self.stop_layout()
+        self.forget_news()
         self.current_investigation = name
         self.investigation_page.show_investigation(investigation)
         self.refresh_overview()
@@ -262,6 +279,9 @@ class MainWindow(QMainWindow):
             self.show_failure(message)
             return
         self.report = overview.report
+        if self.previous_overview is not None:
+            self.news.add(review_news(self.previous_overview, overview))
+        self.previous_overview = overview
         self.investigation_page.show_overview(overview)
         self.show_details(self.investigation_page.selected_entity or "")
         if overview.drawing.needs_layout:
@@ -307,8 +327,13 @@ class MainWindow(QMainWindow):
         if position == 0:
             self.show_home()
 
+    def forget_news(self) -> None:
+        self.news.forget()
+        self.previous_overview = None
+
     def show_home(self) -> None:
         self.review_actions.stop()
+        self.forget_news()
         self.stop_layout()
         self.stop_moves()
         self.register_search.stop()

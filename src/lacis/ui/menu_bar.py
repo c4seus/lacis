@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QMenu, QMenuBar, QWidget
 
 from lacis.history import InvestigationHistory
 from lacis.ui.help_menu import HelpMenu
+from lacis.ui.text_size_menu import TextSizeMenu
 from lacis.ui.theme_menu import ThemeMenu
 
 FILE_MENU_TITLE = "&Fichier"
@@ -16,6 +17,9 @@ CLOSE_INVESTIGATION_ACTION_TEXT = "&Fermer l'enquête"
 CLOSE_INVESTIGATION_SHORTCUT = QKeySequence("Ctrl+W")
 QUEUE_ACTION_TEXT = "&Colonne À examiner"
 QUEUE_SHORTCUT = QKeySequence("Ctrl+1")
+LIST_ACTION_TEXT = "Vue &liste du graphe"
+REDUCED_MOTION_ACTION_TEXT = "Réduire les a&nimations"
+LIST_SHORTCUT = QKeySequence("Ctrl+L")
 QUIT_SHORTCUT = QKeySequence("Ctrl+Q")
 ZOOM_IN_ACTION_TEXT = "Zoom &avant"
 ZOOM_IN_SHORTCUTS = [QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")]
@@ -83,6 +87,10 @@ class MainMenuBar(QMenuBar):
         self.queue_action.setShortcut(QUEUE_SHORTCUT)
         self.view_menu.addAction(self.queue_action)
         self.view_menu.addSeparator()
+        self.list_action = QAction(LIST_ACTION_TEXT, self)
+        self.list_action.setCheckable(True)
+        self.list_action.setShortcut(LIST_SHORTCUT)
+        self.view_menu.addAction(self.list_action)
         self.zoom_in_action = QAction(ZOOM_IN_ACTION_TEXT, self)
         self.zoom_in_action.setShortcuts(ZOOM_IN_SHORTCUTS)
         self.zoom_out_action = QAction(ZOOM_OUT_ACTION_TEXT, self)
@@ -96,6 +104,11 @@ class MainMenuBar(QMenuBar):
         self.create_details_menu()
         self.view_menu.addSeparator()
         self.view_menu.addMenu(theme_menu)
+        self.text_size_menu = TextSizeMenu(theme_menu.theme_controller, self.view_menu)
+        self.view_menu.addMenu(self.text_size_menu)
+        self.reduced_motion_action = QAction(REDUCED_MOTION_ACTION_TEXT, self)
+        self.reduced_motion_action.setCheckable(True)
+        self.view_menu.addAction(self.reduced_motion_action)
 
     def create_investigation_menu(self) -> None:
         self.search_action = QAction(SEARCH_ACTION_TEXT, self)
@@ -129,6 +142,7 @@ class MainMenuBar(QMenuBar):
     def investigation_actions(self) -> list[QAction]:
         return [
             self.queue_action,
+            self.list_action,
             *self.graph_actions,
             self.next_tab_action,
             self.previous_tab_action,

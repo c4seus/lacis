@@ -2,6 +2,30 @@
 
 All notable changes to Lacis are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow the [versioning policy](docs/versioning.md).
 
+## [0.3.0] - 2026-11-18
+
+This version makes Lacis usable with a screen reader and the keyboard alone, in high contrast, with larger text and with reduced motion, and never relies on colour alone. It was audited against WCAG 2.2 level AA, adapted to a desktop application, with Orca on Linux and NVDA on Windows.
+
+### Added
+
+- The accessibility audit grid, in `docs/accessibility-audit.md`, applies WCAG 2.2 level AA to Lacis, says why some criteria do not apply, and gives the keyboard steps that check the others in the « faux plombiers » demo investigation, with a result for Orca on Linux and NVDA on Windows, in the light and dark themes, and in high contrast and at 200 % text where they matter.
+- Lacis reduces motion when the system asks for it, or from View › Réduire les animations: the busy bar of running collections disappears, its written progress stays, and the effects of menus and tooltips stop. Zoom, fit and layout changes stay instant in both modes.
+- No information relies on colour alone. The severity rings of the graph are double for a strong signal, single for a medium one and dashed for a weak one; hovering an entity writes its kind, its state and its severity; the score of the Entities tab writes the severity next to it; and each notification shows an icon for its kind. Tests check the graph colours against protanopia, deuteranopia and tritanopia simulations.
+- High contrast themes, light and dark, where text reaches 7:1 and borders, icons and graph colours 4.5:1. They apply when the system is in high contrast mode and the theme follows the system, and « Contraste élevé » in View › Thème forces them.
+- Lacis follows the font size of the system, and View › Taille du texte enlarges every text from 100 % to 200 %. At 200 %, on a 1280 × 800 screen, no text is cut and every control remains reachable: long lines wrap, and buttons that no longer fit side by side move to the next line.
+- The graph has a list view, for screen readers and the keyboard. The « Vue liste » button above the graph, or Ctrl+L, shows its entities grouped by kind, each with its links, and screen readers hear each entity with its kind and its number of links. Moving through the list selects the entity in the graph and opens its details, Enter on a link goes to the entity it leads to, and the list follows the filters of the graph.
+- After an expansion or a decision, screen readers hear what is new to examine, such as « À examiner : 2 nouveaux signaux d'alerte et 1 nouvel homonyme à vérifier ». The announcement is polite, and the changes found within a second are grouped into one.
+- Screen readers learn the role, state and value of the widgets that Lacis draws itself: entity chips are links to their entity and tell its kind, signal cards are groups with their explanation and score, the BODACC timeline is a list of notices, and the buttons that fold the « À examiner » column or the provenance of a link tell whether it is open.
+
+### Changed
+
+- When a row of the review column disappears or its button is disabled, the focus moves to a neighbouring row of the same section, instead of leaving the column.
+- Alt+Down or the Menu key opens the depth menu of the « Étendre » button, so every depth of an expansion can be chosen with the keyboard.
+- Tab reaches the rows of the review column, the widgets of the entity sheet and the breadcrumb in their own region of the window, in the order of the screen, instead of after every other widget.
+- The link colour of the graph is slightly stronger in the light and dark themes, so that links stay visible to colour blind eyes.
+- The « même personne » colour of the light theme is slightly darker, so that its labels on the graph reach 4.5:1.
+- The provenance button of a « Même personne » link reads « Provenance · Décision », shorter, so that it fits with a larger text. Its accessible name still says « Décision de l'enquêteur ».
+
 ## [0.2.0] - 2026-11-17
 
 This version fixes the issues raised by the first users of 0.1.0: directors are never merged on their name alone, and every link and decision can be traced and undone. Investigations opened with 0.2.0 are migrated and can no longer be opened with 0.1.0.

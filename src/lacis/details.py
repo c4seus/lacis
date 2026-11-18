@@ -29,6 +29,7 @@ CLOSED_ESTABLISHMENT_TEXT = "Fermé"
 HEAD_OFFICE_TEXT = "Siège"
 DIRECTOR_ONLY_TEXT = "Connue comme dirigeante seulement"
 DECIDED_LINK_TEXT = "Décision de l'enquêteur"
+DECIDED_LINK_SHORT_TEXT = "Décision"
 FOREIGN_LAW_TEXT = "Droit étranger"
 
 
@@ -86,8 +87,12 @@ class SignalCard:
     references: tuple[Reference, ...]
 
     @property
+    def score_value(self) -> str:
+        return f"{self.score:.2f}".replace(".", ",")
+
+    @property
     def written_score(self) -> str:
-        return f"score {self.score:.2f}".replace(".", ",")
+        return f"score {self.score_value}"
 
 
 @dataclass(frozen=True)
@@ -103,6 +108,10 @@ class LinkLine:
         if self.decided_on:
             return DECIDED_LINK_TEXT
         return counted(len(self.sources), "réponse", "réponses")
+
+    @property
+    def short_provenance(self) -> str:
+        return DECIDED_LINK_SHORT_TEXT if self.decided_on else self.provenance
 
 
 @dataclass(frozen=True)

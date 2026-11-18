@@ -8,6 +8,7 @@ import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtWidgets import QApplication
 
+from lacis.design.fonts import load_bundled_fonts
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController
 from lacis.diagnostics import LOG_DIRECTORY_VARIABLE, LOGGER_NAME
@@ -15,6 +16,7 @@ from lacis.storage.collection_log import CollectionLog
 from lacis.storage.investigations import InvestigationLibrary
 from lacis.storage.locations import CONFIGURATION_DIRECTORY_VARIABLE, DATA_DIRECTORY_VARIABLE
 from lacis.storage.responses import ResponseStore
+from lacis.ui.accessibility import AccessibleInterfaces
 
 OFFSCREEN_SCREEN_CONFIGURATION = Path(__file__).with_name("offscreen-screen.json")
 
@@ -27,6 +29,16 @@ def offscreen_platform_with_full_hd_screen() -> str:
 @pytest.fixture(scope="session")
 def qapp_args() -> list[str]:
     return ["lacis-tests", "-platform", offscreen_platform_with_full_hd_screen()]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def accessible_interfaces() -> None:
+    AccessibleInterfaces.install()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def bundled_fonts(qapp: QApplication) -> None:
+    load_bundled_fonts()
 
 
 @pytest.fixture(autouse=True)
@@ -79,11 +91,13 @@ def settings(isolated_user_settings: Path) -> QSettings:
 
 @pytest.fixture
 def theme_controller(qapp: QApplication, settings: QSettings) -> Iterator[ThemeController]:
+    font = qapp.font()
     controller = ThemeController(qapp, settings)
     yield controller
-    qapp.styleHints().colorSchemeChanged.disconnect(controller.follow_system_colour_scheme)
+    controller.stop_following_the_system()
     qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")
+    qapp.setFont(font)
 
 
 @pytest.fixture

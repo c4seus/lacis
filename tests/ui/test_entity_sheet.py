@@ -2,19 +2,19 @@ import sqlite3
 from dataclasses import replace
 
 import pytest
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl
+from PySide6.QtGui import QAccessible, QGuiApplication
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QLabel, QWidget
 from pytestqt.qtbot import QtBot
 
-from accessibility_checks import interactive_widgets_without_accessible_name
+from accessibility_checks import interactive_widgets_without_accessible_name, interface_of, press
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.design.icons import IconFactory
 from lacis.details import EntityDetails, entity_details
 from lacis.signals.signal import Severity
-from lacis.ui.entity_sheet import EntitySheet
+from lacis.ui.entity_sheet import DEPTH_MENU_HINT, LINK_ROLE_WIDTH, EntitySheet, RoleLabel
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.raw_response_dialog import RawResponseDialog
 
@@ -132,6 +132,45 @@ def test_the_depth_menu_chooses_how_far_to_expand(
     with qtbot.waitSignal(sheet.expansion_requested) as requested:
         sheet.expand_button.click()
     assert requested.args == [scenario.dupont_services, "DUPONT SERVICES", 1, False]
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        (Qt.Key.Key_Down, Qt.KeyboardModifier.AltModifier),
+        (Qt.Key.Key_Menu, Qt.KeyboardModifier.NoModifier),
+    ],
+)
+def test_the_keyboard_opens_the_depth_menu(
+    qtbot: QtBot,
+    sheet: EntitySheet,
+    builder: InvestigationBuilder,
+    scenario: PlumbersScenario,
+    keys: tuple[Qt.Key, Qt.KeyboardModifier],
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    menu = sheet.depth_menu
+
+    def choose_the_second_depth() -> None:
+        QTest.keyClick(menu, Qt.Key.Key_Down)
+        QTest.keyClick(menu, Qt.Key.Key_Down)
+        QTest.keyClick(menu, Qt.Key.Key_Return)
+
+    menu.aboutToShow.connect(lambda: QTimer.singleShot(0, choose_the_second_depth))
+    with qtbot.waitSignal(sheet.expansion_requested) as requested:
+        QTest.keyClick(sheet.expand_button, *keys)
+    assert requested.args == [scenario.dupont_services, "DUPONT SERVICES", 2, False]
+    assert not menu.isVisible()
+
+
+def test_other_keys_leave_the_depth_menu_closed(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    with qtbot.assertNotEmitted(sheet.depth_menu.aboutToShow):
+        QTest.keyClick(sheet.expand_button, Qt.Key.Key_Down)
+        QTest.keyClick(sheet.expand_button, Qt.Key.Key_Up, Qt.KeyboardModifier.AltModifier)
+    assert sheet.expand_button.accessibleDescription() == DEPTH_MENU_HINT
 
 
 def test_expanding_again_refreshes_the_entity(
@@ -266,6 +305,27 @@ def test_an_entity_without_signals_links_or_sources_shows_only_its_head(
     assert not sheet.facts.isVisible()
 
 
+def test_a_flow_layout_narrows_a_wrapping_widget_to_its_width(qtbot: QtBot) -> None:
+    container = QWidget()
+    qtbot.addWidget(container)
+    layout = FlowLayout(container)
+    layout.setContentsMargins(3, 2, 3, 2)
+    label = QLabel("Société civile immobilière des plombiers du 12 rue des Lilas", container)
+    label.setWordWrap(True)
+    hidden = QLabel("Masqué", container)
+    hidden.hide()
+    layout.addWidget(label)
+    layout.addWidget(hidden)
+    hint = label.sizeHint()
+    assert layout.sizeHint() == QSize(hint.width() + 6, hint.height() + 4)
+    assert layout.heightForWidth(106) == label.heightForWidth(100) + 4
+    assert label.heightForWidth(100) > hint.height()
+    container.resize(106, layout.heightForWidth(106))
+    container.show()
+    assert label.width() == 100
+    assert FlowLayout().sizeHint() == QSize(0, 0)
+
+
 def test_a_flow_layout_wraps_its_widgets(qtbot: QtBot) -> None:
     container = QWidget()
     qtbot.addWidget(container)
@@ -278,7 +338,7 @@ def test_a_flow_layout_wraps_its_widgets(qtbot: QtBot) -> None:
     assert layout.heightForWidth(1000) == 20
     assert layout.heightForWidth(130) == 3 * 20 + 2 * 2
     assert layout.minimumSize().width() == 60
-    assert layout.sizeHint() == layout.minimumSize()
+    assert layout.sizeHint() == QSize(6 * 60 + 5 * 4, 20)
     assert layout.expandingDirections() == Qt.Orientation(0)
     container.resize(130, 64)
     container.show()
@@ -362,7 +422,72 @@ def test_a_same_person_link_comes_from_the_decision_of_the_investigator(
     [row] = [row for row in sheet.link_rows if row.line.role == "Même personne"]
     assert row.source_rows == []
     assert row.decision_label.text().startswith("Décision de l'enquêteur, le ")
+    assert row.provenance_button.text() == "Provenance · Décision"
     assert row.provenance_button.accessibleName() == (
         "Provenance du lien Même personne Jean Pierre DUPONT : Décision de l'enquêteur"
     )
     assert interactive_widgets_without_accessible_name(sheet) == []
+
+
+def test_a_reference_chip_is_a_link_to_an_entity_of_some_kind(
+    qtbot: QtBot, sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    chip = sheet.signal_cards[0].chips[1]
+    interface = interface_of(chip)
+    assert interface.role() is QAccessible.Role.Link
+    assert interface.text(QAccessible.Text.Name) == "Sélectionner Jean DUPONT"
+    assert interface.text(QAccessible.Text.Description) == "personne"
+    assert interface.state().focusable
+    with qtbot.waitSignal(sheet.entity_chosen) as chosen:
+        press(chip)
+    assert chosen.args == [scenario.jean]
+
+
+def test_a_signal_card_is_a_group_with_its_explanation_and_score(
+    sheet: EntitySheet, builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    [card] = sheet.signal_cards
+    interface = interface_of(card)
+    assert interface.role() is QAccessible.Role.Grouping
+    assert interface.text(QAccessible.Text.Name) == "Schéma phénix, sévérité forte"
+    assert interface.text(QAccessible.Text.Description) == card.card.explanation
+    assert interface.text(QAccessible.Text.Value) == "score 0,85"
+    score = interface_of(card.score_label)
+    assert score.role() is QAccessible.Role.StaticText
+    assert score.text(QAccessible.Text.Name) == "Score"
+    assert score.text(QAccessible.Text.Value) == "0,85"
+
+
+def test_the_provenance_of_a_link_tells_whether_it_is_expanded(
+    sheet: EntitySheet,
+    builder: InvestigationBuilder,
+    scenario: PlumbersScenario,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    announced: list[QAccessible.State] = []
+    monkeypatch.setattr(
+        QAccessible, "updateAccessibility", lambda event: announced.append(event.changedStates())
+    )
+    shown(sheet, builder, scenario, scenario.dupont_services)
+    button = sheet.link_rows[0].provenance_button
+    interface = interface_of(button)
+    assert interface.role() is QAccessible.Role.Button
+    assert interface.state().expandable
+    assert not interface.state().expanded
+    press(button)
+    assert interface.state().expanded
+    assert sheet.link_rows[0].provenance.isVisibleTo(sheet)
+    assert [changed.expanded for changed in announced] == [True]
+
+
+def test_a_role_label_widens_with_its_font(qtbot: QtBot) -> None:
+    parent = QWidget()
+    qtbot.addWidget(parent)
+    label = RoleLabel("Directeur général", parent)
+    assert label.width() == LINK_ROLE_WIDTH
+    assert label.wordWrap()
+    label.setStyleSheet("font-size: 40px;")
+    assert label.width() > LINK_ROLE_WIDTH
+    assert label.width() >= label.fontMetrics().horizontalAdvance("Directeur")

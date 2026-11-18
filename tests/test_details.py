@@ -327,6 +327,7 @@ def test_a_link_shows_the_response_it_comes_from(
     [source] = line.sources
     assert source.source_name == "Recherche d'entreprises"
     assert line.provenance == "1 réponse"
+    assert line.short_provenance == "1 réponse"
     assert line.decided_on == ""
 
 
@@ -363,6 +364,7 @@ def test_a_same_person_link_shows_the_decision_and_its_date(
     assert line.sources == ()
     assert line.decided_on.startswith("Décision de l'enquêteur, le ")
     assert line.provenance == "Décision de l'enquêteur"
+    assert line.short_provenance == "Décision"
 
 
 def test_every_link_of_the_demo_investigation_shows_its_provenance(

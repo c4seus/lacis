@@ -14,12 +14,20 @@ WINDOW_MARGIN = 24
 NOTIFICATION_SPACING = 8
 CLOSE_TEXT = "Fermer la notification"
 CLOSE_TOOLTIP = "Fermer"
+KIND_ICON_SIZE = 16
 
 
 class NotificationKind(StrEnum):
     SUCCESS = "success"
     INFORMATION = "information"
     ERROR = "error"
+
+
+KIND_NAMES = {
+    NotificationKind.SUCCESS: "Succès",
+    NotificationKind.INFORMATION: "Information",
+    NotificationKind.ERROR: "Erreur",
+}
 
 
 class Notification(QFrame):
@@ -41,6 +49,11 @@ class Notification(QFrame):
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setAccessibleName(message)
+        self.kind_icon = QLabel(self)
+        self.kind_icon.setPixmap(
+            icon_factory.icon(kind.value).pixmap(KIND_ICON_SIZE, KIND_ICON_SIZE)
+        )
+        self.kind_icon.setAccessibleName(KIND_NAMES[kind])
         self.message_label = QLabel(message, self)
         self.message_label.setWordWrap(True)
         self.close_button = create_icon_button(
@@ -51,6 +64,7 @@ class Notification(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 8, 8, 8)
         layout.setSpacing(10)
+        layout.addWidget(self.kind_icon, 0, Qt.AlignmentFlag.AlignTop)
         layout.addWidget(self.message_label, 1)
         layout.addWidget(self.close_button, 0, Qt.AlignmentFlag.AlignTop)
         self.expiry = QTimer(self)

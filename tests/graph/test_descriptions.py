@@ -4,8 +4,14 @@ import pytest
 
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
-from lacis.graph.descriptions import entity_description, entity_summary, graph_summary
+from lacis.graph.descriptions import (
+    entity_description,
+    entity_summary,
+    graph_description,
+    graph_summary,
+)
 from lacis.graph.drawing import GraphDrawing, graph_drawing
+from lacis.graph.filters import GraphFilter
 
 
 @pytest.fixture
@@ -76,3 +82,10 @@ def test_the_graph_summary_counts_entities_links_and_flagged_entities(
 ) -> None:
     assert graph_summary(drawing) == "9 entités, 9 liens, 4 entités signalées"
     assert graph_summary(GraphDrawing()) == "Graphe vide"
+
+
+def test_the_graph_description_adds_what_the_filter_hides(drawing: GraphDrawing) -> None:
+    assert graph_description(drawing, GraphFilter()) == "9 entités, 9 liens, 4 entités signalées"
+    assert graph_description(drawing, GraphFilter(flagged_only=True)) == (
+        "9 entités, 9 liens, 4 entités signalées, 5 entités masquées"
+    )

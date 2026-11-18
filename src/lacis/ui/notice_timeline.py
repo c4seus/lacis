@@ -1,11 +1,12 @@
 from typing import override
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtGui import QAccessible, QColor, QPainter, QPaintEvent, QPen
+from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from lacis.design.icons import ColoursProvider
 from lacis.details import NoticeLine
+from lacis.ui.flow_layout import FlowLayout
 
 TIMELINE_ACCESSIBLE_NAME = "Annonces BODACC"
 NO_NOTICE_TEXT = "Aucune annonce collectée pour cette entreprise."
@@ -37,6 +38,7 @@ def link_button(text: str, accessible_name: str, parent: QWidget) -> QPushButton
 
 
 class NoticeItem(QFrame):
+    accessible_role = QAccessible.Role.ListItem
     link_requested = Signal(str)
     raw_requested = Signal(int)
 
@@ -61,12 +63,10 @@ class NoticeItem(QFrame):
         self.raw_button.clicked.connect(
             lambda: self.raw_requested.emit(notice.response_identifier)
         )
-        when = QHBoxLayout()
-        when.setSpacing(8)
+        when = FlowLayout(horizontal_spacing=8, vertical_spacing=4)
         when.addWidget(self.date_label)
         when.addWidget(self.family_badge)
         when.addWidget(self.withdrawn_badge)
-        when.addStretch(1)
         summary_tone = "notice-withdrawn" if notice.is_withdrawn else "notice-summary"
         self.summary_label = tone_label(
             notice.summary or notice.family_label, summary_tone, self, wrapped=True
@@ -86,11 +86,9 @@ class NoticeItem(QFrame):
         for note in self.notes:
             layout.addWidget(note)
         layout.addWidget(self.court_label)
-        links = QHBoxLayout()
-        links.setSpacing(10)
+        links = FlowLayout(horizontal_spacing=10, vertical_spacing=4)
         links.addWidget(self.bodacc_button)
         links.addWidget(self.raw_button)
-        links.addStretch(1)
         layout.addLayout(links)
         parts = [notice.written_date, notice.family_label, notice.summary]
         if notice.is_withdrawn:
@@ -99,6 +97,7 @@ class NoticeItem(QFrame):
 
 
 class NoticeTimeline(QWidget):
+    accessible_role = QAccessible.Role.List
     link_requested = Signal(str)
     raw_requested = Signal(int)
 

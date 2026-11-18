@@ -9,6 +9,7 @@ from lacis.ui.investigation_columns import DetailsPanel, GraphArea, QueueColumn,
 
 COLUMNS_SETTING = "investigation/columns"
 QUEUE_COLLAPSED_SETTING = "investigation/queue_collapsed"
+LIST_VIEW_SETTING = "investigation/list_view"
 DEFAULT_COLUMN_WIDTHS = (320, 700, 420)
 COUNTERS_ACCESSIBLE_NAME = "Compteurs de l'enquête"
 UNAVAILABLE_TEXT = "?"
@@ -102,6 +103,7 @@ class InvestigationHeader(QFrame):
 
 class InvestigationPage(QWidget):
     queue_toggled = Signal(bool)
+    list_toggled = Signal(bool)
     entities_moved = Signal(dict)
     decision_requested = Signal(object, object, object)
     expansion_requested = Signal(str, str, int, bool)
@@ -126,6 +128,9 @@ class InvestigationPage(QWidget):
         self.graph_view = self.graph_area.graph_view
         self.graph_view.selection_changed.connect(self.follow_selection)
         self.graph_view.entities_moved.connect(self.entities_moved)
+        self.graph_area.graph_list.entity_chosen.connect(
+            lambda identifier: self.show_entity(identifier, "")
+        )
         review_list = self.queue_column.review_list
         review_list.entity_chosen.connect(lambda identifier: self.show_entity(identifier, ""))
         review_list.decision_requested.connect(self.decision_requested)
@@ -160,6 +165,8 @@ class InvestigationPage(QWidget):
         layout.addWidget(self.header)
         layout.addLayout(body, 1)
         self.show_queue(not self.settings.value(QUEUE_COLLAPSED_SETTING, False, type=bool))
+        self.graph_area.show_list(bool(self.settings.value(LIST_VIEW_SETTING, False, type=bool)))
+        self.graph_area.list_toggled.connect(self.remember_list)
 
     def restore_columns(self) -> None:
         state = self.settings.value(COLUMNS_SETTING)
@@ -198,6 +205,19 @@ class InvestigationPage(QWidget):
         else:
             self.collapse_queue()
 
+    def is_list_shown(self) -> bool:
+        return self.graph_area.is_list_shown()
+
+    def remember_list(self, shown: bool) -> None:
+        self.settings.setValue(LIST_VIEW_SETTING, shown)
+        self.list_toggled.emit(shown)
+
+    def toggle_list(self, shown: bool) -> None:
+        if shown == self.is_list_shown():
+            return
+        self.graph_area.show_list(shown)
+        self.graph_area.shown_view().setFocus()
+
     def show_investigation(self, investigation: Investigation) -> None:
         self.header.show_investigation(investigation)
         self.selected_entity = None
@@ -218,4 +238,5 @@ class InvestigationPage(QWidget):
         self.selected_entity = identifier or None
         self.queue_column.review_list.mark_selected(self.selected_entity)
         self.details_panel.entities_tab.mark_selected(self.selected_entity)
+        self.graph_area.graph_list.mark_selected(self.selected_entity)
         self.entity_selected.emit(identifier)

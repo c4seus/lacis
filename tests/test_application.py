@@ -61,9 +61,7 @@ def remove_theme_controllers_created_by_main(
     delete_windows_created_since(qapp, windows_before)
     qInstallMessageHandler(qt_message_handler)
     for theme_controller in qapp.findChildren(ThemeController):
-        qapp.styleHints().colorSchemeChanged.disconnect(
-            theme_controller.follow_system_colour_scheme
-        )
+        theme_controller.stop_following_the_system()
         theme_controller.setParent(None)
     qapp.styleHints().setColorScheme(Qt.ColorScheme.Unknown)
     qapp.setStyleSheet("")

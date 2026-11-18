@@ -69,6 +69,12 @@ class EntityRow:
         return f"{self.score:.2f}".replace(".", ",")
 
     @property
+    def shown_score(self) -> str:
+        if self.severity is None:
+            return self.written_score
+        return f"{self.written_score} · {SEVERITY_NAMES[self.severity]}"
+
+    @property
     def spoken_score(self) -> str:
         if self.severity is None:
             return "aucun signal"

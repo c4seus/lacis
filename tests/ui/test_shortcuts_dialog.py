@@ -55,7 +55,9 @@ def test_the_groups_list_every_shortcut_of_the_menus(
     lines = {line.description: line.keys for group in groups for line in group.lines}
     assert lines["Rechercher une entreprise"] == "Ctrl+F ou /"
     assert lines["Étendre la sélection"] == "Ctrl+E"
+    assert lines["Choisir la profondeur, sur le bouton Étendre"] == "Alt+Bas ou Menu"
     assert lines["Ajuster le graphe à la fenêtre"] == "Ctrl+0"
+    assert lines["Passer du graphe à sa vue liste"] == "Ctrl+L"
     assert lines["Onglet suivant"] == "Ctrl+PgDown"
     assert lines["Onglet Entités"] == "Alt+3"
     assert lines["Afficher les raccourcis clavier"] == "Ctrl+/"

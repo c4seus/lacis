@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from PySide6.QtGui import QFontDatabase, QFontInfo
+from PySide6.QtGui import QFont, QFontDatabase, QFontInfo
 from PySide6.QtWidgets import QApplication
 
 from lacis.design import fonts
@@ -11,6 +11,7 @@ from lacis.design.fonts import (
     FontLoadingError,
     application_font,
     load_bundled_fonts,
+    system_text_scale,
 )
 from lacis.design.tokens import FontSizes
 
@@ -48,3 +49,24 @@ def test_a_missing_font_file_is_reported(
     monkeypatch.setattr(fonts, "FONT_DIRECTORY", tmp_path)
     with pytest.raises(FontLoadingError, match=r"Inter-Regular\.ttf"):
         load_bundled_fonts()
+
+
+def test_the_application_font_follows_the_given_sizes(qapp: QApplication) -> None:
+    assert application_font(FontSizes().scaled(2)).pixelSize() == 28
+
+
+def pixel_font(pixel_size: int) -> QFont:
+    font = QFont()
+    font.setPixelSize(pixel_size)
+    return font
+
+
+def test_a_larger_system_font_enlarges_the_text(qapp: QApplication) -> None:
+    assert system_text_scale(pixel_font(30)) == 2.0
+    assert system_text_scale(pixel_font(18)) == 1.2
+
+
+def test_a_usual_or_smaller_system_font_keeps_the_text_as_designed(qapp: QApplication) -> None:
+    assert system_text_scale(pixel_font(15)) == 1.0
+    assert system_text_scale(pixel_font(12)) == 1.0
+    assert system_text_scale() == 1.0
