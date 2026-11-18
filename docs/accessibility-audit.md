@@ -168,12 +168,12 @@ When an issue is closed, keep its number in the cell, and write the result of th
 
 |  | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Date |  |  |
-| Lacis version |  |  |
-| System and desktop |  |  |
-| Screen reader and version |  |  |
-| Qt version |  |  |
-| Auditor |  |  |
+| Date | 2026-11-18 |  |
+| Lacis version | `develop`, commit `dccb573` |  |
+| System and desktop | Linux, GNOME Shell 50.5 on Wayland |  |
+| Screen reader and version | Orca 51.1, AT-SPI2 2.62.1 |  |
+| Qt version | 6.12.0, PySide6 6.12.0 |  |
+| Auditor | c4seus |  |
 
 ## Criteria that do not apply
 
@@ -214,8 +214,8 @@ No control may be read as a bare « bouton », « button », or by the name of a
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 1.3.1 Info and relationships
 
@@ -230,8 +230,8 @@ Level A. What the layout shows, the screen reader tells: labels of fields, title
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 1.3.2 Meaningful sequence
 
@@ -243,8 +243,8 @@ Level A. The screen reader reads the content in an order that keeps its meaning.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 1.3.3 Sensory characteristics
 
@@ -255,8 +255,8 @@ Level A. No instruction relies only on a shape, a colour, a size, a position or 
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 1.3.4 Orientation
 
@@ -269,8 +269,8 @@ If the screen cannot be turned, write « Not tested ».
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 1.4.1 Use of colour
 
@@ -285,9 +285,9 @@ Level A. No information is given by colour alone.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
-| High contrast |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
+| High contrast | Pass |  |
 
 ### 1.4.3 Contrast (minimum)
 
@@ -299,9 +299,9 @@ Level AA. Text reaches a contrast of 4.5:1 with its background, and large text 3
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
-| High contrast |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
+| High contrast | Pass |  |
 
 ### 1.4.4 Resize text
 
@@ -313,9 +313,9 @@ Level AA. Text can be enlarged up to 200 % without losing content or function.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
-| Text at 200 % |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
+| Text at 200 % | Pass |  |
 
 ### 1.4.5 Images of text
 
@@ -326,8 +326,8 @@ Level AA. Text is written as text, not drawn in an image, except the logo.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 1.4.10 Reflow
 
@@ -339,9 +339,9 @@ Level AA, adapted. WCAG asks for content that reflows in a width of 320 pixels w
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
-| Text at 200 % |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
+| Text at 200 % | Pass |  |
 
 ### 1.4.11 Non-text contrast
 
@@ -352,9 +352,9 @@ Level AA. The borders of controls, the focus, the icons and the drawings of the 
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
-| High contrast |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
+| High contrast | Pass |  |
 
 ### 1.4.13 Content on hover or focus
 
@@ -367,9 +367,9 @@ This check needs the mouse.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
-| Text at 200 % |  |  |
+| Light | Fail #254 |  |
+| Dark | Fail #254 |  |
+| Text at 200 % | Fail #254 |  |
 
 ## Operable
 
@@ -383,8 +383,8 @@ Level A. Everything can be done with the keyboard.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass, was Fail #251 |  |
+| Dark | Pass, was Fail #251 |  |
 
 ### 2.1.2 No keyboard trap
 
@@ -395,8 +395,8 @@ Level A. The focus can always leave a widget with the keyboard.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.1.4 Character key shortcuts
 
@@ -407,8 +407,8 @@ Level A. A shortcut made of a single character key can be turned off or changed,
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Fail #253 |  |
+| Dark | Fail #253 |  |
 
 ### 2.2.1 Timing adjustable
 
@@ -420,8 +420,8 @@ Level A. A time limit can be turned off, adjusted or extended, unless it is esse
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.2.2 Pause, stop, hide
 
@@ -433,8 +433,8 @@ Level A. What moves for more than five seconds can be paused, stopped or hidden.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.3.1 Three flashes or below threshold
 
@@ -445,8 +445,8 @@ Level A. Nothing flashes more than three times per second.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.4.2 Page titled
 
@@ -457,8 +457,8 @@ Level A. Each window has a title that tells its subject.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.4.3 Focus order
 
@@ -471,8 +471,8 @@ Level A. The focus moves in an order that keeps the meaning and the use of the w
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass, was Fail #250 and #252 |  |
+| Dark | Pass, was Fail #250 and #252 |  |
 
 ### 2.4.4 Link purpose (in context)
 
@@ -483,8 +483,8 @@ Level A. The name of each link, with its context, tells where it leads.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.4.6 Headings and labels
 
@@ -495,8 +495,8 @@ Level AA. Titles and labels describe their topic or their purpose.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.4.7 Focus visible
 
@@ -507,10 +507,10 @@ Level AA. The focus is always visible.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
-| High contrast |  |  |
-| Text at 200 % |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
+| High contrast | Pass |  |
+| Text at 200 % | Pass |  |
 
 ### 2.4.11 Focus not obscured (minimum)
 
@@ -523,9 +523,9 @@ Level AA. The focused widget is never hidden entirely by something else.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
-| Text at 200 % |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
+| Text at 200 % | Pass |  |
 
 ### 2.5.1 Pointer gestures
 
@@ -538,8 +538,8 @@ This check needs a touchpad.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.5.2 Pointer cancellation
 
@@ -552,8 +552,8 @@ This check needs the mouse.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.5.3 Label in name
 
@@ -565,8 +565,8 @@ Level A. The name read by the screen reader contains the text written on the con
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.5.7 Dragging movements
 
@@ -579,8 +579,8 @@ This check needs the mouse.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 2.5.8 Target size (minimum)
 
@@ -592,8 +592,8 @@ Level AA. Each target for the pointer measures at least 24 × 24 pixels, or has 
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ## Understandable
 
@@ -606,8 +606,8 @@ Level A. The screen reader knows that the interface is in French.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 3.2.1 On focus
 
@@ -618,8 +618,8 @@ Level A. Giving the focus to a widget never changes the context: no window opens
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 3.2.2 On input
 
@@ -631,8 +631,8 @@ Level A. Typing or changing a setting never changes the context without warning.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 3.3.1 Error identification
 
@@ -644,8 +644,8 @@ Level A. An error is found, named and described in text.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 3.3.2 Labels or instructions
 
@@ -656,8 +656,8 @@ Level A. Each field has a label, and the instructions it needs.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 3.3.3 Error suggestion
 
@@ -668,8 +668,8 @@ Level AA. An error message says how to correct the error.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 3.3.4 Error prevention (legal, financial, data)
 
@@ -680,8 +680,8 @@ Level AA. An action that deletes or changes the data of the user can be checked,
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 3.3.7 Redundant entry
 
@@ -692,8 +692,8 @@ Level A. What the user already entered is not asked again in the same process.
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ## Robust
 
@@ -707,8 +707,8 @@ Level A. Each control tells the screen reader its name, its role, its state and 
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ### 4.1.3 Status messages
 
@@ -719,8 +719,8 @@ Level AA. The screen reader announces the messages of status without moving the 
 
 | Result | Linux, Orca | Windows, NVDA |
 | --- | --- | --- |
-| Light |  |  |
-| Dark |  |  |
+| Light | Pass |  |
+| Dark | Pass |  |
 
 ## Issues found
 
