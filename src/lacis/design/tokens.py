@@ -140,7 +140,7 @@ LIGHT_THEME = Theme(
         identity="#bc37b4",
         graph_background="#fbfbfc",
         graph_grid="#eef0f3",
-        graph_edge="#8893a4",
+        graph_edge="#858fa0",
     ),
 )
 
@@ -180,7 +180,7 @@ DARK_THEME = Theme(
         identity="#ec72e2",
         graph_background="#12151a",
         graph_grid="#1a1e25",
-        graph_edge="#5a6374",
+        graph_edge="#5c6575",
     ),
 )
 
