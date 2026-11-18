@@ -106,6 +106,10 @@ def queue_widgets(window: MainWindow) -> list[QWidget]:
     return [widget for widget in focusable_descendants(review_list.content) if widget.isVisible()]
 
 
+def sheet_widgets(window: MainWindow) -> list[QWidget]:
+    sheet = window.investigation_page.details_panel.entity_sheet
+    return [widget for widget in focusable_descendants(sheet.content) if widget.isVisible()]
+
 
 def test_the_rows_of_the_review_column_come_in_their_region(window: MainWindow) -> None:
     page = window.investigation_page
@@ -115,3 +119,12 @@ def test_the_rows_of_the_review_column_come_in_their_region(window: MainWindow) 
     assert review_list.rows[0] in rows
     assert follows(order, review_list, rows)
     assert order.index(rows[-1]) < order.index(page.graph_area.filter_chip)
+
+
+def test_the_widgets_of_the_sheet_come_in_the_details_panel(window: MainWindow) -> None:
+    sheet = window.investigation_page.details_panel.entity_sheet
+    order = tab_order(window.header_bar.search_field)
+    widgets = sheet_widgets(window)
+    assert sheet.expand_button in widgets
+    assert follows(order, sheet, widgets)
+    assert order.index(window.investigation_page.graph_view) < order.index(sheet)
