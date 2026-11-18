@@ -2,7 +2,9 @@
 
 All notable changes to Lacis are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow the [versioning policy](docs/versioning.md).
 
-## [Unreleased]
+## [0.3.0] - 2026-11-18
+
+This version makes Lacis usable with a screen reader and the keyboard alone, in high contrast, with larger text and with reduced motion, and never relies on colour alone. It was audited against WCAG 2.2 level AA, adapted to a desktop application, with Orca on Linux and NVDA on Windows.
 
 ### Added
 
