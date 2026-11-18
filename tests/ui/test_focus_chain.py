@@ -128,3 +128,9 @@ def test_the_widgets_of_the_sheet_come_in_the_details_panel(window: MainWindow) 
     assert sheet.expand_button in widgets
     assert follows(order, sheet, widgets)
     assert order.index(window.investigation_page.graph_view) < order.index(sheet)
+
+
+def test_the_breadcrumb_comes_before_the_search_field(window: MainWindow) -> None:
+    links = window.header_bar.breadcrumb.links
+    order = tab_order(window.header_bar.search_field)
+    assert order[-len(links) :] == links

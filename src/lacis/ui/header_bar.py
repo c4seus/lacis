@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from lacis import __version__
 from lacis.design.icons import IconFactory
 from lacis.design.theme_controller import ThemeController, ThemePreference
+from lacis.ui.focus_chain import place_after
 from lacis.ui.help_menu import HelpMenu
 from lacis.ui.theme_menu import ThemeMenu
 
@@ -167,6 +168,7 @@ class Breadcrumb(QWidget):
             self.step_labels.append(step_label)
             self.trail_layout.addWidget(step_label)
         self.setAccessibleDescription(f" {BREADCRUMB_SEPARATOR} ".join(trail))
+        place_after(self, self)
 
     def create_link(self, text: str, position: int) -> QPushButton:
         link = QPushButton(text, self)
