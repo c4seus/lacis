@@ -37,6 +37,10 @@ def tab_order(start: QWidget) -> list[QWidget]:
     return walk(start, QWidget.nextInFocusChain)
 
 
+def reverse_tab_order(start: QWidget) -> list[QWidget]:
+    return walk(start, QWidget.previousInFocusChain)
+
+
 def follows(order: list[QWidget], anchor: QWidget, widgets: list[QWidget]) -> bool:
     start = order.index(anchor) + 1
     return order[start : start + len(widgets)] == widgets
@@ -134,3 +138,19 @@ def test_the_breadcrumb_comes_before_the_search_field(window: MainWindow) -> Non
     links = window.header_bar.breadcrumb.links
     order = tab_order(window.header_bar.search_field)
     assert order[-len(links) :] == links
+
+
+def test_the_order_holds_after_the_investigation_is_read_again(
+    qtbot: QtBot, window: MainWindow
+) -> None:
+    page = window.investigation_page
+    window.refresh_overview()
+    window.header_bar.breadcrumb.set_trail(("Enquêtes", INVESTIGATION_NAME))
+    qtbot.waitUntil(window.header_bar.breadcrumb.links[-1].isVisible)
+    assert page.queue_column.review_list.rows[0].isVisible()
+    assert page.details_panel.entity_sheet.expand_button.isVisible()
+    order = tab_order(window.header_bar.search_field)
+    assert follows(order, page.queue_column.review_list, queue_widgets(window))
+    assert follows(order, page.details_panel.entity_sheet, sheet_widgets(window))
+    assert order[-1] is window.header_bar.breadcrumb.links[-1]
+    assert reverse_tab_order(order[0]) == [order[0], *reversed(order[1:])]
