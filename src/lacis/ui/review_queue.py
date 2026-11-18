@@ -27,6 +27,7 @@ from lacis.review import (
 from lacis.storage.homonym_decisions import HomonymDecision
 from lacis.ui.accessibility import ScoreLabel
 from lacis.ui.flow_layout import FlowLayout
+from lacis.ui.focus_chain import place_after
 from lacis.ui.graph_legend import KindSwatch
 
 QUEUE_LIST_ACCESSIBLE_NAME = "Éléments à examiner"
@@ -231,6 +232,7 @@ class ReviewQueueList(QScrollArea):
         self.add_leads(queue)
         self.content_layout.addStretch(1)
         self.setWidget(self.content)
+        place_after(self, self.content)
         self.mark_selected(self.selected_identifier)
 
     def add_group_title(self, text: str) -> None:
