@@ -236,6 +236,20 @@ def create_entity_position_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def create_entity_note_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE entity_note (
+            entity_identifier TEXT PRIMARY KEY
+                REFERENCES entity (identifier) ON DELETE CASCADE,
+            text TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            changed_at TEXT NOT NULL
+        )
+        """
+    )
+
+
 def reread_office_transfers(connection: sqlite3.Connection) -> None:
     rows = connection.execute(
         """
@@ -279,6 +293,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     create_entity_position_table,
     reread_office_transfers,
     split_people_by_company,
+    create_entity_note_table,
 )
 
 
