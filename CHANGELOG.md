@@ -6,6 +6,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Added
 
+- High contrast themes, light and dark, where text reaches 7:1 and borders, icons and graph colours 4.5:1. They apply when the system is in high contrast mode and the theme follows the system, and « Contraste élevé » in View › Thème forces them.
 - Lacis follows the font size of the system, and View › Taille du texte enlarges every text from 100 % to 200 %. At 200 %, on a 1280 × 800 screen, no text is cut and every control remains reachable: long lines wrap, and buttons that no longer fit side by side move to the next line.
 - The graph has a list view, for screen readers and the keyboard. The « Vue liste » button above the graph, or Ctrl+L, shows its entities grouped by kind, each with its links, and screen readers hear each entity with its kind and its number of links. Moving through the list selects the entity in the graph and opens its details, Enter on a link goes to the entity it leads to, and the list follows the filters of the graph.
 - After an expansion or a decision, screen readers hear what is new to examine, such as « À examiner : 2 nouveaux signaux d'alerte et 1 nouvel homonyme à vérifier ». The announcement is polite, and the changes found within a second are grouped into one.
@@ -13,6 +14,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 
 ### Changed
 
+- The « même personne » colour of the light theme is slightly darker, so that its labels on the graph reach 4.5:1.
 - The provenance button of a « Même personne » link reads « Provenance · Décision », shorter, so that it fits with a larger text. Its accessible name still says « Décision de l'enquêteur ».
 
 ## [0.2.0] - 2026-11-17
