@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QFrame, QMenu, QToolButton, QVBoxLayout, QWidget
@@ -12,6 +14,7 @@ from lacis.graph.filters import (
 )
 from lacis.storage.entities import EntityKind
 from lacis.storage.tags import Tag
+from lacis.storage.verdicts import Verdict
 from lacis.ui.header_bar import create_icon_button
 
 ZOOM_BUTTON_SIZE = QSize(30, 30)
@@ -30,6 +33,8 @@ SHOW_EVERYTHING_TEXT = "Tout afficher"
 TAG_MENU_TEXT = "Tag"
 NO_TAG_MENU_TEXT = "Tag : aucun dans l'enquête"
 EVERY_TAG_TEXT = "Tous les tags"
+VERDICT_MENU_TEXT = "Verdict"
+EVERY_VERDICT_TEXT = "Tous les verdicts"
 LIST_VIEW_TEXT = "Vue liste"
 LIST_VIEW_SHORTCUT_TEXT = "Ctrl+L"
 
@@ -109,6 +114,22 @@ class FilterChip(QToolButton):
         self.tag_menu = self.choices.addMenu(TAG_MENU_TEXT)
         self.tag_group = QActionGroup(self)
         self.tag_actions: dict[str | None, QAction] = {}
+        self.verdict_menu = self.choices.addMenu(VERDICT_MENU_TEXT)
+        self.verdict_group = QActionGroup(self)
+        self.verdict_actions: dict[Verdict | None, QAction] = {}
+        verdict_choices: list[tuple[Verdict | None, str]] = [(None, EVERY_VERDICT_TEXT)]
+        verdict_choices.extend((verdict, verdict.label) for verdict in Verdict)
+        for verdict, label in verdict_choices:
+            action = self.verdict_menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(verdict is None)
+            self.verdict_group.addAction(action)
+            action.triggered.connect(
+                lambda _checked=False, chosen=verdict: self.change(
+                    self.graph_filter.showing_verdict(chosen)
+                )
+            )
+            self.verdict_actions[verdict] = action
         self.choices.addSeparator()
         self.show_everything_action = self.choices.addAction(SHOW_EVERYTHING_TEXT)
         self.show_everything_action.triggered.connect(self.show_everything)
@@ -135,10 +156,14 @@ class FilterChip(QToolButton):
         self.choose_tag(self.graph_filter.tag if self.graph_filter.tag in known else None)
 
     def choose_tag(self, key: str | None) -> None:
+        self.choose_annotations(key, self.graph_filter.verdict)
+
+    def choose_annotations(self, key: str | None, verdict: Verdict | None) -> None:
         action = self.tag_actions.get(key)
         if action is not None:
             action.setChecked(True)
-        self.change(self.graph_filter.showing_tag(key))
+        self.verdict_actions[verdict].setChecked(True)
+        self.change(replace(self.graph_filter, tag=key, verdict=verdict))
 
     def show_drawing(self, drawing: GraphDrawing) -> None:
         self.drawing = drawing
@@ -172,6 +197,7 @@ class FilterChip(QToolButton):
         for action in [*self.kind_actions.values(), self.flagged_action]:
             action.blockSignals(False)
         self.tag_actions[None].setChecked(True)
+        self.verdict_actions[None].setChecked(True)
         self.change(GraphFilter())
 
 

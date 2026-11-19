@@ -3,11 +3,13 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSplitter, QVBoxLayou
 
 from lacis.design.icons import IconFactory
 from lacis.graph.drawing import GraphDrawing
+from lacis.graph.filters import GraphFilter
 from lacis.overview import InvestigationOverview
 from lacis.storage.investigations import Investigation
 from lacis.storage.tags import Tag
+from lacis.storage.verdicts import Verdict
 from lacis.ui.investigation_columns import DetailsPanel, GraphArea, QueueColumn, QueueRail
-from lacis.ui.review_queue import TagFilter
+from lacis.ui.review_queue import QueueFilter
 
 COLUMNS_SETTING = "investigation/columns"
 QUEUE_COLLAPSED_SETTING = "investigation/queue_collapsed"
@@ -20,6 +22,11 @@ FIRST_PLURAL = 2
 
 def noun_for(count: int | None, singular: str, plural: str) -> str:
     return singular if count is not None and count < FIRST_PLURAL else plural
+
+
+TAG_FILTER_PREFIX = "Tag : "
+VERDICT_FILTER_PREFIX = "Verdict : "
+FILTER_SEPARATOR = " · "
 
 
 class Counter(QWidget):
@@ -139,18 +146,15 @@ class InvestigationPage(QWidget):
         review_list.expansion_requested.connect(
             lambda identifier, label: self.expansion_requested.emit(identifier, label, 1, False)
         )
-        sheet = self.details_panel.entity_sheet
-        sheet.entity_chosen.connect(lambda identifier: self.show_entity(identifier, ""))
-        sheet.expansion_requested.connect(self.expansion_requested)
-        sheet.notices_refresh_requested.connect(self.notices_refresh_requested)
-        sheet.decision_withdrawal_requested.connect(self.decision_withdrawal_requested)
+        self.connect_sheet()
         self.details_panel.entities_tab.entity_chosen.connect(
             lambda identifier: self.show_entity(identifier, "")
         )
         self.tag: str | None = None
+        self.verdict: Verdict | None = None
         self.tags: tuple[Tag, ...] = ()
         self.drawing = GraphDrawing()
-        self.connect_tag_filters()
+        self.connect_annotation_filters()
         self.columns = QSplitter(Qt.Orientation.Horizontal, self)
         self.columns.setObjectName("investigationColumns")
         self.columns.setChildrenCollapsible(False)
@@ -234,7 +238,7 @@ class InvestigationPage(QWidget):
         self.drawing = overview.drawing
         if self.tag not in {tag.key for tag in overview.tags}:
             self.tag = None
-        self.queue_column.review_list.tag_filter = self.tag_filter()
+        self.queue_column.review_list.entity_filter = self.queue_filter()
         self.header.show_overview(overview)
         self.queue_column.show_overview(overview)
         self.queue_rail.show_overview(overview)
@@ -244,29 +248,50 @@ class InvestigationPage(QWidget):
         self.details_panel.entities_tab.show_tags(overview.tags, self.tag)
         self.details_panel.entities_tab.mark_selected(self.selected_entity)
 
-    def connect_tag_filters(self) -> None:
-        self.graph_area.filter_chip.filter_changed.connect(
-            lambda graph_filter: self.filter_by_tag(graph_filter.tag)
-        )
-        self.details_panel.entities_tab.tag_chosen.connect(self.filter_by_tag)
-        self.queue_column.review_list.tag_cleared.connect(lambda: self.filter_by_tag(None))
+    def connect_sheet(self) -> None:
+        sheet = self.details_panel.entity_sheet
+        sheet.entity_chosen.connect(lambda identifier: self.show_entity(identifier, ""))
+        sheet.expansion_requested.connect(self.expansion_requested)
+        sheet.notices_refresh_requested.connect(self.notices_refresh_requested)
+        sheet.decision_withdrawal_requested.connect(self.decision_withdrawal_requested)
 
-    def tag_filter(self) -> TagFilter | None:
-        if self.tag is None:
-            return None
-        label = next(tag.label for tag in self.tags if tag.key == self.tag)
-        identifiers = frozenset(
-            node.identifier for node in self.drawing.nodes if self.tag in node.tags
+    def connect_annotation_filters(self) -> None:
+        self.graph_area.filter_chip.filter_changed.connect(
+            lambda graph_filter: self.filter_entities(graph_filter.tag, graph_filter.verdict)
         )
-        return TagFilter(label, identifiers)
+        entities_tab = self.details_panel.entities_tab
+        entities_tab.tag_chosen.connect(lambda key: self.filter_entities(key, self.verdict))
+        entities_tab.verdict_chosen.connect(
+            lambda verdict: self.filter_entities(self.tag, verdict)
+        )
+        self.queue_column.review_list.filter_cleared.connect(
+            lambda: self.filter_entities(None, None)
+        )
+
+    def queue_filter(self) -> QueueFilter | None:
+        parts = []
+        if self.tag is not None:
+            label = next(tag.label for tag in self.tags if tag.key == self.tag)
+            parts.append(f"{TAG_FILTER_PREFIX}{label}")
+        if self.verdict is not None:
+            parts.append(f"{VERDICT_FILTER_PREFIX}{self.verdict.label}")
+        if not parts:
+            return None
+        graph_filter = GraphFilter(tag=self.tag, verdict=self.verdict)
+        identifiers = frozenset(graph_filter.shown_identifiers(self.drawing))
+        return QueueFilter(FILTER_SEPARATOR.join(parts), identifiers)
 
     def filter_by_tag(self, key: str | None) -> None:
-        if key == self.tag:
+        self.filter_entities(key, self.verdict)
+
+    def filter_entities(self, tag: str | None, verdict: Verdict | None) -> None:
+        if (tag, verdict) == (self.tag, self.verdict):
             return
-        self.tag = key
-        self.graph_area.filter_chip.choose_tag(key)
-        self.queue_column.review_list.filter_by_tag(self.tag_filter())
-        self.details_panel.entities_tab.choose_tag(key)
+        self.tag, self.verdict = tag, verdict
+        self.graph_area.filter_chip.choose_annotations(tag, verdict)
+        self.queue_column.review_list.filter_entities(self.queue_filter())
+        self.details_panel.entities_tab.choose_tag(tag)
+        self.details_panel.entities_tab.choose_verdict(verdict)
 
     def show_entity(self, identifier: str, label: str) -> None:
         self.graph_area.reveal(identifier)

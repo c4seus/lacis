@@ -67,8 +67,8 @@ def test_the_graph_menu_filters_every_view_by_tag(window: MainWindow) -> None:
     assert shown_everywhere(window) == ([ACME], [ACME], [ACME])
     assert page.details_panel.entities_tab.tag_box.currentText() == "Client"
     review_list = page.queue_column.review_list
-    assert review_list.clear_tag_button is not None
-    assert review_list.clear_tag_button.accessibleName() == "Tous les tags : Tag : Client"
+    assert review_list.clear_filter_button is not None
+    assert review_list.clear_filter_button.accessibleName() == "Tout afficher : Tag : Client"
     assert chip.text() == "Filtres · 1 entité masquée"
 
 
@@ -85,10 +85,10 @@ def test_the_review_column_shows_every_tag_again(window: MainWindow) -> None:
     page = window.investigation_page
     page.filter_by_tag("client")
     review_list = page.queue_column.review_list
-    assert review_list.clear_tag_button is not None
-    review_list.clear_tag_button.click()
+    assert review_list.clear_filter_button is not None
+    review_list.clear_filter_button.click()
     assert page.tag is None
-    assert review_list.clear_tag_button is None
+    assert review_list.clear_filter_button is None
     assert shown_everywhere(window) == ([ACME, DUPONT], [ACME, DUPONT], [ACME, DUPONT])
     assert page.graph_area.filter_chip.tag_actions[None].isChecked()
     assert page.details_panel.entities_tab.tag_box.currentText() == "Tous les tags"
@@ -99,7 +99,7 @@ def test_showing_everything_in_the_graph_clears_the_tag(window: MainWindow) -> N
     page.filter_by_tag("client")
     page.graph_area.filter_chip.show_everything()
     assert page.tag is None
-    assert page.queue_column.review_list.tag_filter is None
+    assert page.queue_column.review_list.entity_filter is None
 
 
 def test_a_tag_that_disappears_stops_filtering(window: MainWindow) -> None:

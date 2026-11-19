@@ -3,6 +3,7 @@ from dataclasses import dataclass, replace
 from lacis.graph.drawing import GraphDrawing, GraphNode
 from lacis.signals.facts import counted
 from lacis.storage.entities import EntityKind
+from lacis.storage.verdicts import Verdict
 
 KIND_FILTER_LABELS = {
     EntityKind.COMPANY: "Entreprises",
@@ -20,15 +21,19 @@ class GraphFilter:
     hidden_kinds: frozenset[EntityKind] = frozenset()
     flagged_only: bool = False
     tag: str | None = None
+    verdict: Verdict | None = None
 
     @property
     def is_active(self) -> bool:
-        return bool(self.hidden_kinds) or self.flagged_only or self.tag is not None
+        annotated = self.tag is not None or self.verdict is not None
+        return bool(self.hidden_kinds) or self.flagged_only or annotated
 
     def shows(self, node: GraphNode) -> bool:
         if node.kind in self.hidden_kinds:
             return False
         if self.tag is not None and self.tag not in node.tags:
+            return False
+        if self.verdict is not None and node.verdict is not self.verdict:
             return False
         return node.severity is not None or not self.flagged_only
 
@@ -41,6 +46,9 @@ class GraphFilter:
 
     def showing_tag(self, tag: str | None) -> "GraphFilter":
         return replace(self, tag=tag)
+
+    def showing_verdict(self, verdict: Verdict | None) -> "GraphFilter":
+        return replace(self, verdict=verdict)
 
     def shown_identifiers(self, drawing: GraphDrawing) -> set[str]:
         return {node.identifier for node in drawing.nodes if self.shows(node)}

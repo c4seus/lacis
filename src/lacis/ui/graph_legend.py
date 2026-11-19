@@ -8,6 +8,7 @@ from lacis.design.icons import ColoursProvider
 from lacis.graph.drawing import SHAPES, EdgeKind
 from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
+from lacis.storage.verdicts import Verdict
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.graph_view import (
     NOTE_MARKER_HEIGHT,
@@ -15,8 +16,10 @@ from lacis.ui.graph_view import (
     RING_COUNTS,
     RING_GAP,
     RING_WIDTH,
+    VERDICT_BADGE_RADIUS,
     arrow_head,
     draw_note_page,
+    draw_verdict_badge,
     edge_colour,
     edge_pen,
     kind_colour,
@@ -31,6 +34,7 @@ RING_SWATCH_SIZE = 16
 LINK_SWATCH_WIDTH = 22
 SIGNAL_LEGEND_TEXT = "Signal :"
 NOTE_LEGEND_TEXT = "Note"
+VERDICT_LEGEND_TEXT = "Verdict :"
 KIND_ENTRIES = (
     (EntityKind.COMPANY, "Entreprise"),
     (EntityKind.PERSON, "Personne"),
@@ -139,6 +143,26 @@ class NoteSwatch(QWidget):
         painter.end()
 
 
+class VerdictSwatch(QWidget):
+    def __init__(
+        self, verdict: Verdict, colours_provider: ColoursProvider, parent: QWidget | None = None
+    ) -> None:
+        super().__init__(parent)
+        self.verdict = verdict
+        self.colours_provider = colours_provider
+        side = int(VERDICT_BADGE_RADIUS * 2) + 2
+        self.setFixedSize(side, side)
+
+    @override
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        diameter = VERDICT_BADGE_RADIUS * 2
+        area = QRectF(1, 1, diameter, diameter)
+        draw_verdict_badge(painter, area, self.verdict, self.colours_provider())
+        painter.end()
+
+
 class GraphLegend(QFrame):
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -163,6 +187,13 @@ class GraphLegend(QFrame):
             self.add_entry(signals, RingSwatch(severity, colours_provider, self), text, "legend")
         notes = self.add_row(layout)
         self.add_entry(notes, NoteSwatch(colours_provider, self), NOTE_LEGEND_TEXT, "legend")
+        verdict_label = QLabel(VERDICT_LEGEND_TEXT, self)
+        verdict_label.setProperty("tone", "legend-signal")
+        self.entry_labels.append(verdict_label)
+        notes.addWidget(verdict_label)
+        for verdict in Verdict:
+            swatch = VerdictSwatch(verdict, colours_provider, self)
+            self.add_entry(notes, swatch, verdict.label.lower(), "legend")
         self.setAccessibleDescription(", ".join(self.texts))
 
     def add_row(self, layout: QVBoxLayout) -> FlowLayout:
