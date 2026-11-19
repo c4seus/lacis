@@ -10,6 +10,8 @@ from lacis.storage.locations import (
     DATA_DIRECTORY_VARIABLE,
     configuration_directory,
     data_directory,
+    documents_directory,
+    existing_directory_or_home,
     investigations_directory,
 )
 
@@ -60,3 +62,18 @@ def test_tests_never_use_the_real_configuration_directory(
     isolated_configuration_directory: Path,
 ) -> None:
     assert configuration_directory() == isolated_configuration_directory
+
+
+def test_exports_are_offered_in_the_documents_directory(qapp: QApplication) -> None:
+    documents_location = QStandardPaths.StandardLocation.DocumentsLocation
+    found = QStandardPaths.writableLocation(documents_location)
+    assert documents_directory() == existing_directory_or_home(found)
+
+
+def test_an_existing_directory_is_kept(tmp_path: Path) -> None:
+    assert existing_directory_or_home(str(tmp_path)) == tmp_path
+
+
+def test_a_missing_documents_directory_falls_back_to_the_home_directory(tmp_path: Path) -> None:
+    assert existing_directory_or_home(str(tmp_path / "Documents")) == Path.home()
+    assert existing_directory_or_home("") == Path.home()

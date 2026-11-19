@@ -31,3 +31,14 @@ def configuration_directory() -> Path:
         return Path(overridden_directory)
     configuration_location = QStandardPaths.StandardLocation.AppConfigLocation
     return Path(QStandardPaths.writableLocation(configuration_location))
+
+
+def existing_directory_or_home(candidate: str) -> Path:
+    if candidate and Path(candidate).is_dir():
+        return Path(candidate)
+    return Path.home()
+
+
+def documents_directory() -> Path:
+    documents_location = QStandardPaths.StandardLocation.DocumentsLocation
+    return existing_directory_or_home(QStandardPaths.writableLocation(documents_location))

@@ -1,29 +1,40 @@
 import sqlite3
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import override
 
 from PySide6.QtCore import QByteArray, QSettings, QSize, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QResizeEvent
-from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QDialog,
+    QMainWindow,
+    QMessageBox,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from lacis.collectors.environment import REAL_COLLECTION_ENVIRONMENT, CollectionEnvironment
 from lacis.design.icons import IconFactory
 from lacis.design.motion import MotionController
 from lacis.design.theme_controller import ThemeController
 from lacis.details import entity_details, raw_response
+from lacis.exports.formats import export_format
+from lacis.exports.json_export import ExportScope
 from lacis.graph.background import BackgroundJob, CollectionSettings, layout_job, move_job
 from lacis.graph.expansion import MINIMUM_DEPTH
-from lacis.overview import InvestigationOverview, read_overview
+from lacis.overview import InvestigationOverview, current_report, read_overview
 from lacis.review import review_news
 from lacis.signals.store import SignalReport
 from lacis.storage.errors import InvestigationError
 from lacis.storage.investigations import UNREADABLE_DATABASE_MESSAGE as UNREADABLE
 from lacis.storage.investigations import InvestigationLibrary
-from lacis.storage.locations import investigations_directory
+from lacis.storage.locations import documents_directory, investigations_directory
 from lacis.storage.notes import NoteStore
 from lacis.storage.tags import TagStore
 from lacis.storage.verdicts import Verdict, VerdictStore
 from lacis.ui.about_dialog import AboutDialog
+from lacis.ui.export_dialog import ExportDialog, ExportOffer, ExportRequest
 from lacis.ui.header_bar import HOME_TRAIL, HeaderBar
 from lacis.ui.home_screen import HomeScreen
 from lacis.ui.investigation_page import InvestigationPage
@@ -41,6 +52,8 @@ MINIMUM_SIZE = QSize(1024, 640)
 DEFAULT_SIZE = QSize(1440, 900)
 GEOMETRY_SETTING_KEY = "main_window/geometry"
 OPENING_FAILED_TITLE = "Impossible d'ouvrir l'enquête"
+EXPORTED_PREFIX = "Enquête exportée dans "
+EXPORT_FAILED_PREFIX = "Impossible d'écrire l'export : "
 
 
 class MainWindow(QMainWindow):
@@ -67,6 +80,8 @@ class MainWindow(QMainWindow):
         self.main_menu_bar.quit_action.triggered.connect(self.close)
         self.main_menu_bar.new_investigation_action.triggered.connect(self.start_new_investigation)
         self.main_menu_bar.close_investigation_action.triggered.connect(self.show_home)
+        for key, action in self.main_menu_bar.export_actions.items():
+            action.triggered.connect(lambda _checked, key=key: self.export_investigation(key))
         self.header_bar.breadcrumb.step_activated.connect(self.follow_breadcrumb)
         self.header_bar.help_menu.about_action.triggered.connect(self.show_about_dialog)
         self.about_dialog: AboutDialog | None = None
@@ -323,6 +338,45 @@ class MainWindow(QMainWindow):
         self.investigation_page.details_panel.entity_sheet.show_saved_note(identifier, note)
         if had_note is (note is None):
             QTimer.singleShot(0, self.refresh_overview)
+
+    def export_investigation(self, key: str) -> None:
+        if self.current_investigation is None:
+            return
+        page = self.investigation_page
+        graph_filter = page.graph_area.filter_chip.graph_filter
+        shown = graph_filter.shown_identifiers(page.drawing) if graph_filter.is_active else None
+        offer = ExportOffer(
+            self.current_investigation,
+            documents_directory(),
+            len(page.drawing.nodes),
+            None if shown is None else len(shown),
+            export_format(key),
+        )
+        request = self.ask_export(offer)
+        if request is None:
+            return
+        scope = ExportScope(frozenset(shown) if request.filtered and shown is not None else None)
+        try:
+            with self.library.open(self.current_investigation) as opened:
+                report = current_report(opened.connection)
+                request.export_format.write(
+                    opened, report, scope, request.destination, datetime.now(UTC)
+                )
+        except (InvestigationError, sqlite3.DatabaseError) as problem:
+            message = str(problem) if isinstance(problem, InvestigationError) else UNREADABLE
+            self.show_failure(message)
+            return
+        except OSError as problem:
+            self.show_failure(f"{EXPORT_FAILED_PREFIX}{problem.strerror or problem}")
+            return
+        message = f"{EXPORTED_PREFIX}{request.destination.name}."
+        self.notification_area.notify(message, NotificationKind.SUCCESS)
+
+    def ask_export(self, offer: ExportOffer) -> ExportRequest | None:
+        dialog = ExportDialog(offer, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return dialog.request()
 
     def save_verdict(self, identifier: str, verdict: Verdict | None, reason: str) -> None:
         if self.current_investigation is None:

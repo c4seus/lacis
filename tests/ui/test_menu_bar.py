@@ -81,7 +81,7 @@ def test_a_new_investigation_starts_from_the_file_menu_with_ctrl_n(
     qtbot: QtBot, theme_controller: ThemeController
 ) -> None:
     menu_bar = create_menu_bar(qtbot, theme_controller)
-    first_action, close_action, separator, quit_action = menu_bar.file_menu.actions()
+    first_action, close_action, _export, separator, quit_action = menu_bar.file_menu.actions()
     assert first_action is menu_bar.new_investigation_action
     assert close_action is menu_bar.close_investigation_action
     assert close_action.text() == "&Fermer l'enquête"
@@ -205,7 +205,7 @@ def test_every_entry_of_a_menu_has_its_own_mnemonic(
         mnemonics = [mnemonic(entry) for entry in entries]
         assert len(set(mnemonics)) == len(mnemonics), menu.title()
         checked_menus += 1
-    assert checked_menus == len(menu_bar.menus()) + 3
+    assert checked_menus == len(menu_bar.menus()) + 4
 
 
 def test_the_help_menu_and_the_help_button_share_the_same_entries(
@@ -337,3 +337,19 @@ def test_the_investigation_menu_searches_and_expands_the_selection(
     menu_bar.show_investigation_actions(False)
     assert not menu_bar.search_action.isEnabled()
     assert not menu_bar.expand_action.isEnabled()
+
+
+def test_the_file_menu_exports_to_every_format(
+    qtbot: QtBot, theme_controller: ThemeController
+) -> None:
+    menu_bar = create_menu_bar(qtbot, theme_controller)
+    export_action = menu_bar.file_menu.actions()[2]
+    assert export_action.menu() is menu_bar.export_menu
+    assert menu_bar.export_menu.title() == "E&xporter"
+    assert [action.text() for action in menu_bar.export_menu.actions()] == ["&JSON…"]
+    assert list(menu_bar.export_actions) == ["json"]
+    assert not export_action.isEnabled()
+    assert not menu_bar.export_actions["json"].isEnabled()
+    menu_bar.show_investigation_actions(True)
+    assert export_action.isEnabled()
+    assert menu_bar.export_actions["json"].isEnabled()

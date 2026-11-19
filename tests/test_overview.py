@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from investigation_builder import InvestigationBuilder
-from lacis.overview import overview_of, read_overview
+from lacis.overview import current_report, overview_of, read_overview
 from lacis.signals.configuration import SignalConfigurationError
 from lacis.signals.engine import SignalEngine
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
@@ -82,3 +82,20 @@ def test_an_overview_is_read_from_an_investigation_of_the_library(tmp_path: Path
     overview = read_overview(library, "faux-plombiers-31", refused)
     assert overview.signals is None
     assert overview.signal_problem == "Le fichier signals.toml n'est pas valide."
+
+
+def test_the_current_report_is_read_when_the_signals_are_configured(
+    builder: InvestigationBuilder,
+) -> None:
+    report = current_report(builder.connection)
+    assert report is not None
+    assert report.signals == ()
+
+
+def test_there_is_no_current_report_when_the_signals_are_not_configured(
+    investigation_connection: sqlite3.Connection,
+) -> None:
+    def refused() -> SignalEngine:
+        raise SignalConfigurationError("Le fichier signals.toml n'est pas valide.")
+
+    assert current_report(investigation_connection, refused) is None
