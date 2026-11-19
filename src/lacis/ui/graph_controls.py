@@ -1,5 +1,5 @@
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QFrame, QMenu, QToolButton, QVBoxLayout, QWidget
 
 from lacis.design.icons import IconFactory
@@ -11,6 +11,7 @@ from lacis.graph.filters import (
     kind_choice_label,
 )
 from lacis.storage.entities import EntityKind
+from lacis.storage.tags import Tag
 from lacis.ui.header_bar import create_icon_button
 
 ZOOM_BUTTON_SIZE = QSize(30, 30)
@@ -26,6 +27,9 @@ LAYOUT_SHORTCUT_TEXT = "Ctrl+Maj+R"
 FILTER_TEXT = "Filtres"
 FILTER_ACCESSIBLE_NAME = "Filtres du graphe"
 SHOW_EVERYTHING_TEXT = "Tout afficher"
+TAG_MENU_TEXT = "Tag"
+NO_TAG_MENU_TEXT = "Tag : aucun dans l'enquête"
+EVERY_TAG_TEXT = "Tous les tags"
 LIST_VIEW_TEXT = "Vue liste"
 LIST_VIEW_SHORTCUT_TEXT = "Ctrl+L"
 
@@ -102,11 +106,39 @@ class FilterChip(QToolButton):
         self.flagged_action.toggled.connect(
             lambda flagged: self.change(self.graph_filter.showing_flagged_only(flagged))
         )
+        self.tag_menu = self.choices.addMenu(TAG_MENU_TEXT)
+        self.tag_group = QActionGroup(self)
+        self.tag_actions: dict[str | None, QAction] = {}
         self.choices.addSeparator()
         self.show_everything_action = self.choices.addAction(SHOW_EVERYTHING_TEXT)
         self.show_everything_action.triggered.connect(self.show_everything)
         self.setMenu(self.choices)
         self.show_drawing(GraphDrawing())
+        self.show_tags(())
+
+    def show_tags(self, tags: tuple[Tag, ...]) -> None:
+        for action in self.tag_actions.values():
+            self.tag_group.removeAction(action)
+        self.tag_menu.clear()
+        self.tag_actions = {}
+        self.tag_menu.setTitle(TAG_MENU_TEXT if tags else NO_TAG_MENU_TEXT)
+        self.tag_menu.setEnabled(bool(tags))
+        choices: list[tuple[str | None, str]] = [(None, EVERY_TAG_TEXT)]
+        choices.extend((tag.key, tag.label) for tag in tags)
+        for key, label in choices:
+            action = self.tag_menu.addAction(label)
+            action.setCheckable(True)
+            self.tag_group.addAction(action)
+            action.triggered.connect(lambda _checked=False, chosen=key: self.choose_tag(chosen))
+            self.tag_actions[key] = action
+        known = {tag.key for tag in tags}
+        self.choose_tag(self.graph_filter.tag if self.graph_filter.tag in known else None)
+
+    def choose_tag(self, key: str | None) -> None:
+        action = self.tag_actions.get(key)
+        if action is not None:
+            action.setChecked(True)
+        self.change(self.graph_filter.showing_tag(key))
 
     def show_drawing(self, drawing: GraphDrawing) -> None:
         self.drawing = drawing
@@ -139,6 +171,7 @@ class FilterChip(QToolButton):
         self.flagged_action.setChecked(False)
         for action in [*self.kind_actions.values(), self.flagged_action]:
             action.blockSignals(False)
+        self.tag_actions[None].setChecked(True)
         self.change(GraphFilter())
 
 

@@ -19,13 +19,16 @@ NOTHING_HIDDEN_TEXT = "tous les types"
 class GraphFilter:
     hidden_kinds: frozenset[EntityKind] = frozenset()
     flagged_only: bool = False
+    tag: str | None = None
 
     @property
     def is_active(self) -> bool:
-        return bool(self.hidden_kinds) or self.flagged_only
+        return bool(self.hidden_kinds) or self.flagged_only or self.tag is not None
 
     def shows(self, node: GraphNode) -> bool:
         if node.kind in self.hidden_kinds:
+            return False
+        if self.tag is not None and self.tag not in node.tags:
             return False
         return node.severity is not None or not self.flagged_only
 
@@ -35,6 +38,9 @@ class GraphFilter:
 
     def showing_flagged_only(self, flagged_only: bool) -> "GraphFilter":
         return replace(self, flagged_only=flagged_only)
+
+    def showing_tag(self, tag: str | None) -> "GraphFilter":
+        return replace(self, tag=tag)
 
     def shown_identifiers(self, drawing: GraphDrawing) -> set[str]:
         return {node.identifier for node in drawing.nodes if self.shows(node)}

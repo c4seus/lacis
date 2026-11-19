@@ -18,6 +18,7 @@ from lacis.storage.entities import Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.notes import NoteStore
 from lacis.storage.positions import Position, PositionStore
+from lacis.storage.tags import TagStore
 
 IDENTITY_LABEL = "même personne"
 
@@ -71,6 +72,7 @@ class GraphNode:
     severity: Severity | None = None
     placed: bool = True
     noted: bool = False
+    tags: frozenset[str] = frozenset()
 
     @property
     def shape(self) -> NodeShape:
@@ -236,6 +238,7 @@ def graph_drawing(
     positions = structure.initial_positions(known)
     severities = flagged_entities(report)
     noted = NoteStore(connection).noted()
+    tagged = TagStore(connection).tagged()
     nodes = tuple(
         GraphNode(
             identifier=entity.identifier,
@@ -248,6 +251,7 @@ def graph_drawing(
             severity=severities.get(entity.identifier),
             placed=entity.identifier in known,
             noted=entity.identifier in noted,
+            tags=tagged.get(entity.identifier, frozenset()),
         )
         for entity in structure.entities
     )

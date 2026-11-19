@@ -5,7 +5,9 @@ from lacis.design.icons import IconFactory
 from lacis.graph.drawing import GraphDrawing
 from lacis.overview import InvestigationOverview
 from lacis.storage.investigations import Investigation
+from lacis.storage.tags import Tag
 from lacis.ui.investigation_columns import DetailsPanel, GraphArea, QueueColumn, QueueRail
+from lacis.ui.review_queue import TagFilter
 
 COLUMNS_SETTING = "investigation/columns"
 QUEUE_COLLAPSED_SETTING = "investigation/queue_collapsed"
@@ -145,6 +147,10 @@ class InvestigationPage(QWidget):
         self.details_panel.entities_tab.entity_chosen.connect(
             lambda identifier: self.show_entity(identifier, "")
         )
+        self.tag: str | None = None
+        self.tags: tuple[Tag, ...] = ()
+        self.drawing = GraphDrawing()
+        self.connect_tag_filters()
         self.columns = QSplitter(Qt.Orientation.Horizontal, self)
         self.columns.setObjectName("investigationColumns")
         self.columns.setChildrenCollapsible(False)
@@ -224,12 +230,43 @@ class InvestigationPage(QWidget):
         self.graph_area.show_drawing(GraphDrawing())
 
     def show_overview(self, overview: InvestigationOverview) -> None:
+        self.tags = overview.tags
+        self.drawing = overview.drawing
+        if self.tag not in {tag.key for tag in overview.tags}:
+            self.tag = None
+        self.queue_column.review_list.tag_filter = self.tag_filter()
         self.header.show_overview(overview)
         self.queue_column.show_overview(overview)
         self.queue_rail.show_overview(overview)
         self.graph_area.show_drawing(overview.drawing)
+        self.graph_area.filter_chip.show_tags(overview.tags)
         self.details_panel.show_overview(overview)
+        self.details_panel.entities_tab.show_tags(overview.tags, self.tag)
         self.details_panel.entities_tab.mark_selected(self.selected_entity)
+
+    def connect_tag_filters(self) -> None:
+        self.graph_area.filter_chip.filter_changed.connect(
+            lambda graph_filter: self.filter_by_tag(graph_filter.tag)
+        )
+        self.details_panel.entities_tab.tag_chosen.connect(self.filter_by_tag)
+        self.queue_column.review_list.tag_cleared.connect(lambda: self.filter_by_tag(None))
+
+    def tag_filter(self) -> TagFilter | None:
+        if self.tag is None:
+            return None
+        label = next(tag.label for tag in self.tags if tag.key == self.tag)
+        identifiers = frozenset(
+            node.identifier for node in self.drawing.nodes if self.tag in node.tags
+        )
+        return TagFilter(label, identifiers)
+
+    def filter_by_tag(self, key: str | None) -> None:
+        if key == self.tag:
+            return
+        self.tag = key
+        self.graph_area.filter_chip.choose_tag(key)
+        self.queue_column.review_list.filter_by_tag(self.tag_filter())
+        self.details_panel.entities_tab.choose_tag(key)
 
     def show_entity(self, identifier: str, label: str) -> None:
         self.graph_area.reveal(identifier)
