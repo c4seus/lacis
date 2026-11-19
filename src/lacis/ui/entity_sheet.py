@@ -32,6 +32,7 @@ from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
 from lacis.signals.facts import counted
 from lacis.storage.notes import EntityNote
 from lacis.storage.tags import Tag
+from lacis.storage.verdicts import EntityVerdict
 from lacis.ui.accessibility import DisclosureToggle, ScoreLabel
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.focus_chain import place_after
@@ -39,6 +40,7 @@ from lacis.ui.graph_legend import KindSwatch
 from lacis.ui.note_editor import NoteEditor
 from lacis.ui.notice_timeline import NoticeTimeline
 from lacis.ui.tag_editor import TagEditor
+from lacis.ui.verdict_editor import VerdictEditor
 
 EMPTY_TEXT = "La fiche de l'entité sélectionnée s'affichera ici."
 SHEET_ACCESSIBLE_NAME = "Fiche de l'entité"
@@ -50,7 +52,9 @@ DEPTH_MENU_HINT = "Alt+Flèche bas ou touche Menu pour choisir la profondeur"
 DIRECTORY_TEXT = "Annuaire"
 DIRECTORY_TOOLTIP = "Ouvrir la fiche dans l'Annuaire des entreprises"
 SIGNALS_TITLE = "Signaux d'alerte"
+VERDICT_TITLE = "Verdict"
 NOTES_TITLE = "Notes"
+NO_VERDICT_COUNT_TEXT = "aucun"
 TAGS_TITLE = "Tags"
 NOTE_WRITTEN_TEXT = "1 note"
 NO_NOTE_COUNT_TEXT = "aucune"
@@ -68,6 +72,10 @@ COPIED_MESSAGE = "« {value} » copié dans le presse-papiers."
 ACTIVATING_KEYS = {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}
 LINK_ROLE_WIDTH = 110
 LINK_INDENT = LINK_ROLE_WIDTH + 8
+
+
+def verdict_count(verdict: EntityVerdict | None) -> str:
+    return NO_VERDICT_COUNT_TEXT if verdict is None else verdict.verdict.label.lower()
 
 
 def note_count(note: EntityNote | None) -> str:
@@ -385,6 +393,7 @@ class EntitySheet(QScrollArea):
     note_edited = Signal(str, str)
     tag_added = Signal(str, str)
     tag_removed = Signal(str, str)
+    verdict_changed = Signal(str, object, str)
 
     def __init__(
         self,
@@ -416,6 +425,8 @@ class EntitySheet(QScrollArea):
         self.note_title: SectionTitle | None = None
         self.tag_editor: TagEditor | None = None
         self.tag_title: SectionTitle | None = None
+        self.verdict_editor: VerdictEditor | None = None
+        self.verdict_title: SectionTitle | None = None
         self.known_tags: tuple[Tag, ...] = ()
         self.show_details(None)
 
@@ -428,10 +439,12 @@ class EntitySheet(QScrollArea):
 
     def show_details(self, details: EntityDetails | None) -> None:
         if details is not None and self.only_annotations_differ(details):
-            changed_tags = self.details is not None and details.tags != self.details.tags
+            before = self.details
             self.details = details
-            if changed_tags:
+            if before is not None and details.tags != before.tags:
                 self.show_tags(details.tags)
+            if before is not None and details.verdict != before.verdict:
+                self.show_verdict(details.verdict)
             return
         kept_text = self.kept_note_text(details)
         self.flush_note()
@@ -454,12 +467,14 @@ class EntitySheet(QScrollArea):
         self.refresh_button = None
         self.note_editor = None
         self.tag_editor = None
+        self.verdict_editor = None
         if details is None:
             self.empty_label = wrapped_label(EMPTY_TEXT, "faint", self.content)
             self.content_layout.addWidget(self.empty_label)
         else:
             self.add_head(details)
             self.add_signals(details)
+            self.add_verdict(details)
             self.add_note(details, kept_text)
             self.add_tags(details)
             self.add_notices(details)
@@ -565,6 +580,21 @@ class EntitySheet(QScrollArea):
         self.note_editor.edited.connect(self.note_edited)
         self.content_layout.addWidget(self.note_editor)
 
+    def add_verdict(self, details: EntityDetails) -> None:
+        self.add_section_title(VERDICT_TITLE, verdict_count(details.verdict))
+        self.verdict_title = self.section_titles[-1]
+        self.verdict_editor = VerdictEditor(
+            details.identifier, details.name, details.verdict, self.content
+        )
+        self.verdict_editor.changed.connect(self.verdict_changed)
+        self.content_layout.addWidget(self.verdict_editor)
+
+    def show_verdict(self, verdict: EntityVerdict | None) -> None:
+        editor, title = self.verdict_editor, self.verdict_title
+        if editor is not None and title is not None:
+            editor.show_verdict(verdict)
+            title.show_count(verdict_count(verdict))
+
     def add_tags(self, details: EntityDetails) -> None:
         self.add_section_title(TAGS_TITLE, str(len(details.tags)))
         self.tag_title = self.section_titles[-1]
@@ -578,8 +608,9 @@ class EntitySheet(QScrollArea):
     def only_annotations_differ(self, details: EntityDetails) -> bool:
         if self.details is None:
             return False
-        kept = replace(details, note=self.details.note, tags=self.details.tags)
-        return kept == self.details
+        previous = self.details
+        kept = replace(details, note=previous.note, tags=previous.tags, verdict=previous.verdict)
+        return kept == previous
 
     def show_tags(self, tags: tuple[Tag, ...]) -> None:
         editor, title = self.tag_editor, self.tag_title

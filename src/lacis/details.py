@@ -21,6 +21,7 @@ from lacis.storage.notes import EntityNote, NoteStore
 from lacis.storage.notices import NoticeFamily, NoticeRole, NoticeStore
 from lacis.storage.responses import ResponseStore, ResponseSummary
 from lacis.storage.tags import Tag, TagStore
+from lacis.storage.verdicts import EntityVerdict, VerdictStore
 
 DIRECTORY_ROOT = "https://annuaire-entreprises.data.gouv.fr"
 SHORT_FINGERPRINT_LENGTH = 8
@@ -225,6 +226,7 @@ class EntityDetails:
     decisions: tuple[DecisionLine, ...] = ()
     note: EntityNote | None = None
     tags: tuple[Tag, ...] = ()
+    verdict: EntityVerdict | None = None
 
     @property
     def kind_label(self) -> str:
@@ -552,6 +554,7 @@ def entity_details(
         decisions=tuple(decision_lines(connection, identifier)),
         note=NoteStore(connection).note(identifier),
         tags=TagStore(connection).tags_of(identifier),
+        verdict=VerdictStore(connection).verdict(identifier),
     )
 
 

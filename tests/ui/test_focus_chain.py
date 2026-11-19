@@ -107,12 +107,12 @@ def window(
 
 def queue_widgets(window: MainWindow) -> list[QWidget]:
     review_list = window.investigation_page.queue_column.review_list
-    return [widget for widget in focusable_descendants(review_list.content) if widget.isVisible()]
+    return [widget for widget in focusable_descendants(review_list.content) if reachable(widget)]
 
 
 def sheet_widgets(window: MainWindow) -> list[QWidget]:
     sheet = window.investigation_page.details_panel.entity_sheet
-    return [widget for widget in focusable_descendants(sheet.content) if widget.isVisible()]
+    return [widget for widget in focusable_descendants(sheet.content) if reachable(widget)]
 
 
 def test_the_rows_of_the_review_column_come_in_their_region(window: MainWindow) -> None:
