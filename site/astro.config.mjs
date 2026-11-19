@@ -71,6 +71,7 @@ export default defineConfig({
                                 "guide/signaux",
                                 "guide/preuves",
                                 "guide/notes",
+                                "guide/exports",
                                 "guide/raccourcis-clavier",
                             ],
                         },
