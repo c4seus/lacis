@@ -1,0 +1,498 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://c4seus.github.io/lacis/schemas/investigation-1.schema.json",
+  "title": "Lacis investigation",
+  "description": "The complete export of a Lacis investigation: its entities and links with their provenance, its warning signals, and the notes, tags and verdicts of the investigator.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "format",
+    "format_version",
+    "lacis_version",
+    "exported_at",
+    "investigation",
+    "scope",
+    "entities",
+    "links",
+    "signals",
+    "homonym_decisions",
+    "responses"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://c4seus.github.io/lacis/schemas/investigation-1.schema.json"
+    },
+    "format": {
+      "const": "lacis-investigation"
+    },
+    "format_version": {
+      "const": 1
+    },
+    "lacis_version": {
+      "type": "string",
+      "description": "The version of Lacis that wrote the export."
+    },
+    "exported_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "investigation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "question",
+        "created_at"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "question": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "scope": {
+      "enum": [
+        "investigation",
+        "filtered_view"
+      ],
+      "description": "The whole investigation, or only the entities of the filtered view and the links between them."
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entity"
+      }
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/link"
+      }
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/signal"
+      }
+    },
+    "homonym_decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/homonym_decision"
+      }
+    },
+    "responses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/response"
+      },
+      "description": "The responses of the sources cited by the provenance of the facts."
+    }
+  },
+  "$defs": {
+    "provenance": {
+      "description": "The identifiers of the responses that gave the fact, listed in responses.",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identifier",
+        "kind",
+        "label",
+        "attributes",
+        "first_collected_at",
+        "last_collected_at",
+        "tags",
+        "note",
+        "verdict",
+        "notices",
+        "provenance"
+      ],
+      "properties": {
+        "identifier": {
+          "type": "string",
+          "pattern": "^(company|person|address|establishment|foreign_company):"
+        },
+        "kind": {
+          "enum": [
+            "company",
+            "person",
+            "address",
+            "establishment",
+            "foreign_company"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "integer",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "first_collected_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_collected_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "note": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "text",
+                "created_at",
+                "changed_at"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "changed_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          ]
+        },
+        "verdict": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "verdict",
+                "label",
+                "reason",
+                "decided_at"
+              ],
+              "properties": {
+                "verdict": {
+                  "enum": [
+                    "to_check",
+                    "suspect",
+                    "dismissed",
+                    "confirmed"
+                  ]
+                },
+                "label": {
+                  "enum": [
+                    "À vérifier",
+                    "Suspect",
+                    "Écarté",
+                    "Confirmé"
+                  ]
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "decided_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          ]
+        },
+        "notices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/notice"
+          }
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        }
+      }
+    },
+    "notice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identifier",
+        "family",
+        "role",
+        "published_on",
+        "court",
+        "judgment",
+        "summary",
+        "withdrawn_at",
+        "office_transfer",
+        "provenance"
+      ],
+      "properties": {
+        "identifier": {
+          "type": "string"
+        },
+        "family": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "published_on": {
+          "type": "string",
+          "format": "date"
+        },
+        "court": {
+          "type": "string"
+        },
+        "judgment": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "withdrawn_at": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time"
+            }
+          ]
+        },
+        "office_transfer": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "country",
+                "effective_on",
+                "effective_date_stated"
+              ],
+              "properties": {
+                "country": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "effective_on": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "effective_date_stated": {
+                  "type": "boolean"
+                }
+              }
+            }
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        }
+      }
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identifier",
+        "kind",
+        "source",
+        "target",
+        "role",
+        "first_collected_at",
+        "last_collected_at",
+        "provenance"
+      ],
+      "properties": {
+        "identifier": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "mandate",
+            "registered_office",
+            "located_at",
+            "establishment_of",
+            "same_person"
+          ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "first_collected_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_collected_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        }
+      }
+    },
+    "signal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule",
+        "title",
+        "subject",
+        "severity",
+        "score",
+        "explanation",
+        "entities"
+      ],
+      "properties": {
+        "rule": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "homonym_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "first_person",
+        "second_person",
+        "decision",
+        "decided_at"
+      ],
+      "properties": {
+        "first_person": {
+          "type": "string"
+        },
+        "second_person": {
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "même personne",
+            "personne différente"
+          ]
+        },
+        "decided_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identifier",
+        "source",
+        "url",
+        "parameters",
+        "collected_at",
+        "fingerprint"
+      ],
+      "properties": {
+        "identifier": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "collected_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

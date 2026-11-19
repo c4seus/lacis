@@ -59,7 +59,7 @@ jobs:
       - name: Launch Lacis
         run: lacis --version | grep -E '^Lacis [0-9]'
       - name: Install the test tools from Arch Linux
-        run: pacman -S --noconfirm --needed git python-pytest python-pytest-qt
+        run: pacman -S --noconfirm --needed git python-jsonschema python-pytest python-pytest-qt
       - uses: actions/checkout@v4
       - name: Run the tests against the installed package and the PySide6 of Arch Linux
         run: |
