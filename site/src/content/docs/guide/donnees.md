@@ -36,7 +36,7 @@ Sous Windows :
 
 Sous Linux, ces dossiers suivent les variables `XDG_DATA_HOME`, `XDG_CONFIG_HOME` et `XDG_STATE_HOME` quand elles sont définies. Sous Windows, collez le chemin dans la barre d'adresse de l'Explorateur de fichiers : `%LOCALAPPDATA%` et `%APPDATA%` y sont remplacés par vos dossiers.
 
-Les **enquêtes** ont chacune leur dossier, au nom de l'enquête, avec un seul fichier : `investigation.sqlite3`. Ce fichier contient tout : la question, les entités et les liens, les réponses brutes et leurs empreintes, les annonces BODACC, le journal de collecte, les décisions sur les homonymes, vos notes et vos tags, les signaux calculés et la place des entités dans le graphe.
+Les **enquêtes** ont chacune leur dossier, au nom de l'enquête, avec un seul fichier : `investigation.sqlite3`. Ce fichier contient tout : la question, les entités et les liens, les réponses brutes et leurs empreintes, les annonces BODACC, le journal de collecte, les décisions sur les homonymes, vos verdicts, vos notes et vos tags, les signaux calculés et la place des entités dans le graphe.
 
 Les **réglages de l'interface** retiennent le thème, la taille et la position de la fenêtre, la largeur des colonnes et l'état de la colonne « À examiner ». Supprimer ce fichier rend à Lacis son apparence par défaut, sans toucher aux enquêtes.
 

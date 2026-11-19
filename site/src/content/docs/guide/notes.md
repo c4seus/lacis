@@ -1,9 +1,24 @@
 ---
 title: Noter vos constats
-description: "Écrire une note sur une entreprise, une personne ou une adresse, la relire en Markdown, regrouper les entités avec des tags et filtrer le graphe, la colonne « À examiner » et l'onglet Entités par tag."
+description: "Donner un verdict sur une entité, écrire une note en Markdown, regrouper les entités avec des tags, et filtrer le graphe, la colonne « À examiner » et l'onglet Entités par tag ou par verdict."
 ---
 
 Les notes gardent ce que vous avez compris d'une entité : pourquoi elle compte pour votre question, ce qu'il reste à vérifier, ce que vous en concluez. Elles restent à part des faits collectés : écrire ou effacer une note ne change jamais une entité, un lien ou un signal.
+
+## Donner un verdict
+
+Le verdict dit où vous en êtes sur une entité. Il en existe quatre :
+
+- **À vérifier** : l'entité mérite un examen que vous n'avez pas encore fait ;
+- **Suspect** : ce que vous avez vu vous inquiète ;
+- **Écarté** : l'entité est hors de cause pour votre question ;
+- **Confirmé** : vos vérifications confirment ce que vous soupçonniez.
+
+Dans la fiche, la section « Verdict » suit les signaux d'alerte. Choisissez le verdict dans la liste, et ajoutez si vous le voulez une raison dans le champ voisin : elle est enregistrée quand vous quittez le champ. Lacis indique la date du verdict. Pour le retirer, choisissez « Aucun verdict ».
+
+Un verdict reste votre avis : il ne masque ni ne change aucun fait collecté, aucun lien et aucun signal. Une entité écartée reste dans le graphe, avec ses signaux.
+
+Dans le graphe, une pastille en haut à gauche de l'entité montre son verdict : « ? » à vérifier, « ! » suspect, « ✕ » écarté, « ✓ » confirmé. La légende les rappelle, et la description de l'entité dit « verdict : suspect ». L'onglet **Entités** a une colonne « Verdict », triable.
 
 ## Écrire une note
 
@@ -33,16 +48,16 @@ Dans la fiche, la section « Tags » suit les notes. Écrivez un tag dans le c
 
 Lacis ignore la casse et les espaces en trop : « Client », « CLIENT » et « client » suivi d'un espace sont le même tag. Il garde l'écriture du premier emploi, et la réutilise pour les entités suivantes.
 
-## Filtrer par tag
+## Filtrer par tag ou par verdict
 
-Choisir un tag filtre toute l'enquête à la fois :
+Choisir un tag ou un verdict filtre toute l'enquête à la fois :
 
-- le graphe n'affiche que les entités qui portent ce tag ;
+- le graphe n'affiche que les entités qui portent ce tag ou ce verdict ;
 - la colonne « À examiner » ne garde que les signaux, les homonymes et les pistes qui les concernent ;
 - l'onglet **Entités** ne liste qu'elles.
 
-Vous pouvez choisir le tag à deux endroits, qui restent accordés : le sous-menu **Tag** du bouton **Filtres**, au-dessus du graphe, et la liste « Tous les tags » de l'onglet **Entités**. Pour tout afficher de nouveau, choisissez « Tous les tags », ou cliquez sur **Tous les tags** en tête de la colonne « À examiner ». **Filtres › Tout afficher** retire aussi le tag. Si plus aucune entité ne porte le tag choisi, le filtre disparaît.
+Vous pouvez choisir le tag et le verdict à deux endroits, qui restent accordés : les sous-menus **Tag** et **Verdict** du bouton **Filtres**, au-dessus du graphe, et les listes « Tous les tags » et « Tous les verdicts » de l'onglet **Entités**. Un tag et un verdict se combinent : « client » et « Suspect » ne gardent que les clients suspects. Pour tout afficher de nouveau, cliquez sur **Tout afficher** en tête de la colonne « À examiner », ou choisissez **Filtres › Tout afficher**. Si plus aucune entité ne porte le tag choisi, ce filtre disparaît.
 
 ## Au clavier
 
-Dans la fiche, <kbd>Tab</kbd> atteint le champ de la note, le bouton **Aperçu**, puis les tags de l'entité et le champ « Ajouter un tag ». Dans le champ, <kbd>Tab</kbd> passe au bouton suivant au lieu d'insérer une tabulation : la note se quitte toujours au clavier.
+Dans la fiche, <kbd>Tab</kbd> atteint la liste du verdict et sa raison, le champ de la note, le bouton **Aperçu**, puis les tags de l'entité et le champ « Ajouter un tag ». Dans le champ, <kbd>Tab</kbd> passe au bouton suivant au lieu d'insérer une tabulation : la note se quitte toujours au clavier.
