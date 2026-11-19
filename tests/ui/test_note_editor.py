@@ -83,11 +83,13 @@ def test_the_preview_shows_the_note_as_markdown(qtbot: QtBot, editor: NoteEditor
     with qtbot.waitSignal(editor.edited) as edited:
         editor.mode_button.click()
     assert edited.args == [ACME, "Voir **ACME**."]
-    assert editor.pages.currentWidget() is editor.preview
+    assert editor.preview.isVisible()
+    assert not editor.editor.isVisible()
     assert editor.preview.text() == "Voir **ACME**."
     assert editor.mode_button.text() == "Modifier"
     editor.mode_button.click()
-    assert editor.pages.currentWidget() is editor.editor
+    assert editor.editor.isVisible()
+    assert not editor.preview.isVisible()
     assert editor.mode_button.text() == "Aperçu"
 
 
