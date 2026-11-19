@@ -265,6 +265,21 @@ def create_entity_tag_table(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX entity_tag_by_key ON entity_tag (tag_key)")
 
 
+def create_entity_verdict_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE entity_verdict (
+            entity_identifier TEXT PRIMARY KEY
+                REFERENCES entity (identifier) ON DELETE CASCADE,
+            verdict TEXT NOT NULL
+                CHECK (verdict IN ('to_check', 'suspect', 'dismissed', 'confirmed')),
+            reason TEXT NOT NULL,
+            decided_at TEXT NOT NULL
+        )
+        """
+    )
+
+
 def reread_office_transfers(connection: sqlite3.Connection) -> None:
     rows = connection.execute(
         """
@@ -310,6 +325,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     split_people_by_company,
     create_entity_note_table,
     create_entity_tag_table,
+    create_entity_verdict_table,
 )
 
 
