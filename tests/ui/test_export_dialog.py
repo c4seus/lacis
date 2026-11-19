@@ -4,7 +4,7 @@ import pytest
 from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
-from lacis.exports.formats import JSON_FORMAT
+from lacis.exports.formats import JSON_FORMAT, MARKDOWN_REPORT_FORMAT
 from lacis.ui.export_dialog import (
     FOLDER_GIVEN_TEXT,
     MISSING_FOLDER_TEXT,
@@ -146,3 +146,17 @@ def test_the_file_dialog_returns_the_chosen_path(
     parent = QWidget()
     qtbot.addWidget(parent)
     assert save_file_name(parent, "Exporter l'enquête", str(tmp_path), "JSON (*.json)") == chosen
+
+
+def test_choosing_another_format_changes_the_extension_of_the_destination(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+    dialog = open_dialog(qtbot, tmp_path)
+    assert [dialog.format_box.itemData(index) for index in range(2)] == [
+        "markdown_report",
+        "json",
+    ]
+    dialog.format_box.setCurrentIndex(dialog.format_box.findData("markdown_report"))
+    request = dialog.request()
+    assert request.export_format is MARKDOWN_REPORT_FORMAT
+    assert request.destination == tmp_path / f"{NAME}.md"
