@@ -22,6 +22,7 @@ from lacis.storage.investigations import InvestigationLibrary
 from lacis.storage.locations import investigations_directory
 from lacis.storage.notes import NoteStore
 from lacis.storage.tags import TagStore
+from lacis.storage.verdicts import Verdict, VerdictStore
 from lacis.ui.about_dialog import AboutDialog
 from lacis.ui.header_bar import HOME_TRAIL, HeaderBar
 from lacis.ui.home_screen import HomeScreen
@@ -174,6 +175,7 @@ class MainWindow(QMainWindow):
         sheet.note_edited.connect(self.save_note)
         sheet.tag_added.connect(self.add_tag)
         sheet.tag_removed.connect(self.remove_tag)
+        sheet.verdict_changed.connect(self.save_verdict)
         self.investigation_page.details_panel.journal_tab.raw_requested.connect(
             self.show_raw_response
         )
@@ -321,6 +323,18 @@ class MainWindow(QMainWindow):
         self.investigation_page.details_panel.entity_sheet.show_saved_note(identifier, note)
         if had_note is (note is None):
             QTimer.singleShot(0, self.refresh_overview)
+
+    def save_verdict(self, identifier: str, verdict: Verdict | None, reason: str) -> None:
+        if self.current_investigation is None:
+            return
+        try:
+            with self.library.open(self.current_investigation) as opened:
+                VerdictStore(opened.connection).save(identifier, verdict, reason)
+        except (InvestigationError, sqlite3.DatabaseError) as problem:
+            message = str(problem) if isinstance(problem, InvestigationError) else UNREADABLE
+            self.show_failure(message)
+            return
+        self.refresh_overview()
 
     def add_tag(self, identifier: str, text: str) -> None:
         self.change_tags(lambda store: store.add(identifier, text))
