@@ -25,6 +25,7 @@ from lacis.storage.entities import (
     foreign_company_identifier,
     person_identifier,
 )
+from lacis.storage.expansion_log import ExpansionLog, ExpansionOperation, RecordedExpansion
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.responses import ResponseSource, ResponseStore
 
@@ -341,3 +342,55 @@ def test_an_expansion_resumed_after_a_cancellation_completes(
     report = expander.expand(DUPONT_SERVICES, 2)
     assert not report.cancelled
     assert is_expanded(graph_store, JEAN_DUPONT)
+
+
+def test_every_addition_and_expansion_is_recorded_with_its_depth(
+    expander: GraphExpander,
+    dupont_services_added: None,
+    investigation_connection: sqlite3.Connection,
+) -> None:
+    report = expander.expand(DUPONT_SERVICES, 2)
+    expander.expand(DUPONT_SERVICES, refresh=True)
+    added, expanded, refreshed = ExpansionLog(investigation_connection).expansions()
+    assert added == RecordedExpansion(
+        EXPANDED_AT, ExpansionOperation.ADDED, DUPONT_SERVICES, "DUPONT SERVICES", 0, 1
+    )
+    assert expanded == RecordedExpansion(
+        EXPANDED_AT,
+        ExpansionOperation.EXPANDED,
+        DUPONT_SERVICES,
+        "DUPONT SERVICES",
+        2,
+        len(report.changes.new_entities),
+    )
+    assert refreshed.operation is ExpansionOperation.REFRESHED
+    assert refreshed.depth == 1
+
+
+def test_a_capped_expansion_is_recorded_with_its_cap(
+    expander_capped_at_two: GraphExpander, investigation_connection: sqlite3.Connection
+) -> None:
+    expander_capped_at_two.expand(DUPONT_SERVICES)
+    recorded = ExpansionLog(investigation_connection).expansions()[-1]
+    assert recorded.cap == 2
+    assert recorded.new_entities == 2
+    assert not recorded.cancelled
+
+
+def test_a_cancelled_expansion_is_recorded_as_cancelled(
+    expander: GraphExpander,
+    control: CollectionControl,
+    dupont_services_added: None,
+    investigation_connection: sqlite3.Connection,
+) -> None:
+    expander.entities_found = lambda count: control.cancellation.set()
+    expander.expand(DUPONT_SERVICES, 3)
+    assert ExpansionLog(investigation_connection).expansions()[-1].cancelled
+
+
+def test_an_expansion_refused_at_its_start_is_not_recorded(
+    expander: GraphExpander, investigation_connection: sqlite3.Connection
+) -> None:
+    with pytest.raises(ExpansionError):
+        expander.expand(DUPONT_SERVICES)
+    assert ExpansionLog(investigation_connection).expansions() == []

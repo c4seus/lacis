@@ -35,6 +35,7 @@ from lacis.storage.entities import (
     kind_of,
     registered_office_link,
 )
+from lacis.storage.expansion_log import ExpansionLog, ExpansionOperation, RecordedExpansion
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.notices import NoticeStore
 from lacis.storage.responses import ResponseSummary
@@ -246,6 +247,7 @@ class GraphExpander:
     ) -> None:
         self.graph_store = GraphStore(connection)
         self.notice_store = NoticeStore(connection)
+        self.expansion_log = ExpansionLog(connection)
         self.company_register = company_register
         self.bodacc = bodacc
         self.now = now
@@ -399,7 +401,20 @@ class GraphExpander:
         return combined_changes(changes)
 
     def add_company(self, company: Company, response: ResponseSummary) -> GraphChanges:
-        return self.save_fragment(GraphFragment((company_entity(company),)), response)
+        started_at = self.now()
+        entity = company_entity(company)
+        changes = self.save_fragment(GraphFragment((entity,)), response)
+        self.expansion_log.record(
+            RecordedExpansion(
+                started_at,
+                ExpansionOperation.ADDED,
+                entity.identifier,
+                entity.label,
+                0,
+                len(changes.new_entities),
+            )
+        )
+        return changes
 
     def save_fragment(self, fragment: GraphFragment, response: ResponseSummary) -> GraphChanges:
         new_entities: list[str] = []
@@ -457,6 +472,7 @@ class GraphExpander:
     def expand(self, identifier: str, depth: int = 1, *, refresh: bool = False) -> ExpansionReport:
         if not MINIMUM_DEPTH <= depth <= MAXIMUM_DEPTH:
             raise ExpansionError(INVALID_DEPTH_MESSAGE)
+        started_at = self.now()
         self.remaining_new_entities = self.maximum_new_entities
         self.cap_reached = False
         self.recorded_changes = []
@@ -471,6 +487,20 @@ class GraphExpander:
             self.remaining_new_entities = None
         cap = self.maximum_new_entities if self.cap_reached else None
         changes = combined_changes(self.recorded_changes)
+        operation = ExpansionOperation.REFRESHED if refresh else ExpansionOperation.EXPANDED
+        self.expansion_log.record(
+            RecordedExpansion(
+                started_at,
+                operation,
+                identifier,
+                self.label_of(identifier),
+                depth,
+                len(changes.new_entities),
+                cap,
+                cancelled,
+                len(failures),
+            )
+        )
         return ExpansionReport(
             changes, tuple(failures), cap, cancelled, tuple(self.truncated_searches)
         )

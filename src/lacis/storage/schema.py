@@ -280,6 +280,25 @@ def create_entity_verdict_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def create_expansion_log_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE expansion_log (
+            identifier INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at TEXT NOT NULL,
+            operation TEXT NOT NULL CHECK (operation IN ('added', 'expanded', 'refreshed')),
+            entity_identifier TEXT NOT NULL,
+            label TEXT NOT NULL,
+            depth INTEGER NOT NULL,
+            new_entities INTEGER NOT NULL,
+            cap INTEGER,
+            cancelled INTEGER NOT NULL,
+            failures INTEGER NOT NULL
+        )
+        """
+    )
+
+
 def reread_office_transfers(connection: sqlite3.Connection) -> None:
     rows = connection.execute(
         """
@@ -326,6 +345,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     create_entity_note_table,
     create_entity_tag_table,
     create_entity_verdict_table,
+    create_expansion_log_table,
 )
 
 
