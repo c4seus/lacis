@@ -33,5 +33,5 @@ Le [guide de contribution](https://github.com/c4seus/lacis/blob/develop/CONTRIBU
 Pour suivre le projet :
 
 - le [journal des modifications](https://github.com/c4seus/lacis/blob/develop/CHANGELOG.md) liste les changements de chaque version ;
-- les [jalons](https://github.com/c4seus/lacis/milestones) regroupent ce que préparent les prochaines versions ;
+- la [feuille de route](/lacis/feuille-de-route/) décrit ce que préparent les prochaines versions, et les [jalons](https://github.com/c4seus/lacis/milestones) en donnent le détail ;
 - les [décisions d'architecture](https://github.com/c4seus/lacis/blob/develop/docs/adr/README.md) expliquent les choix techniques.

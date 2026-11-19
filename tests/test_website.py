@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QImage
 
+from check_release import UNRELEASED, changelog_sections
 from lacis.product import WEBSITE_URL
 from workflows import workflow, workflow_jobs
 
@@ -15,6 +16,16 @@ APPLICATION_ICON = ROOT / "packaging/icons/hicolor/scalable/apps/io.github.c4seu
 LATEST_RELEASE = "https://github.com/c4seus/lacis/releases/latest"
 HOME_PAGE = SITE / "src/content/docs/index.mdx"
 INSTALLATION_PAGE = SITE / "src/content/docs/guide/installation.md"
+ROADMAP_PAGE = SITE / "src/content/docs/feuille-de-route.md"
+CONTRIBUTING_PAGE = SITE / "src/content/docs/guide/contribuer.md"
+ROADMAP_LINK = "/lacis/feuille-de-route/"
+VERSION_SECTION = re.compile(r"^## Lacis (?P<version>\d+\.\d+\.\d+)\s*: ", re.MULTILINE)
+MILESTONE_LINK = re.compile(r"\]\(https://github\.com/c4seus/lacis/milestone/\d+\)")
+DATE_WORDS = re.compile(
+    r"\b(?:20\d\d|janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre"
+    r"|novembre|décembre|trimestre|semestre)\b",
+    re.IGNORECASE,
+)
 CODE_BLOCK = re.compile(r"^```(?:bash|powershell)\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 
 
@@ -176,3 +187,50 @@ def test_the_installation_page_of_the_guide_gives_the_commands_of_the_readme() -
     guide = INSTALLATION_PAGE.read_text(encoding="utf-8")
     assert CODE_BLOCK.findall(installation)
     assert CODE_BLOCK.findall(guide) == CODE_BLOCK.findall(installation)
+
+
+def version_number(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
+
+
+def roadmap_sections() -> dict[str, str]:
+    page = ROADMAP_PAGE.read_text(encoding="utf-8")
+    starts = list(VERSION_SECTION.finditer(page))
+    following = page.find("\n## ", starts[-1].end())
+    ends = [found.start() for found in starts[1:]] + [following if following > 0 else len(page)]
+    return {
+        found["version"]: page[found.start() : end]
+        for found, end in zip(starts, ends, strict=True)
+    }
+
+
+def test_the_roadmap_lists_only_versions_newer_than_every_release() -> None:
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    released = [
+        section.name for section in changelog_sections(changelog) if section.name != UNRELEASED
+    ]
+    latest = max(version_number(version) for version in released)
+    upcoming = list(roadmap_sections())
+    assert upcoming
+    assert all(version_number(version) > latest for version in upcoming)
+
+
+def test_the_roadmap_lists_the_upcoming_versions_in_order() -> None:
+    upcoming = list(roadmap_sections())
+    assert upcoming == sorted(upcoming, key=version_number)
+
+
+def test_every_version_of_the_roadmap_links_its_milestone() -> None:
+    for section in roadmap_sections().values():
+        assert len(MILESTONE_LINK.findall(section)) == 1
+
+
+def test_the_roadmap_gives_no_date() -> None:
+    assert DATE_WORDS.search(ROADMAP_PAGE.read_text(encoding="utf-8")) is None
+
+
+def test_the_roadmap_is_linked_from_the_home_page_and_the_contribution_page() -> None:
+    assert ROADMAP_LINK in HOME_PAGE.read_text(encoding="utf-8")
+    assert ROADMAP_LINK in CONTRIBUTING_PAGE.read_text(encoding="utf-8")
+    assert '"feuille-de-route"' in site_configuration()
+
