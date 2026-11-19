@@ -82,6 +82,7 @@ export default defineConfig({
                                 "guide/usage-responsable",
                                 "guide/depannage",
                                 "guide/contribuer",
+                                "feuille-de-route",
                                 "confidentialite",
                             ],
                         },
