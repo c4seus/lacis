@@ -71,6 +71,17 @@ def overview_of(
     )
 
 
+def current_report(
+    connection: sqlite3.Connection,
+    engine_factory: Callable[[], SignalEngine] = SignalEngine.configured,
+) -> SignalReport | None:
+    try:
+        engine = engine_factory()
+    except SignalConfigurationError:
+        return None
+    return InvestigationSignals(connection, engine).current()
+
+
 def read_overview(
     library: InvestigationLibrary,
     name: str,

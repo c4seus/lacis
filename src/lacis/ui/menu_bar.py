@@ -1,6 +1,7 @@
 from PySide6.QtGui import QAction, QKeySequence, QUndoGroup
 from PySide6.QtWidgets import QMenu, QMenuBar, QWidget
 
+from lacis.exports.formats import EXPORT_FORMATS
 from lacis.history import InvestigationHistory
 from lacis.ui.help_menu import HelpMenu
 from lacis.ui.text_size_menu import TextSizeMenu
@@ -11,6 +12,7 @@ EDIT_MENU_TITLE = "&Édition"
 VIEW_MENU_TITLE = "&Affichage"
 INVESTIGATION_MENU_TITLE = "&Enquête"
 QUIT_ACTION_TEXT = "&Quitter"
+EXPORT_MENU_TITLE = "E&xporter"
 NEW_INVESTIGATION_ACTION_TEXT = "&Nouvelle enquête…"
 NEW_INVESTIGATION_SHORTCUT = QKeySequence("Ctrl+N")
 CLOSE_INVESTIGATION_ACTION_TEXT = "&Fermer l'enquête"
@@ -66,6 +68,11 @@ class MainMenuBar(QMenuBar):
         self.quit_action.setShortcut(QUIT_SHORTCUT)
         self.file_menu.addAction(self.new_investigation_action)
         self.file_menu.addAction(self.close_investigation_action)
+        self.export_menu = self.file_menu.addMenu(EXPORT_MENU_TITLE)
+        self.export_actions = {
+            candidate.key: self.export_menu.addAction(candidate.menu_text)
+            for candidate in EXPORT_FORMATS
+        }
         self.file_menu.addSeparator()
         self.file_menu.addAction(self.quit_action)
         self.histories = QUndoGroup(self)
@@ -148,6 +155,8 @@ class MainMenuBar(QMenuBar):
             self.previous_tab_action,
             *self.tab_actions,
             self.search_action,
+            self.export_menu.menuAction(),
+            *self.export_actions.values(),
         ]
 
     def show_investigation_actions(self, shown: bool) -> None:
