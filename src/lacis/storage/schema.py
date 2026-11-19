@@ -250,6 +250,21 @@ def create_entity_note_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def create_entity_tag_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE entity_tag (
+            entity_identifier TEXT NOT NULL
+                REFERENCES entity (identifier) ON DELETE CASCADE,
+            tag_key TEXT NOT NULL,
+            label TEXT NOT NULL,
+            PRIMARY KEY (entity_identifier, tag_key)
+        )
+        """
+    )
+    connection.execute("CREATE INDEX entity_tag_by_key ON entity_tag (tag_key)")
+
+
 def reread_office_transfers(connection: sqlite3.Connection) -> None:
     rows = connection.execute(
         """
@@ -294,6 +309,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     reread_office_transfers,
     split_people_by_company,
     create_entity_note_table,
+    create_entity_tag_table,
 )
 
 
