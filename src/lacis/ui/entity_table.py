@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from enum import IntEnum
+from itertools import pairwise
 from typing import override
 
 from PySide6.QtCore import (
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from lacis.design.icons import ColoursProvider
 from lacis.graph.listing import sortable
+from lacis.storage.tags import Tag
 from lacis.tables import EntityRow, entities_summary
 from lacis.ui.data_table import (
     IDENTIFIER_ROLE,
@@ -43,6 +45,8 @@ FILTER_ACCESSIBLE_NAME = "Filtrer les entités par nom"
 FLAGGED_TEXT = "Signalées seulement"
 FLAGGED_ACCESSIBLE_NAME = "N'afficher que les entités signalées"
 SORT_ACCESSIBLE_NAME = "Trier les entités par"
+TAG_ACCESSIBLE_NAME = "Filtrer les entités par tag"
+EVERY_TAG_TEXT = "Tous les tags"
 NO_STATUS_TEXT = "sans état"
 NOTED_TEXT = "Oui"
 NOTED_SPOKEN_TEXT = "avec une note"
@@ -188,6 +192,7 @@ class EntityFilter(QSortFilterProxyModel):
         self.entity_model = model
         self.flagged_only = False
         self.searched = ""
+        self.tag: str | None = None
         self.setSourceModel(model)
         self.setSortRole(SORT_ROLE)
 
@@ -196,6 +201,9 @@ class EntityFilter(QSortFilterProxyModel):
 
     def search(self, text: str) -> None:
         self.refilter(lambda: setattr(self, "searched", text.strip().casefold()))
+
+    def show_tag(self, tag: str | None) -> None:
+        self.refilter(lambda: setattr(self, "tag", tag))
 
     def refilter(self, change: Callable[[], None]) -> None:
         if hasattr(self, "beginFilterChange"):
@@ -211,11 +219,14 @@ class EntityFilter(QSortFilterProxyModel):
         row = self.entity_model.rows[source_row]
         if self.flagged_only and not row.flagged:
             return False
+        if self.tag is not None and self.tag not in row.tags:
+            return False
         return self.searched in row.label.casefold()
 
 
 class EntitiesTab(QWidget):
     entity_chosen = Signal(str)
+    tag_chosen = Signal(object)
 
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -237,6 +248,7 @@ class EntitiesTab(QWidget):
         for title, _column, _order in SORT_CHOICES:
             self.sort_box.addItem(title)
         self.sort_box.currentIndexChanged.connect(self.sort_by_choice)
+        self.tag_box = self.create_tag_box()
         self.summary_label = QLabel(self)
         self.summary_label.setProperty("tone", "muted")
         self.table = QTableView(self)
@@ -255,6 +267,7 @@ class EntitiesTab(QWidget):
         options = QHBoxLayout()
         options.setSpacing(8)
         options.addWidget(self.flagged_box)
+        options.addWidget(self.tag_box)
         options.addStretch(1)
         options.addWidget(self.summary_label)
         layout = QVBoxLayout(self)
@@ -263,9 +276,36 @@ class EntitiesTab(QWidget):
         layout.addLayout(tools)
         layout.addLayout(options)
         layout.addWidget(self.table, 1)
-        self.setTabOrder(self.filter_field, self.sort_box)
-        self.setTabOrder(self.sort_box, self.flagged_box)
-        self.setTabOrder(self.flagged_box, self.table)
+        tab_order = (self.filter_field, self.sort_box, self.flagged_box, self.tag_box, self.table)
+        for first, second in pairwise(tab_order):
+            self.setTabOrder(first, second)
+        self.show_tags((), None)
+
+    def create_tag_box(self) -> QComboBox:
+        tag_box = QComboBox(self)
+        tag_box.setAccessibleName(TAG_ACCESSIBLE_NAME)
+        tag_box.currentIndexChanged.connect(self.follow_tag_box)
+        return tag_box
+
+    def show_tags(self, tags: tuple[Tag, ...], chosen: str | None) -> None:
+        blocked = self.tag_box.blockSignals(True)
+        self.tag_box.clear()
+        self.tag_box.addItem(EVERY_TAG_TEXT, None)
+        for tag in tags:
+            self.tag_box.addItem(tag.label, tag.key)
+        self.tag_box.blockSignals(blocked)
+        self.tag_box.setEnabled(bool(tags))
+        self.choose_tag(chosen)
+
+    def choose_tag(self, key: str | None) -> None:
+        blocked = self.tag_box.blockSignals(True)
+        self.tag_box.setCurrentIndex(max(self.tag_box.findData(key), 0))
+        self.tag_box.blockSignals(blocked)
+        self.proxy.show_tag(self.tag_box.currentData())
+
+    def follow_tag_box(self, index: int) -> None:
+        self.proxy.show_tag(self.tag_box.itemData(index))
+        self.tag_chosen.emit(self.tag_box.itemData(index))
 
     def sort_by_choice(self, choice: int) -> None:
         _title, column, order = SORT_CHOICES[choice]

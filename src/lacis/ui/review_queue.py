@@ -42,6 +42,8 @@ EXPANDING_TEXT = "Extension…"
 SCORE_PREFIX = "score "
 FIRST_LINE_SPACING = 8
 ACTIVATING_KEYS = {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}
+TAG_FILTER_PREFIX = "Tag : "
+SHOW_EVERY_TAG_TEXT = "Tous les tags"
 
 
 def refresh_style(widget: QWidget) -> None:
@@ -191,6 +193,12 @@ def action_button(text: str, accessible_name: str, parent: QWidget) -> QPushButt
 
 
 @dataclass(frozen=True)
+class TagFilter:
+    label: str
+    identifiers: frozenset[str]
+
+
+@dataclass(frozen=True)
 class QueueFocus:
     section: str
     identifier: str
@@ -207,10 +215,13 @@ class ReviewQueueList(QScrollArea):
     entity_chosen = Signal(str)
     decision_requested = Signal(object, object, object)
     expansion_requested = Signal(str, str)
+    tag_cleared = Signal()
 
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("reviewQueue")
+        self.tag_filter: TagFilter | None = None
+        self.clear_tag_button: QPushButton | None = None
         self.setAccessibleName(QUEUE_LIST_ACCESSIBLE_NAME)
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -246,14 +257,38 @@ class ReviewQueueList(QScrollArea):
         self.decision_buttons = []
         self.group_labels = []
         self.empty_labels = []
-        self.add_signals(queue)
-        self.add_homonyms(queue)
-        self.add_leads(queue)
+        self.clear_tag_button = None
+        shown = queue
+        if self.tag_filter is not None:
+            shown = queue.keeping(self.tag_filter.identifiers)
+            self.add_tag_filter(self.tag_filter)
+        self.add_signals(shown)
+        self.add_homonyms(shown)
+        self.add_leads(shown)
         self.content_layout.addStretch(1)
         self.setWidget(self.content)
         place_after(self, self.content)
         self.mark_selected(self.selected_identifier)
         self.restore_focus(focus)
+
+    def add_tag_filter(self, tag_filter: TagFilter) -> None:
+        line = QHBoxLayout()
+        line.setContentsMargins(4, 0, 0, 4)
+        label = QLabel(f"{TAG_FILTER_PREFIX}{tag_filter.label}", self.content)
+        label.setProperty("tone", "muted")
+        label.setWordWrap(True)
+        button = QPushButton(SHOW_EVERY_TAG_TEXT, self.content)
+        button.setProperty("compact", True)
+        button.setAccessibleName(f"{SHOW_EVERY_TAG_TEXT} : {TAG_FILTER_PREFIX}{tag_filter.label}")
+        button.clicked.connect(self.tag_cleared)
+        line.addWidget(label, 1)
+        line.addWidget(button)
+        self.content_layout.addLayout(line)
+        self.clear_tag_button = button
+
+    def filter_by_tag(self, tag_filter: TagFilter | None) -> None:
+        self.tag_filter = tag_filter
+        self.show_queue(self.queue)
 
     def neighbour(self, focus: QueueFocus) -> QueueRow:
         section = self.section_rows(focus.section)

@@ -15,6 +15,7 @@ from lacis.storage.entities import Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
 from lacis.storage.notes import NoteStore
 from lacis.storage.responses import ResponseSource, ResponseStore
+from lacis.storage.tags import TagStore
 
 ACTIVE_COMPANY_TEXT = "Active"
 CLOSED_COMPANY_TEXT = "Fermée"
@@ -51,6 +52,7 @@ class EntityRow:
     score: float | None
     links: int
     noted: bool = False
+    tags: frozenset[str] = frozenset()
 
     @property
     def kind_label(self) -> str:
@@ -152,6 +154,7 @@ def entity_rows(connection: sqlite3.Connection, report: SignalReport | None) -> 
         links_by_entity[link.target].append(link)
     marks = strongest_marks(report)
     noted = NoteStore(connection).noted()
+    tagged = TagStore(connection).tagged()
     rows = []
     for entity in graph_store.entities():
         links = links_by_entity[entity.identifier]
@@ -166,6 +169,7 @@ def entity_rows(connection: sqlite3.Connection, report: SignalReport | None) -> 
                 None if mark is None else mark.score,
                 sum(1 for link in links if link.kind is not LinkKind.SAME_PERSON),
                 entity.identifier in noted,
+                tagged.get(entity.identifier, frozenset()),
             )
         )
     return rows

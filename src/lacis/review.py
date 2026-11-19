@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from lacis.graph.descriptions import spoken_label
 from lacis.graph.expansion import ExpansionReport
@@ -59,12 +59,32 @@ class HomonymEntry:
         return f"{self.first.label} ↔ {self.second.label}"
 
 
+def kept_entities(
+    entities: tuple[QueueEntity, ...], identifiers: frozenset[str]
+) -> tuple[QueueEntity, ...]:
+    return tuple(entity for entity in entities if entity.identifier in identifiers)
+
+
 @dataclass(frozen=True)
 class ReviewQueue:
     signal_groups: tuple[SignalGroup, ...]
     homonyms: tuple[HomonymEntry, ...]
     leads: tuple[QueueEntity, ...]
     signal_problem: str = ""
+
+    def keeping(self, identifiers: frozenset[str]) -> "ReviewQueue":
+        groups = tuple(
+            replace(group, entities=kept)
+            for group in self.signal_groups
+            if (kept := kept_entities(group.entities, identifiers))
+        )
+        homonyms = tuple(
+            entry
+            for entry in self.homonyms
+            if {entry.first.identifier, entry.second.identifier} & identifiers
+        )
+        leads = tuple(lead for lead in self.leads if lead.identifier in identifiers)
+        return replace(self, signal_groups=groups, homonyms=homonyms, leads=leads)
 
     def entity_identifiers(self) -> list[str]:
         signal_entities = [
