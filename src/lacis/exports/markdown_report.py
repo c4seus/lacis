@@ -339,4 +339,4 @@ def markdown_text(content: ReportContent) -> str:
 
 
 def write_markdown(text: str, destination: Path) -> None:
-    destination.write_text(text, encoding="utf-8")
+    destination.write_text(text, encoding="utf-8", newline="\n")

@@ -183,6 +183,7 @@ def test_the_export_is_written_as_readable_utf8(
     text = destination.read_text(encoding="utf-8")
     assert "derrière" in text
     assert json.loads(text) == document
+    assert b"\r" not in destination.read_bytes()
 
 
 def test_only_plain_values_are_exported() -> None:

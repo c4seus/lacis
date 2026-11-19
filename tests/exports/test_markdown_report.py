@@ -333,7 +333,7 @@ def test_labels_cannot_break_the_markdown_of_the_report(
     assert "*ÉTOILE*" not in text
 
 
-def test_the_report_is_written_in_utf_8(tmp_path: Path) -> None:
+def test_the_report_is_written_in_utf_8_with_unix_line_endings(tmp_path: Path) -> None:
     destination = tmp_path / "rapport.md"
     write_markdown("# Rapport d'enquête\n", destination)
     assert destination.read_bytes() == "# Rapport d'enquête\n".encode()

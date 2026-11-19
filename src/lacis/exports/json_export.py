@@ -229,4 +229,4 @@ class InvestigationExport:
 
 def write_json(document: dict[str, Plain], destination: Path) -> None:
     text = json.dumps(document, ensure_ascii=False, indent=2)
-    destination.write_text(f"{text}\n", encoding="utf-8")
+    destination.write_text(f"{text}\n", encoding="utf-8", newline="\n")
