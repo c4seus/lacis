@@ -7,6 +7,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 ### Added
 
 - Each entity can carry a note, written in Markdown in the « Notes » section of its sheet, with a preview. The note is saved without any action, a moment after the last key press and when the investigator leaves it, and keeps its creation and last change dates. Notes are kept apart from the collected facts and never change them. Entities with a note carry a small page in the graph, explained by the legend, and the Entities tab gets a « Note » column. Opening an investigation with this version adds the table of notes, so it can no longer be opened with 0.3.0.
+- Entities can carry free tags, added from the « Tags » section of their sheet with completion from the tags already used. Tags ignore case and surrounding spaces, and keep the spelling of their first use. A tag chosen in the graph filters or in the Entities tab filters the graph, the review column and the Entities tab together.
 
 ## [0.3.0] - 2026-11-18
 
