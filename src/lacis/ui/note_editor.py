@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QPlainTextEdit,
     QPushButton,
-    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -77,9 +76,7 @@ class NoteEditor(QWidget):
             Qt.TextInteractionFlag.TextSelectableByMouse
             | Qt.TextInteractionFlag.TextSelectableByKeyboard
         )
-        self.pages = QStackedWidget(self)
-        self.pages.addWidget(self.editor)
-        self.pages.addWidget(self.preview)
+        self.preview.hide()
         self.mode_button = QPushButton(PREVIEW_TEXT, self)
         self.mode_button.setProperty("compact", True)
         self.mode_button.setCheckable(True)
@@ -94,7 +91,8 @@ class NoteEditor(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
-        layout.addWidget(self.pages)
+        layout.addWidget(self.editor)
+        layout.addWidget(self.preview)
         layout.addLayout(foot)
 
     def text(self) -> str:
@@ -120,5 +118,6 @@ class NoteEditor(QWidget):
     def show_preview(self, shown: bool) -> None:
         self.flush()
         self.preview.setText(self.text().strip() or EMPTY_PREVIEW_TEXT)
-        self.pages.setCurrentWidget(self.preview if shown else self.editor)
+        self.editor.setVisible(not shown)
+        self.preview.setVisible(shown)
         self.mode_button.setText(EDIT_TEXT if shown else PREVIEW_TEXT)
