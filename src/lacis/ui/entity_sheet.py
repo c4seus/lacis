@@ -31,12 +31,14 @@ from lacis.graph.drawing import KIND_LABELS
 from lacis.graph.expansion import MAXIMUM_DEPTH, MINIMUM_DEPTH
 from lacis.signals.facts import counted
 from lacis.storage.notes import EntityNote
+from lacis.storage.tags import Tag
 from lacis.ui.accessibility import DisclosureToggle, ScoreLabel
 from lacis.ui.flow_layout import FlowLayout
 from lacis.ui.focus_chain import place_after
 from lacis.ui.graph_legend import KindSwatch
 from lacis.ui.note_editor import NoteEditor
 from lacis.ui.notice_timeline import NoticeTimeline
+from lacis.ui.tag_editor import TagEditor
 
 EMPTY_TEXT = "La fiche de l'entité sélectionnée s'affichera ici."
 SHEET_ACCESSIBLE_NAME = "Fiche de l'entité"
@@ -49,6 +51,7 @@ DIRECTORY_TEXT = "Annuaire"
 DIRECTORY_TOOLTIP = "Ouvrir la fiche dans l'Annuaire des entreprises"
 SIGNALS_TITLE = "Signaux d'alerte"
 NOTES_TITLE = "Notes"
+TAGS_TITLE = "Tags"
 NOTE_WRITTEN_TEXT = "1 note"
 NO_NOTE_COUNT_TEXT = "aucune"
 NOTICES_TITLE = "Annonces BODACC"
@@ -380,6 +383,8 @@ class EntitySheet(QScrollArea):
     decision_withdrawal_requested = Signal(object, object)
     expandable_changed = Signal(bool)
     note_edited = Signal(str, str)
+    tag_added = Signal(str, str)
+    tag_removed = Signal(str, str)
 
     def __init__(
         self,
@@ -409,6 +414,9 @@ class EntitySheet(QScrollArea):
         self.section_titles: list[SectionTitle] = []
         self.note_editor: NoteEditor | None = None
         self.note_title: SectionTitle | None = None
+        self.tag_editor: TagEditor | None = None
+        self.tag_title: SectionTitle | None = None
+        self.known_tags: tuple[Tag, ...] = ()
         self.show_details(None)
 
     def reference_chip(self, reference: Reference, parent: QWidget) -> ReferenceChip:
@@ -419,8 +427,11 @@ class EntitySheet(QScrollArea):
         return chip
 
     def show_details(self, details: EntityDetails | None) -> None:
-        if self.only_the_note_differs(details):
+        if details is not None and self.only_annotations_differ(details):
+            changed_tags = self.details is not None and details.tags != self.details.tags
             self.details = details
+            if changed_tags:
+                self.show_tags(details.tags)
             return
         kept_text = self.kept_note_text(details)
         self.flush_note()
@@ -442,6 +453,7 @@ class EntitySheet(QScrollArea):
         self.timeline = None
         self.refresh_button = None
         self.note_editor = None
+        self.tag_editor = None
         if details is None:
             self.empty_label = wrapped_label(EMPTY_TEXT, "faint", self.content)
             self.content_layout.addWidget(self.empty_label)
@@ -449,6 +461,7 @@ class EntitySheet(QScrollArea):
             self.add_head(details)
             self.add_signals(details)
             self.add_note(details, kept_text)
+            self.add_tags(details)
             self.add_notices(details)
             self.add_links(details)
             self.add_decisions(details)
@@ -552,10 +565,33 @@ class EntitySheet(QScrollArea):
         self.note_editor.edited.connect(self.note_edited)
         self.content_layout.addWidget(self.note_editor)
 
-    def only_the_note_differs(self, details: EntityDetails | None) -> bool:
-        if details is None or self.details is None:
+    def add_tags(self, details: EntityDetails) -> None:
+        self.add_section_title(TAGS_TITLE, str(len(details.tags)))
+        self.tag_title = self.section_titles[-1]
+        self.tag_editor = TagEditor(
+            details.identifier, details.name, details.tags, self.known_tags, self.content
+        )
+        self.tag_editor.added.connect(self.tag_added)
+        self.tag_editor.removed.connect(self.tag_removed)
+        self.content_layout.addWidget(self.tag_editor)
+
+    def only_annotations_differ(self, details: EntityDetails) -> bool:
+        if self.details is None:
             return False
-        return replace(details, note=self.details.note) == self.details
+        kept = replace(details, note=self.details.note, tags=self.details.tags)
+        return kept == self.details
+
+    def show_tags(self, tags: tuple[Tag, ...]) -> None:
+        editor, title = self.tag_editor, self.tag_title
+        if editor is not None and title is not None:
+            editor.show_tags(tags, self.known_tags)
+            title.show_count(str(len(tags)))
+            place_after(self, self.content)
+
+    def show_known_tags(self, known: tuple[Tag, ...]) -> None:
+        self.known_tags = known
+        if self.details is not None:
+            self.show_tags(self.details.tags)
 
     def kept_note_text(self, details: EntityDetails | None) -> str | None:
         editor = self.note_editor
