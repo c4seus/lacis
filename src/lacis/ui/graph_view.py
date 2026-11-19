@@ -32,6 +32,7 @@ from lacis.graph.filters import GraphFilter
 from lacis.graph.navigation import Direction, linked_towards, starting_entity
 from lacis.signals.signal import Severity
 from lacis.storage.entities import EntityKind
+from lacis.storage.verdicts import Verdict
 from lacis.ui import announcements
 
 GRAPH_ACCESSIBLE_NAME = "Graphe de l'enquête"
@@ -74,6 +75,14 @@ NOTE_MARKER_WIDTH = 9.0
 NOTE_MARKER_HEIGHT = 11.0
 NOTE_MARKER_FOLD = 3.0
 NOTE_MARKER_PEN_WIDTH = 1.2
+VERDICT_BADGE_RADIUS = 6.5
+VERDICT_FONT_SIZE = 8.5
+VERDICT_GLYPHS = {
+    Verdict.TO_CHECK: "?",
+    Verdict.SUSPECT: "!",
+    Verdict.DISMISSED: "✕",
+    Verdict.CONFIRMED: "✓",
+}
 EDGE_WIDTHS = {EdgeKind.DIRECTS: 1.6, EdgeKind.STRUCTURE: 1.0, EdgeKind.IDENTITY: 2.0}
 IDENTITY_DASH_PATTERN = (3.0, 2.0)
 ARROW_LENGTH = 8.0
@@ -275,6 +284,28 @@ def draw_note_page(painter: QPainter, path: QPainterPath, colours: Colours) -> N
     painter.drawPath(path)
 
 
+def verdict_badge_area(node: GraphNode) -> QRectF:
+    radius = VERDICT_BADGE_RADIUS
+    return QRectF(-node.size / 2 - radius, -node.size / 2 - radius, radius * 2, radius * 2)
+
+
+def verdict_font() -> QFont:
+    font = QFont(list(FONT_FAMILIES))
+    font.setPointSizeF(VERDICT_FONT_SIZE)
+    font.setWeight(QFont.Weight.Bold)
+    return font
+
+
+def draw_verdict_badge(
+    painter: QPainter, area: QRectF, verdict: Verdict, colours: Colours
+) -> None:
+    painter.setPen(QPen(QColor(colours.text), NOTE_MARKER_PEN_WIDTH))
+    painter.setBrush(QColor(colours.raised_surface))
+    painter.drawEllipse(area)
+    painter.setFont(verdict_font())
+    painter.drawText(area, Qt.AlignmentFlag.AlignCenter, VERDICT_GLYPHS[verdict])
+
+
 def selection_area(node: GraphNode) -> QRectF:
     half_size = node.size / 2 + SELECTION_PADDING
     return QRectF(-half_size, -half_size, half_size * 2, half_size * 2)
@@ -372,7 +403,8 @@ class NodeItem(QGraphicsItem):
             -LABEL_PADDING, -LABEL_PADDING, LABEL_PADDING, LABEL_PADDING
         )
         marker_area = note_marker_area(self.node).adjusted(-1, -1, 1, 1)
-        return shape_area.united(label_area).united(marker_area)
+        badge_area = verdict_badge_area(self.node).adjusted(-1, -1, 1, 1)
+        return shape_area.united(label_area).united(marker_area).united(badge_area)
 
     @override
     def shape(self) -> QPainterPath:
@@ -402,6 +434,8 @@ class NodeItem(QGraphicsItem):
         painter.drawPath(self.path)
         if self.node.noted:
             draw_note_page(painter, note_marker_path(self.node), colours)
+        if self.node.verdict is not None:
+            draw_verdict_badge(painter, verdict_badge_area(self.node), self.node.verdict, colours)
         draw_label_background(painter, self.label_area, colours)
         painter.setFont(self.font)
         painter.setPen(label_colour(colours, self.node.kind))

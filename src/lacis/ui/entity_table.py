@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from lacis.design.icons import ColoursProvider
 from lacis.graph.listing import sortable
 from lacis.storage.tags import Tag
+from lacis.storage.verdicts import Verdict
 from lacis.tables import EntityRow, entities_summary
 from lacis.ui.data_table import (
     IDENTIFIER_ROLE,
@@ -47,10 +48,13 @@ FLAGGED_ACCESSIBLE_NAME = "N'afficher que les entités signalées"
 SORT_ACCESSIBLE_NAME = "Trier les entités par"
 TAG_ACCESSIBLE_NAME = "Filtrer les entités par tag"
 EVERY_TAG_TEXT = "Tous les tags"
+VERDICT_ACCESSIBLE_NAME = "Filtrer les entités par verdict"
+EVERY_VERDICT_TEXT = "Tous les verdicts"
 NO_STATUS_TEXT = "sans état"
 NOTED_TEXT = "Oui"
 NOTED_SPOKEN_TEXT = "avec une note"
 NOT_NOTED_SPOKEN_TEXT = "sans note"
+NO_VERDICT_SPOKEN_TEXT = "sans verdict"
 LAST_TEXT = chr(0xFFFF)
 
 
@@ -61,6 +65,7 @@ class EntityColumn(IntEnum):
     SCORE = 3
     LINKS = 4
     NOTE = 5
+    VERDICT = 6
 
 
 COLUMN_TITLES = {
@@ -70,6 +75,7 @@ COLUMN_TITLES = {
     EntityColumn.SCORE: "Score",
     EntityColumn.LINKS: "Liens",
     EntityColumn.NOTE: "Note",
+    EntityColumn.VERDICT: "Verdict",
 }
 SORT_CHOICES = (
     ("Score", EntityColumn.SCORE, Qt.SortOrder.DescendingOrder),
@@ -77,6 +83,9 @@ SORT_CHOICES = (
     ("Type", EntityColumn.KIND, Qt.SortOrder.AscendingOrder),
     ("État", EntityColumn.STATUS, Qt.SortOrder.AscendingOrder),
 )
+
+
+ANNOTATION_COLUMNS = (EntityColumn.NOTE, EntityColumn.VERDICT)
 
 
 def sort_value(row: EntityRow, column: EntityColumn) -> str | float:
@@ -89,9 +98,15 @@ def sort_value(row: EntityRow, column: EntityColumn) -> str | float:
     if column is EntityColumn.SCORE:
         rank, score = row.sort_score
         return rank * 10 + score
+    if column in ANNOTATION_COLUMNS:
+        return annotation_sort_value(row, column)
+    return float(row.links)
+
+
+def annotation_sort_value(row: EntityRow, column: EntityColumn) -> float:
     if column is EntityColumn.NOTE:
         return float(row.noted)
-    return float(row.links)
+    return -1.0 if row.verdict is None else float(list(Verdict).index(row.verdict))
 
 
 def shown_text(row: EntityRow, column: EntityColumn) -> str:
@@ -102,6 +117,7 @@ def shown_text(row: EntityRow, column: EntityColumn) -> str:
         EntityColumn.SCORE: row.shown_score,
         EntityColumn.LINKS: str(row.links),
         EntityColumn.NOTE: NOTED_TEXT if row.noted else "",
+        EntityColumn.VERDICT: "" if row.verdict is None else row.verdict.label,
     }
     return texts[column]
 
@@ -115,9 +131,15 @@ def spoken_text(row: EntityRow, column: EntityColumn) -> str:
         return row.spoken_score
     if column is EntityColumn.LINKS:
         return f"{row.links} lien{'s' if row.links > 1 else ''}"
+    if column in ANNOTATION_COLUMNS:
+        return annotation_spoken_text(row, column)
+    return shown_text(row, column)
+
+
+def annotation_spoken_text(row: EntityRow, column: EntityColumn) -> str:
     if column is EntityColumn.NOTE:
         return NOTED_SPOKEN_TEXT if row.noted else NOT_NOTED_SPOKEN_TEXT
-    return shown_text(row, column)
+    return NO_VERDICT_SPOKEN_TEXT if row.verdict is None else f"verdict {row.verdict.label}"
 
 
 def tone_of(row: EntityRow, column: EntityColumn) -> str | None:
@@ -193,6 +215,7 @@ class EntityFilter(QSortFilterProxyModel):
         self.flagged_only = False
         self.searched = ""
         self.tag: str | None = None
+        self.verdict: Verdict | None = None
         self.setSourceModel(model)
         self.setSortRole(SORT_ROLE)
 
@@ -204,6 +227,9 @@ class EntityFilter(QSortFilterProxyModel):
 
     def show_tag(self, tag: str | None) -> None:
         self.refilter(lambda: setattr(self, "tag", tag))
+
+    def show_verdict(self, verdict: Verdict | None) -> None:
+        self.refilter(lambda: setattr(self, "verdict", verdict))
 
     def refilter(self, change: Callable[[], None]) -> None:
         if hasattr(self, "beginFilterChange"):
@@ -221,12 +247,15 @@ class EntityFilter(QSortFilterProxyModel):
             return False
         if self.tag is not None and self.tag not in row.tags:
             return False
+        if self.verdict is not None and row.verdict is not self.verdict:
+            return False
         return self.searched in row.label.casefold()
 
 
 class EntitiesTab(QWidget):
     entity_chosen = Signal(str)
     tag_chosen = Signal(object)
+    verdict_chosen = Signal(object)
 
     def __init__(self, colours_provider: ColoursProvider, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -248,7 +277,7 @@ class EntitiesTab(QWidget):
         for title, _column, _order in SORT_CHOICES:
             self.sort_box.addItem(title)
         self.sort_box.currentIndexChanged.connect(self.sort_by_choice)
-        self.tag_box = self.create_tag_box()
+        self.tag_box, self.verdict_box = self.create_tag_box(), self.create_verdict_box()
         self.summary_label = QLabel(self)
         self.summary_label.setProperty("tone", "muted")
         self.table = QTableView(self)
@@ -268,6 +297,7 @@ class EntitiesTab(QWidget):
         options.setSpacing(8)
         options.addWidget(self.flagged_box)
         options.addWidget(self.tag_box)
+        options.addWidget(self.verdict_box)
         options.addStretch(1)
         options.addWidget(self.summary_label)
         layout = QVBoxLayout(self)
@@ -276,7 +306,14 @@ class EntitiesTab(QWidget):
         layout.addLayout(tools)
         layout.addLayout(options)
         layout.addWidget(self.table, 1)
-        tab_order = (self.filter_field, self.sort_box, self.flagged_box, self.tag_box, self.table)
+        tab_order = (
+            self.filter_field,
+            self.sort_box,
+            self.flagged_box,
+            self.tag_box,
+            self.verdict_box,
+            self.table,
+        )
         for first, second in pairwise(tab_order):
             self.setTabOrder(first, second)
         self.show_tags((), None)
@@ -286,6 +323,30 @@ class EntitiesTab(QWidget):
         tag_box.setAccessibleName(TAG_ACCESSIBLE_NAME)
         tag_box.currentIndexChanged.connect(self.follow_tag_box)
         return tag_box
+
+    def create_verdict_box(self) -> QComboBox:
+        verdict_box = QComboBox(self)
+        verdict_box.setAccessibleName(VERDICT_ACCESSIBLE_NAME)
+        verdict_box.addItem(EVERY_VERDICT_TEXT, "")
+        for verdict in Verdict:
+            verdict_box.addItem(verdict.label, verdict.value)
+        verdict_box.currentIndexChanged.connect(self.follow_verdict_box)
+        return verdict_box
+
+    def chosen_verdict(self) -> Verdict | None:
+        value = str(self.verdict_box.currentData())
+        return Verdict(value) if value else None
+
+    def choose_verdict(self, verdict: Verdict | None) -> None:
+        blocked = self.verdict_box.blockSignals(True)
+        value = "" if verdict is None else verdict.value
+        self.verdict_box.setCurrentIndex(self.verdict_box.findData(value))
+        self.verdict_box.blockSignals(blocked)
+        self.proxy.show_verdict(verdict)
+
+    def follow_verdict_box(self) -> None:
+        self.proxy.show_verdict(self.chosen_verdict())
+        self.verdict_chosen.emit(self.chosen_verdict())
 
     def show_tags(self, tags: tuple[Tag, ...], chosen: str | None) -> None:
         blocked = self.tag_box.blockSignals(True)

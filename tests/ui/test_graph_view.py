@@ -253,6 +253,11 @@ def test_the_legend_names_each_kind(qtbot: QtBot, icon_factory: IconFactory) -> 
         "moyen",
         "faible",
         "Note",
+        "Verdict :",
+        "à vérifier",
+        "suspect",
+        "écarté",
+        "confirmé",
     ]
     assert legend.accessibleDescription() == ", ".join(legend.texts)
     legend.show()
