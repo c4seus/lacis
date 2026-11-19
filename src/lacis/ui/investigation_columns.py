@@ -315,6 +315,7 @@ class DetailsPanel(QFrame):
 
     def show_overview(self, overview: InvestigationOverview) -> None:
         self.entities_tab.show_rows(overview.entity_rows)
+        self.entity_sheet.show_known_tags(overview.tags)
         self.journal_tab.show_rows(overview.log_rows)
         self.tabs.setTabText(
             self.entities_index, counted_title(ENTITIES_TAB_TITLE, len(overview.entity_rows))

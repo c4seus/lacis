@@ -294,7 +294,7 @@ def test_medium_and_low_signals_have_their_own_colour(
         assert sheet.signal_cards[0].property("severity") == severity.value
 
 
-def test_an_entity_without_signals_links_or_sources_shows_its_head_and_its_notes(
+def test_an_entity_without_signals_links_or_sources_shows_its_head_notes_and_tags(
     sheet: EntitySheet, builder: InvestigationBuilder
 ) -> None:
     lonely = builder.address("1 PLACE DU CAPITOLE 31000 TOULOUSE")
@@ -302,7 +302,7 @@ def test_an_entity_without_signals_links_or_sources_shows_its_head_and_its_notes
     details = entity_details(builder.connection, lonely, None)
     assert details is not None
     sheet.show_details(details)
-    assert [title.title for title in sheet.section_titles] == ["Notes"]
+    assert [title.title for title in sheet.section_titles] == ["Notes", "Tags"]
     assert not sheet.facts.isVisible()
 
 
