@@ -252,7 +252,8 @@ Version numbers follow the [versioning policy](docs/versioning.md). The version 
 1. Check that every issue of the milestone is closed or moved to a later milestone.
 2. Prepare the release on `develop`, in a pull request titled `Prepare the release X.Y.Z`:
    - in `CHANGELOG.md`, rename the `[Unreleased]` section to `[X.Y.Z] - YYYY-MM-DD`, with the day of the release;
-   - in `packaging/linux/io.github.c4seus.lacis.metainfo.xml`, make the first `<release>` the version `X.Y.Z`, with the same date and `type="stable"`.
+   - in `packaging/linux/io.github.c4seus.lacis.metainfo.xml`, make the first `<release>` the version `X.Y.Z`, with the same date and `type="stable"`;
+   - in `site/src/content/docs/feuille-de-route.md`, remove the section of `X.Y.Z` and update the sections of the next versions from their milestones. A test fails while the roadmap still lists a released version.
 3. Open a pull request from `develop` to `main`, titled `Release X.Y.Z`.
 4. Merge it with **Create a merge commit**. Never rebase or squash a release: `main` must keep the commits of `develop` as they are.
 5. Tag the merge commit and push the tag:

@@ -234,3 +234,7 @@ def test_the_roadmap_is_linked_from_the_home_page_and_the_contribution_page() ->
     assert ROADMAP_LINK in CONTRIBUTING_PAGE.read_text(encoding="utf-8")
     assert '"feuille-de-route"' in site_configuration()
 
+
+def test_the_release_checklist_updates_the_roadmap() -> None:
+    contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    assert "site/src/content/docs/feuille-de-route.md" in contributing
