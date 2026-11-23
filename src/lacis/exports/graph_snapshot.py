@@ -9,6 +9,7 @@ from lacis.signals.signal import Signal
 from lacis.signals.store import SignalReport
 from lacis.storage.entities import Entity, EntityKind, Link, LinkKind
 from lacis.storage.graph_store import GraphStore
+from lacis.storage.responses import ResponseSummary
 from lacis.storage.tags import TagStore
 from lacis.storage.verdicts import VerdictStore
 
@@ -43,6 +44,7 @@ class SnapshotNode:
     closed: bool
     signals: tuple[Signal, ...]
     first_collected_at: str
+    sources: tuple[ResponseSummary, ...] = ()
 
     @property
     def kind_label(self) -> str:
@@ -66,6 +68,11 @@ class SnapshotEdge:
     target: str
     kind: LinkKind
     label: str
+    sources: tuple[ResponseSummary, ...] = ()
+
+    @property
+    def decided(self) -> bool:
+        return self.kind is LinkKind.SAME_PERSON
 
 
 @dataclass(frozen=True)
@@ -108,10 +115,18 @@ def graph_snapshot(
                 is_closed(entity),
                 tuple(signal for signal in signals if signal.subject == entity.identifier),
                 entity.first_collected_at.isoformat(),
+                tuple(graph_store.sources_of_entity(entity.identifier)),
             )
         )
     edges = [
-        SnapshotEdge(link.identifier, link.source, link.target, link.kind, link_label(link))
+        SnapshotEdge(
+            link.identifier,
+            link.source,
+            link.target,
+            link.kind,
+            link_label(link),
+            tuple(graph_store.sources_of_link(link.identifier)),
+        )
         for link in graph_store.links()
         if scope.keeps(link.source, link.target)
     ]

@@ -3,9 +3,12 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 from lacis import __version__
+from lacis.collectors.http_client import SOURCE_NAMES
 from lacis.design.tokens import LIGHT_THEME
+from lacis.details import DECIDED_LINK_TEXT
 from lacis.exports.graph_snapshot import GraphSnapshot, SnapshotEdge, SnapshotNode
 from lacis.storage.investigations import Investigation
+from lacis.storage.responses import ResponseSummary
 
 GEXF_NAMESPACE = "http://gexf.net/1.3"
 VIZ_NAMESPACE = "http://gexf.net/1.3/viz"
@@ -25,6 +28,12 @@ NODE_ATTRIBUTES = (
     ("severity", "Gravité", "string"),
     ("score", "Score", "double"),
     ("first_collected_at", "Première collecte", "string"),
+)
+PROVENANCE_ATTRIBUTES = (
+    ("sources", "Sources", "string"),
+    ("collected_at", "Dates de collecte", "string"),
+    ("response_urls", "Adresses des réponses", "string"),
+    ("fingerprints", "Empreintes SHA-256", "string"),
 )
 EDGE_ATTRIBUTES = (
     ("kind", "Type de lien", "string"),
@@ -53,11 +62,24 @@ def node_values(node: SnapshotNode) -> dict[str, str]:
         "severity": node.severity,
         "score": f"{node.score:.2f}",
         "first_collected_at": node.first_collected_at,
+        **provenance_values(node.sources),
     }
 
 
 def edge_values(edge: SnapshotEdge) -> dict[str, str]:
-    return {"kind": edge.kind.value, "identifier": edge.identifier}
+    values = {"kind": edge.kind.value, "identifier": edge.identifier}
+    if edge.decided:
+        return {**values, "sources": DECIDED_LINK_TEXT}
+    return {**values, **provenance_values(edge.sources)}
+
+
+def provenance_values(sources: tuple[ResponseSummary, ...]) -> dict[str, str]:
+    return {
+        "sources": LIST_SEPARATOR.join(SOURCE_NAMES[source.source] for source in sources),
+        "collected_at": LIST_SEPARATOR.join(source.collected_at.isoformat() for source in sources),
+        "response_urls": LIST_SEPARATOR.join(source.url for source in sources),
+        "fingerprints": LIST_SEPARATOR.join(source.fingerprint for source in sources),
+    }
 
 
 def declare(
@@ -96,8 +118,8 @@ def gexf_document(
     graph = ElementTree.SubElement(
         root, tag("graph"), {"defaultedgetype": "directed", "mode": "static"}
     )
-    declare(graph, "node", NODE_ATTRIBUTES)
-    declare(graph, "edge", EDGE_ATTRIBUTES)
+    declare(graph, "node", NODE_ATTRIBUTES + PROVENANCE_ATTRIBUTES)
+    declare(graph, "edge", EDGE_ATTRIBUTES + PROVENANCE_ATTRIBUTES)
     colours = LIGHT_THEME.colours
     nodes = ElementTree.SubElement(graph, tag("nodes"))
     for node in snapshot.nodes:
