@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -12,6 +12,7 @@ from lacis.exports.gexf import GEXF_NAMESPACE, VIZ_NAMESPACE, write_gexf
 from lacis.exports.graph_snapshot import graph_snapshot
 from lacis.exports.json_export import ExportScope
 from lacis.storage.investigations import Investigation
+from lacis.storage.notices import NoticeFamily
 
 EXPORTED_AT = datetime(2026, 11, 23, 10, 0, tzinfo=UTC)
 INVESTIGATION = Investigation(
@@ -21,6 +22,7 @@ INVESTIGATION = Investigation(
     Path("faux-plombiers-31"),
 )
 NAMESPACES = {"gexf": GEXF_NAMESPACE, "viz": VIZ_NAMESPACE}
+FINGERPRINT = "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
 
 
 @pytest.fixture
@@ -110,6 +112,10 @@ def test_every_entity_is_a_node_with_its_kind_signals_score_and_colour(
         "severity": "Forte",
         "score": "0.85",
         "first_collected_at": "2026-11-02T23:11:00+00:00",
+        "sources": "Recherche d'entreprises",
+        "collected_at": "2026-11-02T23:11:00+00:00",
+        "response_urls": "https://company_register.example",
+        "fingerprints": FINGERPRINT,
     }
     colour = services.find("viz:color", NAMESPACES)
     assert colour is not None
@@ -139,3 +145,48 @@ def test_the_filtered_view_writes_only_the_entities_shown(
     root = written(builder, scenario, tmp_path / "graphe.gexf", shown)
     assert {node.attrib["id"] for node in root.iterfind(".//gexf:node", NAMESPACES)} == shown
     assert len(list(root.iterfind(".//gexf:edge", NAMESPACES))) == 1
+
+
+def test_every_node_and_edge_lists_the_responses_it_comes_from(
+    builder: InvestigationBuilder, scenario: PlumbersScenario, tmp_path: Path
+) -> None:
+    root = written(builder, scenario, tmp_path / "graphe.gexf")
+    elements = [
+        *root.iterfind(".//gexf:node", NAMESPACES),
+        *root.iterfind(".//gexf:edge", NAMESPACES),
+    ]
+    decided = [element for element in elements if values_of(element).get("kind") == "same_person"]
+    assert [values_of(element)["sources"] for element in decided] == ["Décision de l'enquêteur"]
+    for element in elements:
+        if element in decided:
+            continue
+        values = values_of(element)
+        assert values["sources"] == "Recherche d'entreprises"
+        assert values["response_urls"] == "https://company_register.example"
+        assert values["fingerprints"] == FINGERPRINT
+        assert values["collected_at"] == "2026-11-02T23:11:00+00:00"
+    declared = {
+        (attributes.attrib["class"], attribute.attrib["id"])
+        for attributes in root.iterfind("gexf:graph/gexf:attributes", NAMESPACES)
+        for attribute in attributes.iterfind("gexf:attribute", NAMESPACES)
+    }
+    for kind in ("node", "edge"):
+        for identifier in ("sources", "collected_at", "response_urls", "fingerprints"):
+            assert (kind, identifier) in declared
+
+
+def test_an_entity_with_several_responses_lists_them_in_the_same_order(
+    builder: InvestigationBuilder, scenario: PlumbersScenario, tmp_path: Path
+) -> None:
+    builder.notice(scenario.dupont_services, NoticeFamily.INSOLVENCY, date(2022, 11, 3))
+    root = written(builder, scenario, tmp_path / "graphe.gexf")
+    services = next(
+        node
+        for node in root.iterfind(".//gexf:node", NAMESPACES)
+        if node.attrib["id"] == scenario.dupont_services
+    )
+    values = values_of(services)
+    sources = values["sources"].split(" ; ")
+    assert len(sources) == len(values["response_urls"].split(" ; "))
+    assert len(sources) == len(values["fingerprints"].split(" ; "))
+    assert len(sources) == len(values["collected_at"].split(" ; "))
