@@ -4,16 +4,22 @@ import pytest
 from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
-from lacis.exports.formats import JSON_FORMAT, MARKDOWN_REPORT_FORMAT
+from lacis.exports.formats import JSON_FORMAT, MARKDOWN_REPORT_FORMAT, OBSIDIAN_FORMAT
 from lacis.ui.export_dialog import (
+    FILE_GIVEN_TEXT,
     FOLDER_GIVEN_TEXT,
     MISSING_FOLDER_TEXT,
     MISSING_PATH_TEXT,
+    MISSING_VAULT_TEXT,
+    NEW_FOLDER_TEXT,
     NO_FILTER_TEXT,
+    NOT_EMPTY_TEXT,
     REPLACED_TEXT,
     ExportDialog,
     ExportOffer,
+    FolderChooser,
     PathChooser,
+    existing_folder,
     save_file_name,
 )
 
@@ -24,13 +30,23 @@ def refusing_chooser(_parent: QWidget, _title: str, _path: str, _filters: str) -
     return ""
 
 
+def refusing_folder_chooser(_parent: QWidget, _title: str, _path: str) -> str:
+    return ""
+
+
+def choose_vault(dialog: ExportDialog) -> None:
+    dialog.format_box.setCurrentIndex(dialog.format_box.findData("obsidian"))
+
+
 def open_dialog(
     qtbot: QtBot,
     folder: Path,
     shown: int | None = None,
     choose_path: PathChooser = refusing_chooser,
+    choose_folder: FolderChooser = refusing_folder_chooser,
 ) -> ExportDialog:
-    dialog = ExportDialog(ExportOffer(NAME, folder, 9, shown, JSON_FORMAT), None, choose_path)
+    offer = ExportOffer(NAME, folder, 9, shown, JSON_FORMAT)
+    dialog = ExportDialog(offer, None, choose_path, choose_folder)
     qtbot.addWidget(dialog)
     return dialog
 
@@ -152,11 +168,102 @@ def test_choosing_another_format_changes_the_extension_of_the_destination(
     qtbot: QtBot, tmp_path: Path
 ) -> None:
     dialog = open_dialog(qtbot, tmp_path)
-    assert [dialog.format_box.itemData(index) for index in range(2)] == [
+    assert [dialog.format_box.itemData(index) for index in range(3)] == [
         "markdown_report",
         "json",
+        "obsidian",
     ]
     dialog.format_box.setCurrentIndex(dialog.format_box.findData("markdown_report"))
     request = dialog.request()
     assert request.export_format is MARKDOWN_REPORT_FORMAT
     assert request.destination == tmp_path / f"{NAME}.md"
+
+
+def test_the_obsidian_vault_is_a_folder_named_after_the_investigation(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+    dialog = open_dialog(qtbot, tmp_path)
+    choose_vault(dialog)
+    assert dialog.destination() == tmp_path / NAME
+    assert dialog.choose_button.accessibleName() == "Choisir le dossier de destination"
+    assert dialog.problem_label.text() == NEW_FOLDER_TEXT
+    assert dialog.export_button.isEnabled()
+    request = dialog.request()
+    assert request.export_format is OBSIDIAN_FORMAT
+    assert request.destination == tmp_path / NAME
+    dialog.format_box.setCurrentIndex(dialog.format_box.findData("json"))
+    assert dialog.destination() == tmp_path / f"{NAME}.json"
+    assert dialog.choose_button.accessibleName() == "Choisir le fichier de destination"
+
+
+def test_a_name_with_dots_keeps_them_when_the_format_changes(qtbot: QtBot, tmp_path: Path) -> None:
+    dialog = open_dialog(qtbot, tmp_path)
+    dialog.path_field.setText(str(tmp_path / "enquête.v2.json"))
+    choose_vault(dialog)
+    assert dialog.destination() == tmp_path / "enquête.v2"
+    dialog.format_box.setCurrentIndex(dialog.format_box.findData("markdown_report"))
+    assert dialog.destination() == tmp_path / "enquête.v2.md"
+
+
+def test_an_empty_folder_can_receive_the_vault(qtbot: QtBot, tmp_path: Path) -> None:
+    (tmp_path / NAME).mkdir()
+    dialog = open_dialog(qtbot, tmp_path)
+    choose_vault(dialog)
+    assert dialog.problem_label.isHidden()
+    assert dialog.export_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    ("prepare", "problem"),
+    [
+        ("non-empty", NOT_EMPTY_TEXT),
+        ("file", FILE_GIVEN_TEXT),
+        ("missing parent", MISSING_FOLDER_TEXT),
+        ("empty path", MISSING_VAULT_TEXT),
+    ],
+)
+def test_a_vault_destination_that_cannot_be_used_blocks_the_export(
+    qtbot: QtBot, tmp_path: Path, prepare: str, problem: str
+) -> None:
+    dialog = open_dialog(qtbot, tmp_path)
+    choose_vault(dialog)
+    vault = tmp_path / NAME
+    if prepare == "non-empty":
+        vault.mkdir()
+        (vault / "note.md").write_text("", encoding="utf-8")
+        dialog.check_destination()
+    elif prepare == "file":
+        vault.write_text("", encoding="utf-8")
+        dialog.check_destination()
+    elif prepare == "missing parent":
+        dialog.path_field.setText(str(tmp_path / "absent" / NAME))
+    else:
+        dialog.path_field.setText(" ")
+    assert dialog.problem_label.text() == problem
+    assert not dialog.export_button.isEnabled()
+
+
+def test_the_vault_folder_is_chosen_in_a_folder_dialog(qtbot: QtBot, tmp_path: Path) -> None:
+    asked = []
+
+    def chooser(parent: QWidget, title: str, path: str) -> str:
+        asked.append((parent, title, path))
+        return str(tmp_path / "coffre")
+
+    dialog = open_dialog(qtbot, tmp_path, choose_folder=chooser)
+    choose_vault(dialog)
+    dialog.choose_button.click()
+    assert asked == [(dialog, "Exporter l'enquête", str(tmp_path / NAME))]
+    assert dialog.destination() == tmp_path / "coffre"
+
+
+def test_the_folder_dialog_returns_the_chosen_folder(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "lacis.ui.export_dialog.QFileDialog.getExistingDirectory",
+        lambda *_arguments: str(tmp_path),
+    )
+    parent = QWidget()
+    qtbot.addWidget(parent)
+    assert existing_folder(parent, "Exporter l'enquête", str(tmp_path)) == str(tmp_path)

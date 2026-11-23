@@ -8,6 +8,7 @@ from lacis.exports.formats import (
     EXPORT_FORMATS,
     JSON_FORMAT,
     MARKDOWN_REPORT_FORMAT,
+    OBSIDIAN_FORMAT,
     export_format,
 )
 from lacis.exports.json_export import FORMAT_NAME, ExportScope
@@ -17,12 +18,19 @@ EXPORTED_AT = datetime(2026, 11, 19, 10, 0, tzinfo=UTC)
 
 
 def test_every_format_has_a_key_a_menu_entry_and_an_extension() -> None:
-    assert [candidate.key for candidate in EXPORT_FORMATS] == ["markdown_report", "json"]
+    assert [candidate.key for candidate in EXPORT_FORMATS] == [
+        "markdown_report",
+        "json",
+        "obsidian",
+    ]
     assert [candidate.menu_text for candidate in EXPORT_FORMATS] == [
         "&Rapport Markdown…",
         "&JSON…",
+        "&Obsidian…",
     ]
-    assert [candidate.extension for candidate in EXPORT_FORMATS] == [".md", ".json"]
+    assert [candidate.extension for candidate in EXPORT_FORMATS] == [".md", ".json", ""]
+    assert [candidate.folder for candidate in EXPORT_FORMATS] == [False, False, True]
+    assert export_format("obsidian") is OBSIDIAN_FORMAT
     assert export_format("json") is JSON_FORMAT
     assert export_format("markdown_report") is MARKDOWN_REPORT_FORMAT
 
@@ -55,3 +63,15 @@ def test_the_markdown_report_format_writes_the_report_of_the_investigation(
     assert text.startswith("# Rapport d'enquête : faux-plombiers-31\n")
     assert "**Question :** Qui se cache derrière les plombiers ?" in text
     assert "Il couvre toute l'enquête : 9 entités" in text
+
+
+def test_the_obsidian_format_writes_a_vault_folder(tmp_path: Path) -> None:
+    library = InvestigationLibrary(tmp_path / "investigations")
+    library.create("faux-plombiers-31", "Qui se cache derrière les plombiers ?")
+    destination = tmp_path / "coffre"
+    with library.open("faux-plombiers-31") as opened:
+        plumbers_scenario(InvestigationBuilder(opened.connection))
+        OBSIDIAN_FORMAT.write(opened, None, ExportScope(), destination, EXPORTED_AT)
+    index = destination / "Enquête faux-plombiers-31.md"
+    assert "**Question :** Qui se cache derrière les plombiers ?" in index.read_text("utf-8")
+    assert (destination / "Entreprises" / "ACME PLOMBERIE.md").is_file()

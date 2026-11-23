@@ -349,8 +349,9 @@ def test_the_file_menu_exports_to_every_format(
     assert [action.text() for action in menu_bar.export_menu.actions()] == [
         "&Rapport Markdown…",
         "&JSON…",
+        "&Obsidian…",
     ]
-    assert list(menu_bar.export_actions) == ["markdown_report", "json"]
+    assert list(menu_bar.export_actions) == ["markdown_report", "json", "obsidian"]
     assert not export_action.isEnabled()
     assert not menu_bar.export_actions["json"].isEnabled()
     menu_bar.show_investigation_actions(True)

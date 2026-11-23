@@ -12,7 +12,7 @@ from graph_scenario import PlumbersScenario, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.collectors.environment import demo_collection_environment
 from lacis.design.theme_controller import ThemeController
-from lacis.exports.formats import JSON_FORMAT, MARKDOWN_REPORT_FORMAT
+from lacis.exports.formats import JSON_FORMAT, MARKDOWN_REPORT_FORMAT, OBSIDIAN_FORMAT
 from lacis.exports.json_export import FILTERED_VIEW, WHOLE_INVESTIGATION
 from lacis.graph.filters import GraphFilter
 from lacis.storage.entities import EntityKind
@@ -217,5 +217,21 @@ def test_the_report_is_exported_from_the_file_menu(
     assert "Qui se cache derrière les plombiers ?" in text
     assert last_notification(window) == (
         "Enquête exportée dans rapport.md.",
+        NotificationKind.SUCCESS,
+    )
+
+
+def test_the_obsidian_vault_is_exported_from_the_file_menu(
+    window: MainWindow, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    destination = tmp_path / "coffre"
+    request = ExportRequest(OBSIDIAN_FORMAT, False, destination)
+    answers = answer_with(monkeypatch, window, request)
+    window.main_menu_bar.export_actions["obsidian"].trigger()
+    assert answers.offers[0].chosen_format is OBSIDIAN_FORMAT
+    assert (destination / f"Enquête {INVESTIGATION_NAME}.md").is_file()
+    assert len(list(destination.rglob("*.md"))) == 10
+    assert last_notification(window) == (
+        "Enquête exportée dans coffre.",
         NotificationKind.SUCCESS,
     )

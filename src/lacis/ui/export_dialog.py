@@ -26,24 +26,42 @@ FORMAT_LABEL = "&Format"
 SCOPE_LABEL = "Contenu"
 DESTINATION_LABEL = "&Destination"
 CHOOSE_TEXT = "C&hoisir…"
-CHOOSE_ACCESSIBLE_NAME = "Choisir le fichier de destination"
+CHOOSE_FILE_ACCESSIBLE_NAME = "Choisir le fichier de destination"
+CHOOSE_FOLDER_ACCESSIBLE_NAME = "Choisir le dossier de destination"
 EXPORT_TEXT = "&Exporter"
 CANCEL_TEXT = "Annuler"
 NO_FILTER_TEXT = "Aucun filtre n'est actif dans le graphe."
 MISSING_FOLDER_TEXT = "Ce dossier n'existe pas."
 FOLDER_GIVEN_TEXT = "Ce chemin désigne un dossier : ajoutez un nom de fichier."
 MISSING_PATH_TEXT = "Choisissez un fichier de destination."
+MISSING_VAULT_TEXT = "Choisissez un dossier de destination."
+FILE_GIVEN_TEXT = "Ce chemin désigne un fichier : choisissez un dossier."
+NOT_EMPTY_TEXT = "Ce dossier n'est pas vide : choisissez un nouveau dossier ou un dossier vide."
+NEW_FOLDER_TEXT = "Ce dossier sera créé."
 REPLACED_TEXT = "Ce fichier existe déjà : il sera remplacé."
 WHOLE_PREFIX = "&Toute l'enquête, "
 FILTERED_PREFIX = "La &vue filtrée, "
 PATH_WIDTH_IN_CHARACTERS = 48
 
 type PathChooser = Callable[[QWidget, str, str, str], str]
+type FolderChooser = Callable[[QWidget, str, str], str]
 
 
 def save_file_name(parent: QWidget, title: str, path: str, filters: str) -> str:
     chosen, _filter = QFileDialog.getSaveFileName(parent, title, path, filters)
     return chosen
+
+
+def existing_folder(parent: QWidget, title: str, path: str) -> str:
+    return QFileDialog.getExistingDirectory(parent, title, path)
+
+
+def without_extension(path: Path, extension: str) -> Path:
+    if not extension:
+        return path
+    if path.name.endswith(extension):
+        return path.with_name(path.name[: -len(extension)])
+    return path.with_suffix("")
 
 
 def entities_text(count: int) -> str:
@@ -72,15 +90,18 @@ class ExportDialog(QDialog):
         offer: ExportOffer,
         parent: QWidget | None = None,
         choose_path: PathChooser = save_file_name,
+        choose_folder: FolderChooser = existing_folder,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(WINDOW_TITLE)
         self.choose_path = choose_path
+        self.choose_folder = choose_folder
         total, shown, chosen_format = offer.total, offer.shown, offer.chosen_format
         self.format_box = QComboBox(self)
         for candidate in EXPORT_FORMATS:
             self.format_box.addItem(f"{candidate.label} : {candidate.description}", candidate.key)
         self.format_box.setCurrentIndex(self.format_box.findData(chosen_format.key))
+        self.current_format = chosen_format
         self.whole_button = QRadioButton(f"{WHOLE_PREFIX}{entities_text(total)}", self)
         self.filtered_button = QRadioButton(
             f"{FILTERED_PREFIX}{entities_text(shown if shown is not None else total)}", self
@@ -99,7 +120,7 @@ class ExportDialog(QDialog):
             self.fontMetrics().averageCharWidth() * PATH_WIDTH_IN_CHARACTERS
         )
         self.choose_button = QPushButton(CHOOSE_TEXT, self)
-        self.choose_button.setAccessibleName(CHOOSE_ACCESSIBLE_NAME)
+        self.choose_button.setAccessibleName(self.choose_accessible_name())
         self.choose_button.clicked.connect(self.choose)
         self.problem_label = QLabel(self)
         self.problem_label.setWordWrap(True)
@@ -150,16 +171,28 @@ class ExportDialog(QDialog):
             self.chosen_format(), self.filtered_button.isChecked(), self.destination()
         )
 
+    def choose_accessible_name(self) -> str:
+        if self.chosen_format().folder:
+            return CHOOSE_FOLDER_ACCESSIBLE_NAME
+        return CHOOSE_FILE_ACCESSIBLE_NAME
+
     def follow_format(self) -> None:
+        previous, chosen_format = self.current_format, self.chosen_format()
+        self.current_format = chosen_format
         destination = self.destination()
         if destination.name:
-            extension = self.chosen_format().extension
-            self.path_field.setText(str(destination.with_suffix(extension)))
+            base = without_extension(destination, previous.extension)
+            self.path_field.setText(str(base.with_name(f"{base.name}{chosen_format.extension}")))
+        self.choose_button.setAccessibleName(self.choose_accessible_name())
+        self.check_destination()
 
     def choose(self) -> None:
         chosen_format = self.chosen_format()
-        filters = f"{chosen_format.label} (*{chosen_format.extension})"
-        chosen = self.choose_path(self, WINDOW_TITLE, str(self.destination()), filters)
+        if chosen_format.folder:
+            chosen = self.choose_folder(self, WINDOW_TITLE, str(self.destination()))
+        else:
+            filters = f"{chosen_format.label} (*{chosen_format.extension})"
+            chosen = self.choose_path(self, WINDOW_TITLE, str(self.destination()), filters)
         if chosen:
             self.path_field.setText(chosen)
 
@@ -171,6 +204,8 @@ class ExportDialog(QDialog):
         self.export_button.setEnabled(not blocking)
 
     def destination_problem(self) -> tuple[str, bool]:
+        if self.chosen_format().folder:
+            return self.vault_problem()
         if not self.path_field.text().strip():
             return MISSING_PATH_TEXT, True
         destination = self.destination()
@@ -181,3 +216,17 @@ class ExportDialog(QDialog):
         if destination.exists():
             return REPLACED_TEXT, False
         return "", False
+
+    def vault_problem(self) -> tuple[str, bool]:
+        if not self.path_field.text().strip():
+            return MISSING_VAULT_TEXT, True
+        destination = self.destination()
+        if destination.is_dir():
+            if any(destination.iterdir()):
+                return NOT_EMPTY_TEXT, True
+            return "", False
+        if destination.exists():
+            return FILE_GIVEN_TEXT, True
+        if not destination.parent.is_dir():
+            return MISSING_FOLDER_TEXT, True
+        return NEW_FOLDER_TEXT, False
