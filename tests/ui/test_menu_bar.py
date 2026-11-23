@@ -352,6 +352,7 @@ def test_the_file_menu_exports_to_every_format(
         "&Obsidian…",
         "&Gephi…",
         "&Maltego…",
+        "Format &HTML…",
     ]
     assert list(menu_bar.export_actions) == [
         "markdown_report",
@@ -359,6 +360,7 @@ def test_the_file_menu_exports_to_every_format(
         "obsidian",
         "gexf",
         "maltego",
+        "html_graph",
     ]
     assert not export_action.isEnabled()
     assert not menu_bar.export_actions["json"].isEnabled()

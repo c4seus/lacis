@@ -5,6 +5,7 @@ from pathlib import Path
 
 from lacis.exports.gexf import write_gexf
 from lacis.exports.graph_snapshot import graph_snapshot
+from lacis.exports.html_graph import HtmlGraph, write_html_graph
 from lacis.exports.json_export import ExportScope, InvestigationExport, write_json
 from lacis.exports.maltego import write_maltego_csv
 from lacis.exports.markdown_report import markdown_text, write_markdown
@@ -70,6 +71,17 @@ def export_maltego(
     write_maltego_csv(graph_snapshot(opened.connection, report, scope), destination)
 
 
+def export_html_graph(
+    opened: OpenInvestigation,
+    report: SignalReport | None,
+    scope: ExportScope,
+    destination: Path,
+    exported_at: datetime,
+) -> None:
+    graph = HtmlGraph(opened.connection, report, scope)
+    write_html_graph(graph, opened.investigation, destination, exported_at)
+
+
 @dataclass(frozen=True)
 class ExportFormat:
     key: str
@@ -122,12 +134,21 @@ MALTEGO_FORMAT = ExportFormat(
     ".csv",
     export_maltego,
 )
+HTML_GRAPH_FORMAT = ExportFormat(
+    "html_graph",
+    "Graphe HTML",
+    "Format &HTML…",
+    "Une page autonome pour explorer le graphe sans Lacis, même hors ligne",
+    ".html",
+    export_html_graph,
+)
 EXPORT_FORMATS = (
     MARKDOWN_REPORT_FORMAT,
     JSON_FORMAT,
     OBSIDIAN_FORMAT,
     GEXF_FORMAT,
     MALTEGO_FORMAT,
+    HTML_GRAPH_FORMAT,
 )
 
 

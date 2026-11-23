@@ -14,6 +14,7 @@ from lacis.collectors.environment import demo_collection_environment
 from lacis.design.theme_controller import ThemeController
 from lacis.exports.formats import (
     GEXF_FORMAT,
+    HTML_GRAPH_FORMAT,
     JSON_FORMAT,
     MALTEGO_FORMAT,
     MARKDOWN_REPORT_FORMAT,
@@ -244,8 +245,8 @@ def test_the_obsidian_vault_is_exported_from_the_file_menu(
     )
 
 
-@pytest.mark.parametrize("export", [GEXF_FORMAT, MALTEGO_FORMAT])
-def test_the_graph_is_exported_for_gephi_and_maltego_from_the_file_menu(
+@pytest.mark.parametrize("export", [GEXF_FORMAT, MALTEGO_FORMAT, HTML_GRAPH_FORMAT])
+def test_the_graph_is_exported_for_other_tools_from_the_file_menu(
     window: MainWindow, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, export: ExportFormat
 ) -> None:
     file_name = f"graphe{export.extension}"

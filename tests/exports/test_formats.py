@@ -9,6 +9,7 @@ from investigation_builder import InvestigationBuilder
 from lacis.exports.formats import (
     EXPORT_FORMATS,
     GEXF_FORMAT,
+    HTML_GRAPH_FORMAT,
     JSON_FORMAT,
     MALTEGO_FORMAT,
     MARKDOWN_REPORT_FORMAT,
@@ -29,6 +30,7 @@ def test_every_format_has_a_key_a_menu_entry_and_an_extension() -> None:
         "obsidian",
         "gexf",
         "maltego",
+        "html_graph",
     ]
     assert [candidate.menu_text for candidate in EXPORT_FORMATS] == [
         "&Rapport Markdown…",
@@ -36,6 +38,7 @@ def test_every_format_has_a_key_a_menu_entry_and_an_extension() -> None:
         "&Obsidian…",
         "&Gephi…",
         "&Maltego…",
+        "Format &HTML…",
     ]
     assert [candidate.extension for candidate in EXPORT_FORMATS] == [
         ".md",
@@ -43,8 +46,16 @@ def test_every_format_has_a_key_a_menu_entry_and_an_extension() -> None:
         "",
         ".gexf",
         ".csv",
+        ".html",
     ]
-    assert [candidate.folder for candidate in EXPORT_FORMATS] == [False, False, True, False, False]
+    assert [candidate.folder for candidate in EXPORT_FORMATS] == [
+        False,
+        False,
+        True,
+        False,
+        False,
+        False,
+    ]
     assert export_format("obsidian") is OBSIDIAN_FORMAT
     assert export_format("json") is JSON_FORMAT
     assert export_format("markdown_report") is MARKDOWN_REPORT_FORMAT
@@ -97,6 +108,7 @@ def test_the_obsidian_format_writes_a_vault_folder(tmp_path: Path) -> None:
     [
         (GEXF_FORMAT, "graphe.gexf", "<title>faux-plombiers-31</title>"),
         (MALTEGO_FORMAT, "maltego.csv", "maltego.Company,maltego.Company,maltego.Person"),
+        (HTML_GRAPH_FORMAT, "graphe.html", "<title>Lacis : faux-plombiers-31</title>"),
     ],
 )
 def test_the_graph_formats_write_the_graph_of_the_investigation(
