@@ -107,7 +107,7 @@ def test_the_obsidian_format_writes_a_vault_folder(tmp_path: Path) -> None:
     ("export", "file_name", "expected"),
     [
         (GEXF_FORMAT, "graphe.gexf", "<title>faux-plombiers-31</title>"),
-        (MALTEGO_FORMAT, "maltego.csv", "maltego.Company,maltego.Company,maltego.Person"),
+        (MALTEGO_FORMAT, "maltego.csv", "maltego.Company,,maltego.Company,,maltego.Person"),
         (HTML_GRAPH_FORMAT, "graphe.html", "<title>Lacis : faux-plombiers-31</title>"),
     ],
 )
