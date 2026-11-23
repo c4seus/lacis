@@ -174,6 +174,7 @@ def test_choosing_another_format_changes_the_extension_of_the_destination(
         "obsidian",
         "gexf",
         "maltego",
+        "html_graph",
     ]
     dialog.format_box.setCurrentIndex(dialog.format_box.findData("markdown_report"))
     request = dialog.request()
