@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="generator" content="Lacis">
+<title>{{title}}</title>
+<style>{{themes}}{{style}}</style>
+</head>
+<body>
+<a class="skip" href="#entities">Aller à la liste des entités</a>
+<header class="banner">
+  <div class="heading">
+    <h1 id="investigation-name"></h1>
+    <p id="investigation-question" class="question"></p>
+    <p id="investigation-export" class="muted"></p>
+  </div>
+  <div class="tools">
+    <button type="button" id="theme-button" class="tool" aria-live="polite"></button>
+  </div>
+</header>
+<main class="workspace">
+  <nav class="entities" aria-labelledby="entities-heading">
+    <h2 id="entities-heading">Entités</h2>
+    <label class="search-label" for="search">Rechercher</label>
+    <input type="search" id="search" autocomplete="off" placeholder="Nom, SIREN, ville…">
+    <p id="search-status" class="muted" aria-live="polite"></p>
+    <ul id="entities" class="entity-list" tabindex="-1"></ul>
+  </nav>
+  <section class="graph" aria-labelledby="graph-heading">
+    <h2 id="graph-heading" class="visually-hidden">Graphe</h2>
+    <div class="graph-tools" role="toolbar" aria-label="Affichage du graphe">
+      <button type="button" class="tool" id="zoom-in" aria-label="Zoomer">+</button>
+      <button type="button" class="tool" id="zoom-out" aria-label="Dézoomer">−</button>
+      <button type="button" class="tool" id="zoom-fit">Tout afficher</button>
+    </div>
+    <svg id="graph" role="img" aria-labelledby="graph-heading" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head"></path>
+        </marker>
+      </defs>
+      <g id="viewport"><g id="edges"></g><g id="nodes"></g></g>
+    </svg>
+    <ul class="legend" aria-label="Légende">
+      <li><span class="swatch company"></span>Entreprise</li>
+      <li><span class="swatch person"></span>Personne</li>
+      <li><span class="swatch address"></span>Adresse</li>
+      <li><span class="swatch establishment"></span>Établissement</li>
+      <li><span class="swatch foreign-company"></span>Entreprise étrangère</li>
+    </ul>
+  </section>
+  <aside class="details" aria-labelledby="details-heading">
+    <h2 id="details-heading" tabindex="-1">Détails</h2>
+    <div id="details"><p class="muted">Choisissez une entité dans la liste ou dans le graphe.</p></div>
+  </aside>
+</main>
+<footer class="footer muted">Page produite par Lacis. Elle fonctionne hors ligne : elle ne charge rien depuis Internet.</footer>
+<script type="application/json" id="lacis-data">{{data}}</script>
+<script>{{script}}</script>
+</body>
+</html>
