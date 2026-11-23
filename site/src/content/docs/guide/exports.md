@@ -1,13 +1,13 @@
 ---
 title: Exporter une enquête
-description: "Exporter une enquête entière ou la vue filtrée du graphe en rapport Markdown, lisible sans Lacis, en fichier JSON qui garde la provenance de chaque fait, en coffre Obsidian de notes liées, ou en graphe pour Gephi et Maltego."
+description: "Exporter une enquête entière ou la vue filtrée du graphe en rapport Markdown, lisible sans Lacis, en fichier JSON qui garde la provenance de chaque fait, en coffre Obsidian de notes liées, en graphe pour Gephi et Maltego, ou en page HTML à explorer sans Lacis."
 ---
 
 Un export sort votre enquête de Lacis pour la transmettre, l'archiver ou la traiter avec d'autres outils. Il ne modifie jamais l'enquête : vous pouvez exporter aussi souvent que vous le voulez.
 
 ## Ouvrir la fenêtre d'export
 
-Ouvrez l'enquête, puis choisissez **Fichier › Exporter**, et le format voulu : **Rapport Markdown…**, **JSON…**, **Obsidian…**, **Gephi…** ou **Maltego…**. La fenêtre « Exporter l'enquête » s'ouvre, avec trois choix :
+Ouvrez l'enquête, puis choisissez **Fichier › Exporter**, et le format voulu : **Rapport Markdown…**, **JSON…**, **Obsidian…**, **Gephi…**, **Maltego…** ou **Format HTML…**. La fenêtre « Exporter l'enquête » s'ouvre, avec trois choix :
 
 - **Format** : le format du fichier, que vous pouvez encore changer ;
 - **Contenu** : toute l'enquête, ou seulement la vue filtrée ;
@@ -53,6 +53,16 @@ Le coffre Obsidian transforme l'enquête en notes liées, à relire et à compl�
 Chaque note d'entité garde ses faits en propriétés (identifiant, type, verdict, tags, attributs et dates de collecte), puis décrit l'entité : ses liens vers les autres notes, ses signaux, votre note, ses annonces BODACC et ses sources. Les liens sont des liens Obsidian entre notes : la vue graphique du coffre reprend donc le graphe de l'enquête. Lacis la règle pour colorer chaque type d'entité et masquer la note d'index, qui sinon serait reliée à tout.
 
 Deux entités qui portent le même nom, comme deux homonymes, reçoivent des notes distinctes : Lacis ajoute à leur nom un fait qui les distingue, comme le mois de naissance ou le SIRET.
+
+## Le graphe HTML
+
+L'export **Format HTML** écrit une page autonome : un seul fichier, à ouvrir dans n'importe quel navigateur, pour explorer le graphe sans installer Lacis. Envoyez-la à une personne qui doit relire l'enquête, ou gardez-la avec vos archives.
+
+La page reprend le graphe tel que Lacis le dessine, avec ses formes, ses couleurs et les signaux autour des entités. Vous pouvez la déplacer à la souris, zoomer avec la molette ou les boutons, et **Tout afficher** recentre le graphe. Choisissez une entité dans le graphe ou dans la liste, qui se filtre par nom, SIREN ou ville : ses détails s'affichent à côté, avec ses faits, son verdict, ses tags, ses liens, ses signaux, votre note, ses annonces BODACC et ses sources. Un lien mène à l'entité voisine.
+
+La page suit le thème clair ou sombre de votre système, et le bouton du thème permet d'en changer.
+
+Elle fonctionne hors ligne, depuis le disque : ses styles et son script sont inclus dans le fichier, et elle interdit au navigateur de charger quoi que ce soit depuis Internet. Seuls les liens vers les annonces et les réponses des sources ouvrent une page en ligne, quand vous cliquez dessus.
 
 ## Le graphe pour Gephi
 
