@@ -1,6 +1,7 @@
 import json
 import re
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -72,8 +73,10 @@ class NoteSubject:
     distinction: str
 
 
-def unique_names(subjects: list[NoteSubject], reserved: str) -> dict[str, str]:
-    bases = {subject.identifier: note_name(subject.label) for subject in subjects}
+def unique_names(
+    subjects: list[NoteSubject], reserved: str, clean: Callable[[str], str] = note_name
+) -> dict[str, str]:
+    bases = {subject.identifier: clean(subject.label) for subject in subjects}
     counts: dict[str, int] = {}
     for base in [reserved, *bases.values()]:
         counts[base.casefold()] = counts.get(base.casefold(), 0) + 1
@@ -82,7 +85,7 @@ def unique_names(subjects: list[NoteSubject], reserved: str) -> dict[str, str]:
     for subject in sorted(subjects, key=lambda subject: subject.identifier):
         candidate = bases[subject.identifier]
         if counts[candidate.casefold()] > 1:
-            candidate = note_name(f"{candidate} ({subject.distinction})")
+            candidate = clean(f"{candidate} ({subject.distinction})")
         unique, number = candidate, 2
         while unique.casefold() in taken:
             unique, number = f"{candidate} {number}", number + 1
