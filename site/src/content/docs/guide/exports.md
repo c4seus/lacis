@@ -71,19 +71,25 @@ L'export **Gephi** écrit le graphe au format GEXF, que [Gephi](https://gephi.or
 - son type, son identifiant et ses faits ;
 - son verdict et ses tags ;
 - si elle est fermée ;
-- le nombre de signaux qui la concernent, leurs titres, la plus forte gravité et le meilleur score.
+- le nombre de signaux qui la concernent, leurs titres, la plus forte gravité et le meilleur score ;
+- sa provenance : les sources des réponses dont elle vient, leurs dates de collecte, leurs adresses et leurs empreintes SHA-256.
 
-Chaque lien devient une arête orientée, nommée par son rôle : « Président », « Siège social », « Établissement de »… Dans Gephi, le **Laboratoire de données** liste tous ces attributs, et la fenêtre **Apparence** peut s'en servir pour colorer ou dimensionner les nœuds, par exemple selon leur score.
+Chaque lien devient une arête orientée, nommée par son rôle : « Président », « Siège social », « Établissement de »… Elle garde la même provenance que les nœuds. Un lien « Même personne » ne vient d'aucune réponse : sa source indique « Décision de l'enquêteur ».
+
+Dans Gephi, le **Laboratoire de données** liste tous ces attributs, dans l'onglet des nœuds comme dans celui des arêtes. Quand un fait vient de plusieurs réponses, chaque colonne de provenance les liste dans le même ordre, séparées par un point-virgule : la deuxième adresse correspond à la deuxième date et à la deuxième empreinte. La fenêtre **Apparence** peut aussi se servir des attributs pour colorer ou dimensionner les nœuds, par exemple selon leur score.
 
 ## Le tableau pour Maltego
 
-L'export **Maltego** écrit un fichier CSV à importer dans [Maltego](https://www.maltego.com/) avec **Import › Import a 3rd Party Table**. Chaque ligne décrit un lien : ses deux entités, chacune dans la colonne de son type, et son rôle dans la dernière colonne. Une entité sans lien a sa propre ligne.
+L'export **Maltego** écrit un fichier CSV à importer dans [Maltego](https://www.maltego.com/) avec **Import › Import a 3rd Party Table**. Chaque ligne décrit un lien : ses deux entités, chacune dans la colonne de son type et suivie d'une colonne avec les adresses des réponses dont elle vient, puis le rôle du lien et ses propres réponses dans les deux dernières colonnes. Une entité sans lien a sa propre ligne.
 
 Dans l'assistant d'import :
 
 1. Indiquez que la première ligne contient les types (**Row is Types**) : les entreprises deviennent des `maltego.Company`, les personnes des `maltego.Person`, les adresses et les établissements des `maltego.Location`.
-2. Choisissez la connexion **Meshed** : chaque ligne relie alors ses deux entités.
-3. Associez la dernière colonne aux liens pour garder leur rôle.
+2. Pour garder la provenance, sélectionnez chaque colonne d'entité avec la colonne sans type qui la suit, avant de l'associer à son type : la seconde devient une propriété de l'entité, qui garde ainsi les adresses de ses réponses.
+3. Choisissez la connexion **Meshed** : chaque ligne relie alors ses deux entités.
+4. Dans l'étape des liens, associez les deux dernières colonnes aux liens pour garder leur rôle et leurs réponses.
+
+L'import de Maltego ne garde que les adresses des réponses, sans leurs dates ni leurs empreintes : pour la provenance complète, utilisez l'export JSON, le coffre Obsidian ou le graphe HTML. Une colonne d'adresses que vous n'associez à aucune entité est simplement ignorée.
 
 Deux homonymes restent deux entités : Lacis ajoute à leur nom un fait qui les distingue, comme le mois de naissance, pour que Maltego ne les fusionne pas.
 

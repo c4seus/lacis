@@ -16,6 +16,7 @@ All notable changes to Lacis are listed here, newest first. The format follows [
 - File › Exporter › Gephi… writes the graph as a GEXF 1.3 file: each entity is a node coloured by kind, with its kind, identifier, facts, verdict, tags, closing, signal count and titles, highest severity and best score as attributes; each link is a directed edge named by its role.
 - File › Exporter › Maltego… writes the graph as a CSV table for the import wizard of Maltego: one row per link, each entity in a column of its Maltego type given by the first row, and the role of the link in the last column. Namesakes keep distinct names.
 - File › Exporter › Format HTML… writes a standalone page to explore the graph without Lacis: the graph as Lacis draws it, with pan and zoom, a searchable list of entities, and the details of the entity chosen, with its facts, verdict, tags, links, signals, note, BODACC notices and sources. The page follows the light or dark theme of the system, can switch theme, and works offline: its style and script are inlined and its content security policy forbids any request.
+- The GEXF and Maltego exports keep the provenance of the facts. In GEXF, every node and edge lists the sources, collection dates, response URLs and fingerprints of the responses it comes from; links decided by the investigator say so. In the Maltego CSV, every entity column is followed by the response URLs of the entity, and the last column gives the response URLs of the link.
 
 ## [0.3.0] - 2026-11-18
 
