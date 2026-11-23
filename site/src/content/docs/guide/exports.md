@@ -1,13 +1,13 @@
 ---
 title: Exporter une enquête
-description: "Exporter une enquête entière ou la vue filtrée du graphe en rapport Markdown, lisible sans Lacis, en fichier JSON qui garde la provenance de chaque fait, ou en coffre Obsidian de notes liées."
+description: "Exporter une enquête entière ou la vue filtrée du graphe en rapport Markdown, lisible sans Lacis, en fichier JSON qui garde la provenance de chaque fait, en coffre Obsidian de notes liées, ou en graphe pour Gephi et Maltego."
 ---
 
 Un export sort votre enquête de Lacis pour la transmettre, l'archiver ou la traiter avec d'autres outils. Il ne modifie jamais l'enquête : vous pouvez exporter aussi souvent que vous le voulez.
 
 ## Ouvrir la fenêtre d'export
 
-Ouvrez l'enquête, puis choisissez **Fichier › Exporter**, et le format voulu : **Rapport Markdown…**, **JSON…** ou **Obsidian…**. La fenêtre « Exporter l'enquête » s'ouvre, avec trois choix :
+Ouvrez l'enquête, puis choisissez **Fichier › Exporter**, et le format voulu : **Rapport Markdown…**, **JSON…**, **Obsidian…**, **Gephi…** ou **Maltego…**. La fenêtre « Exporter l'enquête » s'ouvre, avec trois choix :
 
 - **Format** : le format du fichier, que vous pouvez encore changer ;
 - **Contenu** : toute l'enquête, ou seulement la vue filtrée ;
@@ -53,6 +53,29 @@ Le coffre Obsidian transforme l'enquête en notes liées, à relire et à compl�
 Chaque note d'entité garde ses faits en propriétés (identifiant, type, verdict, tags, attributs et dates de collecte), puis décrit l'entité : ses liens vers les autres notes, ses signaux, votre note, ses annonces BODACC et ses sources. Les liens sont des liens Obsidian entre notes : la vue graphique du coffre reprend donc le graphe de l'enquête. Lacis la règle pour colorer chaque type d'entité et masquer la note d'index, qui sinon serait reliée à tout.
 
 Deux entités qui portent le même nom, comme deux homonymes, reçoivent des notes distinctes : Lacis ajoute à leur nom un fait qui les distingue, comme le mois de naissance ou le SIRET.
+
+## Le graphe pour Gephi
+
+L'export **Gephi** écrit le graphe au format GEXF, que [Gephi](https://gephi.org/) ouvre directement pour analyser un grand réseau : mesures de centralité, détection de communautés, mises en page avancées. Chaque entité devient un nœud, coloré comme dans Lacis, avec ses attributs :
+
+- son type, son identifiant et ses faits ;
+- son verdict et ses tags ;
+- si elle est fermée ;
+- le nombre de signaux qui la concernent, leurs titres, la plus forte gravité et le meilleur score.
+
+Chaque lien devient une arête orientée, nommée par son rôle : « Président », « Siège social », « Établissement de »… Dans Gephi, le **Laboratoire de données** liste tous ces attributs, et la fenêtre **Apparence** peut s'en servir pour colorer ou dimensionner les nœuds, par exemple selon leur score.
+
+## Le tableau pour Maltego
+
+L'export **Maltego** écrit un fichier CSV à importer dans [Maltego](https://www.maltego.com/) avec **Import › Import a 3rd Party Table**. Chaque ligne décrit un lien : ses deux entités, chacune dans la colonne de son type, et son rôle dans la dernière colonne. Une entité sans lien a sa propre ligne.
+
+Dans l'assistant d'import :
+
+1. Indiquez que la première ligne contient les types (**Row is Types**) : les entreprises deviennent des `maltego.Company`, les personnes des `maltego.Person`, les adresses et les établissements des `maltego.Location`.
+2. Choisissez la connexion **Meshed** : chaque ligne relie alors ses deux entités.
+3. Associez la dernière colonne aux liens pour garder leur rôle.
+
+Deux homonymes restent deux entités : Lacis ajoute à leur nom un fait qui les distingue, comme le mois de naissance, pour que Maltego ne les fusionne pas.
 
 ## Le format JSON
 
