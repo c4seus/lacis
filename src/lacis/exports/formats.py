@@ -3,7 +3,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from lacis.exports.gexf import write_gexf
+from lacis.exports.graph_snapshot import graph_snapshot
 from lacis.exports.json_export import ExportScope, InvestigationExport, write_json
+from lacis.exports.maltego import write_maltego_csv
 from lacis.exports.markdown_report import markdown_text, write_markdown
 from lacis.exports.obsidian_vault import ObsidianVault
 from lacis.exports.report import ReportBuilder
@@ -46,6 +49,27 @@ def export_obsidian_vault(
     vault.write(opened.investigation, destination, exported_at)
 
 
+def export_gexf(
+    opened: OpenInvestigation,
+    report: SignalReport | None,
+    scope: ExportScope,
+    destination: Path,
+    exported_at: datetime,
+) -> None:
+    snapshot = graph_snapshot(opened.connection, report, scope)
+    write_gexf(snapshot, opened.investigation, destination, exported_at)
+
+
+def export_maltego(
+    opened: OpenInvestigation,
+    report: SignalReport | None,
+    scope: ExportScope,
+    destination: Path,
+    exported_at: datetime,
+) -> None:
+    write_maltego_csv(graph_snapshot(opened.connection, report, scope), destination)
+
+
 @dataclass(frozen=True)
 class ExportFormat:
     key: str
@@ -82,7 +106,29 @@ OBSIDIAN_FORMAT = ExportFormat(
     export_obsidian_vault,
     folder=True,
 )
-EXPORT_FORMATS = (MARKDOWN_REPORT_FORMAT, JSON_FORMAT, OBSIDIAN_FORMAT)
+GEXF_FORMAT = ExportFormat(
+    "gexf",
+    "Gephi (GEXF)",
+    "&Gephi…",
+    "Le graphe pour Gephi, avec le type, les signaux et le score de chaque entité",
+    ".gexf",
+    export_gexf,
+)
+MALTEGO_FORMAT = ExportFormat(
+    "maltego",
+    "Maltego (CSV)",
+    "&Maltego…",
+    "Une ligne par lien, avec les types d'entités de Maltego, à importer comme tableau",
+    ".csv",
+    export_maltego,
+)
+EXPORT_FORMATS = (
+    MARKDOWN_REPORT_FORMAT,
+    JSON_FORMAT,
+    OBSIDIAN_FORMAT,
+    GEXF_FORMAT,
+    MALTEGO_FORMAT,
+)
 
 
 def export_format(key: str) -> ExportFormat:

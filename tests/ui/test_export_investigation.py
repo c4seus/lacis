@@ -12,7 +12,14 @@ from graph_scenario import PlumbersScenario, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.collectors.environment import demo_collection_environment
 from lacis.design.theme_controller import ThemeController
-from lacis.exports.formats import JSON_FORMAT, MARKDOWN_REPORT_FORMAT, OBSIDIAN_FORMAT
+from lacis.exports.formats import (
+    GEXF_FORMAT,
+    JSON_FORMAT,
+    MALTEGO_FORMAT,
+    MARKDOWN_REPORT_FORMAT,
+    OBSIDIAN_FORMAT,
+    ExportFormat,
+)
 from lacis.exports.json_export import FILTERED_VIEW, WHOLE_INVESTIGATION
 from lacis.graph.filters import GraphFilter
 from lacis.storage.entities import EntityKind
@@ -233,5 +240,21 @@ def test_the_obsidian_vault_is_exported_from_the_file_menu(
     assert len(list(destination.rglob("*.md"))) == 10
     assert last_notification(window) == (
         "Enquête exportée dans coffre.",
+        NotificationKind.SUCCESS,
+    )
+
+
+@pytest.mark.parametrize("export", [GEXF_FORMAT, MALTEGO_FORMAT])
+def test_the_graph_is_exported_for_gephi_and_maltego_from_the_file_menu(
+    window: MainWindow, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, export: ExportFormat
+) -> None:
+    file_name = f"graphe{export.extension}"
+    destination = tmp_path / file_name
+    answers = answer_with(monkeypatch, window, ExportRequest(export, False, destination))
+    window.main_menu_bar.export_actions[export.key].trigger()
+    assert answers.offers[0].chosen_format is export
+    assert "ACME PLOMBERIE" in destination.read_text(encoding="utf-8")
+    assert last_notification(window) == (
+        f"Enquête exportée dans {file_name}.",
         NotificationKind.SUCCESS,
     )

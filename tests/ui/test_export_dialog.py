@@ -168,10 +168,12 @@ def test_choosing_another_format_changes_the_extension_of_the_destination(
     qtbot: QtBot, tmp_path: Path
 ) -> None:
     dialog = open_dialog(qtbot, tmp_path)
-    assert [dialog.format_box.itemData(index) for index in range(3)] == [
+    assert [dialog.format_box.itemData(index) for index in range(dialog.format_box.count())] == [
         "markdown_report",
         "json",
         "obsidian",
+        "gexf",
+        "maltego",
     ]
     dialog.format_box.setCurrentIndex(dialog.format_box.findData("markdown_report"))
     request = dialog.request()
