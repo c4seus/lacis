@@ -39,7 +39,10 @@ Le rapport raconte ce que l'enquête a trouvé, comment, et avec quelles réserv
 - **les constats** : les entités qui ont un [verdict](/lacis/guide/notes/), rangées de « Confirmé » à « Écarté », avec la raison du verdict et les tags ;
 - **les signaux**, du plus grave au moins grave, avec leur explication et les entités en cause ;
 - **les notes**, citées sous le nom de leur entité ;
-- **les réserves** : ce que le rapport ne peut pas garantir, comme les requêtes qui ont échoué ou les entités qui n'ont pas été étendues.
+- **les réserves** : ce que le rapport ne peut pas garantir, comme les requêtes qui ont échoué ou les entités qui n'ont pas été étendues ;
+- **l'annexe de preuves** : chaque réponse des sources sur laquelle repose un constat ou un signal, avec sa source, son adresse, sa date de collecte et son empreinte SHA-256.
+
+Chaque constat et chaque signal renvoie à ses preuves par des références comme [R1], qui mènent à l'annexe. Un lecteur peut ainsi retrouver la réponse d'origine, et l'empreinte lui permet de vérifier, depuis l'enquête, qu'elle n'a pas été modifiée depuis sa collecte.
 
 Lacis enregistre les extensions depuis la version 1.0.0. Pour une enquête plus ancienne, la méthode indique seulement combien d'entités ont été étendues.
 
