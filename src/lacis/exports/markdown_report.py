@@ -14,7 +14,7 @@ from lacis.exports.report import (
 )
 from lacis.signals.facts import counted
 from lacis.storage.expansion_log import ExpansionOperation, RecordedExpansion
-from lacis.storage.responses import ResponseSource
+from lacis.storage.responses import ResponseSource, ResponseSummary
 
 MARKDOWN_SPECIAL = re.compile(r"([\\`*_\[\]<>|#~])")
 SOURCE_DESCRIPTIONS = {
@@ -28,6 +28,7 @@ SOURCE_DESCRIPTIONS = {
     ),
 }
 EVIDENCE_ANCHOR = "preuve-"
+NO_EVIDENCE = "aucune réponse enregistrée"
 APPENDIX_INTRODUCTION = (
     "Chaque constat et chaque signal de ce rapport renvoie aux réponses des sources sur "
     "lesquelles il repose. L'empreinte SHA-256 permet de vérifier qu'une réponse conservée "
@@ -100,6 +101,11 @@ class MarkdownReport:
             response.identifier: number
             for number, response in enumerate(content.evidence, start=1)
         }
+
+    def references(self, sources: tuple[ResponseSummary, ...]) -> str:
+        numbers = [self.numbers[source.identifier] for source in sources]
+        cited = [f"[R{number}](#{EVIDENCE_ANCHOR}{number})" for number in numbers]
+        return ", ".join(cited) or NO_EVIDENCE
 
     def text(self) -> str:
         lines = [
@@ -280,6 +286,7 @@ class MarkdownReport:
         if finding.entity.tags:
             lines.append(f"  - Tags : {written_tags(finding.entity.tags)}")
         lines.append(f"  - Verdict posé le {written_moment(verdict.decided_at)}")
+        lines.append(f"  - Preuves : {self.references(finding.entity.sources)}")
         return lines
 
     def signals(self) -> list[str]:
@@ -304,6 +311,7 @@ class MarkdownReport:
         if reported.entities:
             names = ", ".join(escaped(name) for name in reported.entities)
             lines += [f"Entités en cause : {names}.", ""]
+        lines += [f"Preuves : {self.references(reported.sources)}.", ""]
         return lines
 
     def notes(self) -> list[str]:
