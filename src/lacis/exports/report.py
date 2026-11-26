@@ -16,7 +16,7 @@ from lacis.storage.graph_store import GraphStore
 from lacis.storage.homonym_decisions import HomonymDecision, HomonymDecisionStore
 from lacis.storage.investigations import Investigation
 from lacis.storage.notes import EntityNote, NoteStore
-from lacis.storage.responses import ResponseSource, ResponseStore
+from lacis.storage.responses import ResponseSource, ResponseStore, ResponseSummary
 from lacis.storage.tags import TagStore
 from lacis.storage.verdicts import EntityVerdict, Verdict, VerdictStore
 
@@ -30,6 +30,7 @@ class ReportedEntity:
     kind_label: str
     facts: tuple[str, ...]
     tags: tuple[str, ...]
+    sources: tuple[ResponseSummary, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class ReportedSignal:
     signal: Signal
     subject: str
     entities: tuple[str, ...]
+    sources: tuple[ResponseSummary, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -85,6 +87,14 @@ class ReportContent:
     same_person_decisions: int
     version: str = __version__
 
+    @property
+    def evidence(self) -> tuple[ResponseSummary, ...]:
+        cited = [
+            *(source for finding in self.findings for source in finding.entity.sources),
+            *(source for reported in self.signals for source in reported.sources),
+        ]
+        return distinct_responses(cited)
+
     def findings_with(self, verdict: Verdict) -> tuple[Finding, ...]:
         return tuple(finding for finding in self.findings if finding.verdict.verdict is verdict)
 
@@ -103,6 +113,10 @@ class ReportContent:
         if not firsts or not lasts:
             return None
         return min(firsts), max(lasts)
+
+
+def distinct_responses(responses: list[ResponseSummary]) -> tuple[ResponseSummary, ...]:
+    return tuple({response.identifier: response for response in responses}.values())
 
 
 def label_order(entity: ReportedEntity) -> tuple[str, str]:
@@ -153,6 +167,7 @@ class ReportBuilder:
             KIND_LABELS[entity.kind],
             tuple(FACTS[entity.kind](entity.attributes)),
             tuple(tag.label for tag in tags),
+            tuple(self.graph_store.sources_of_entity(entity.identifier)),
         )
 
     def size(self, entities: list[Entity]) -> GraphSize:
@@ -206,11 +221,20 @@ class ReportBuilder:
                 signal,
                 self.label_of(signal.subject),
                 tuple(self.label_of(identifier) for identifier in signal.justifying_entities),
+                self.sources_of(signal.subject, *signal.justifying_entities),
             )
             for signal in self.report.signals
             if self.scope.keeps(signal.subject)
         ]
         return tuple(sorted(reported, key=signal_order))
+
+    def sources_of(self, *identifiers: str) -> tuple[ResponseSummary, ...]:
+        found = [
+            source
+            for identifier in identifiers
+            for source in self.graph_store.sources_of_entity(identifier)
+        ]
+        return distinct_responses(found)
 
     def notes(self, reported: list[ReportedEntity]) -> tuple[ReportedNote, ...]:
         store = NoteStore(self.connection)

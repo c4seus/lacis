@@ -1,3 +1,4 @@
+import re
 import sqlite3
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -17,7 +18,7 @@ from lacis.storage.collection_log import CollectionLog, LoggedRequest
 from lacis.storage.expansion_log import ExpansionLog, ExpansionOperation, RecordedExpansion
 from lacis.storage.investigations import Investigation
 from lacis.storage.notes import NoteStore
-from lacis.storage.responses import ResponseSource
+from lacis.storage.responses import CollectedResponse, ResponseSource, ResponseStore
 from lacis.storage.tags import TagStore
 from lacis.storage.verdicts import Verdict, VerdictStore
 
@@ -146,6 +147,7 @@ def test_the_report_has_every_section_in_order(
         "Signaux",
         "Notes",
         "Réserves",
+        "Annexe : preuves",
     ]
 
 
@@ -359,3 +361,59 @@ def test_a_report_where_every_entity_has_a_verdict_counts_none_left(
     findings = sections(markdown_text(content_of_empty(builder)))["Constats"]
     assert "### Confirmé (1)" in findings
     assert "pas encore de verdict" not in findings
+
+
+ANCHOR = re.compile(r'<a id="preuve-(\d+)"></a>\*\*R(\d+)\*\*')
+
+
+def anchors_of(text: str) -> set[str]:
+    return {number for number, label in ANCHOR.findall(text) if number == label}
+
+
+def test_the_appendix_lists_each_cited_response_once_with_its_evidence(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    appendix = sections(report_text(builder, scenario))["Annexe : preuves"]
+    entries = [line for line in appendix.splitlines() if line.startswith("- ")]
+    response = builder.response
+    expected = (
+        f'- <a id="preuve-1"></a>**R1** : Recherche d\'entreprises, collectée le '
+        f"{written_moment(response.collected_at)}, <{response.url}>, "
+        f"empreinte SHA-256 `{response.fingerprint}`"
+    )
+    assert entries == [expected]
+
+
+def test_responses_are_numbered_in_the_order_the_report_cites_them(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    builder.response = ResponseStore(builder.connection).save(
+        CollectedResponse(
+            ResponseSource.COMPANY_REGISTER,
+            "https://recherche-entreprises.example/search",
+            b"[]",
+            COLLECTED_AT,
+            {"q": "AZUR PLOMBERIE", "page": "1"},
+        )
+    )
+    azur = builder.company("AZUR PLOMBERIE")
+    VerdictStore(builder.connection).save(azur, Verdict.CONFIRMED, "Même adresse.")
+    found = sections(report_text(builder, scenario))
+    confirmed = found["Constats"].split("### Suspect")[0]
+    assert "**AZUR PLOMBERIE**" in confirmed.split("- **DUPONT SERVICES**")[0]
+    entries = [line for line in found["Annexe : preuves"].splitlines() if line.startswith("- ")]
+    assert len(entries) == 2
+    assert entries[0].startswith('- <a id="preuve-1"></a>**R1** : Recherche')
+    assert ", paramètres `page=1&q=AZUR+PLOMBERIE`, empreinte SHA-256 `" in entries[0]
+
+
+def test_the_filtered_view_cites_only_the_responses_of_the_entities_shown(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    builder.response = builder.bodacc_response
+    lone = builder.company("SOCIÉTÉ ISOLÉE")
+    VerdictStore(builder.connection).save(lone, Verdict.DISMISSED, "")
+    shown = frozenset({scenario.acme})
+    appendix = sections(report_text(builder, scenario, shown))["Annexe : preuves"]
+    assert "BODACC" not in appendix
+    assert anchors_of(appendix) == {"1"}

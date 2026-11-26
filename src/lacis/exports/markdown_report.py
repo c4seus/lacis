@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from urllib.parse import urlencode
 
 from lacis.collectors.http_client import SOURCE_NAMES
 from lacis.details import written_moment
@@ -26,6 +27,12 @@ SOURCE_DESCRIPTIONS = {
         "procédures collectives et radiations"
     ),
 }
+EVIDENCE_ANCHOR = "preuve-"
+APPENDIX_INTRODUCTION = (
+    "Chaque constat et chaque signal de ce rapport renvoie aux réponses des sources sur "
+    "lesquelles il repose. L'empreinte SHA-256 permet de vérifier qu'une réponse conservée "
+    "par Lacis n'a pas été modifiée."
+)
 SIGNALS_INTRODUCTION = (
     "Les signaux sont calculés par des règles explicables. Un signal est une piste qui "
     "mérite un examen, pas une accusation : il ne prouve aucune fraude."
@@ -89,6 +96,10 @@ def written_tags(tags: tuple[str, ...]) -> str:
 class MarkdownReport:
     def __init__(self, content: ReportContent) -> None:
         self.content = content
+        self.numbers = {
+            response.identifier: number
+            for number, response in enumerate(content.evidence, start=1)
+        }
 
     def text(self) -> str:
         lines = [
@@ -98,6 +109,7 @@ class MarkdownReport:
             *self.signals(),
             *self.notes(),
             *self.reserves(),
+            *self.appendix(),
         ]
         return "\n".join(lines).rstrip() + "\n"
 
@@ -332,6 +344,22 @@ class MarkdownReport:
         if content.filtered:
             items.append(FILTERED_RESERVE)
         return ["## Réserves", "", *(f"- {item}" for item in items), ""]
+
+    def appendix(self) -> list[str]:
+        lines = ["## Annexe : preuves", "", APPENDIX_INTRODUCTION, ""]
+        if not self.content.evidence:
+            return [*lines, "Aucun fait de ce rapport ne repose sur une réponse des sources.", ""]
+        for response in self.content.evidence:
+            number = self.numbers[response.identifier]
+            entry = (
+                f'- <a id="{EVIDENCE_ANCHOR}{number}"></a>**R{number}** : '
+                f"{SOURCE_NAMES[response.source]}, collectée le "
+                f"{written_moment(response.collected_at)}, <{response.url}>"
+            )
+            if response.parameters:
+                entry += f", paramètres `{urlencode(sorted(response.parameters.items()))}`"
+            lines.append(f"{entry}, empreinte SHA-256 `{response.fingerprint}`")
+        return [*lines, ""]
 
 
 def markdown_text(content: ReportContent) -> str:
