@@ -14,11 +14,13 @@ from pypdf.generic import ArrayObject, DictionaryObject
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.design.tokens import LIGHT_THEME
+from lacis.details import written_moment
 from lacis.exports import pdf_report
 from lacis.exports.json_export import ExportScope
 from lacis.exports.pdf_report import (
     UNAVAILABLE_TEXT,
     PdfUnavailableError,
+    css_string,
     report_html,
     write_pdf_report,
 )
@@ -121,6 +123,16 @@ def test_the_pdf_is_tagged_for_screen_readers(pdf: PdfReader) -> None:
 
 
 @needs_weasyprint
+def test_every_page_gives_the_investigation_the_date_and_its_number(pdf: PdfReader) -> None:
+    pages = [page.extract_text() for page in pdf.pages]
+    assert len(pages) >= 2
+    for number, text in enumerate(pages, start=1):
+        assert "faux-plombiers-31" in text
+        assert f"Produit le {written_moment(PRODUCED_AT)}" in text
+        assert f"Page {number} sur {len(pages)}" in text
+
+
+@needs_weasyprint
 def test_the_pdf_has_every_section_of_the_report_in_order(pdf: PdfReader) -> None:
     lines = [line.strip() for page in pdf.pages for line in page.extract_text().splitlines()]
     position = -1
@@ -162,6 +174,9 @@ def test_the_page_carries_the_style_fonts_and_colours_of_lacis(
     assert "<title>Rapport d&#x27;enquête : faux-plombiers-31</title>" in page
     assert page.count("src:url(data:font/ttf;base64,") == 3
     assert f"--accent:{LIGHT_THEME.colours.accent};" in page
+    assert '@top-left{content:"faux-plombiers-31";' in page
+    assert f'@top-right{{content:"Produit le {written_moment(PRODUCED_AT)}";' in page
+    assert '@bottom-right{content:"Page " counter(page) " sur " counter(pages);' in page
     assert "<h1>Rapport d'enquête : faux-plombiers-31</h1>" in page
 
 
@@ -183,6 +198,10 @@ def test_notes_cannot_load_anything_or_run_a_script(
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page
     assert re.findall(r"<[^>]*\ssrc=", page) == []
     assert "&lt;img src=" in page
+
+
+def test_texts_in_the_margins_are_valid_css_strings() -> None:
+    assert css_string('Dupont "&" fils\\\nSAS') == '"Dupont \\"&\\" fils\\\\ SAS"'
 
 
 def test_the_pdf_cannot_be_written_without_weasyprint(

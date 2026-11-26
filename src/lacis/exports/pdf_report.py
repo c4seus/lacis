@@ -10,6 +10,7 @@ from markdown.extensions.tables import TableExtension
 
 from lacis import __version__
 from lacis.design.tokens import LIGHT_THEME
+from lacis.details import written_moment
 from lacis.exports.html_graph import colour_variables
 from lacis.exports.markdown_report import markdown_text
 from lacis.exports.report import ReportContent
@@ -34,6 +35,11 @@ class PdfUnavailableError(OSError):
     pass
 
 
+def css_string(text: str) -> str:
+    escaped = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+    return f'"{escaped}"'
+
+
 def font_faces() -> str:
     faces = []
     for file_name, weight in FONT_FILES:
@@ -43,6 +49,20 @@ def font_faces() -> str:
             f"src:url(data:font/ttf;base64,{data});}}"
         )
     return "".join(faces)
+
+
+def page_style(content: ReportContent) -> str:
+    colours = LIGHT_THEME.colours
+    margin_text = f'font-family:"Inter",sans-serif;font-size:8pt;color:{colours.muted_text};'
+    name = css_string(content.investigation.name)
+    produced = css_string(f"Produit le {written_moment(content.produced_at)}")
+    return (
+        "@page{size:A4;margin:22mm 18mm 20mm;"
+        f"@top-left{{content:{name};{margin_text}}}"
+        f"@top-right{{content:{produced};{margin_text}}}"
+        f'@bottom-right{{content:"Page " counter(page) " sur " counter(pages);{margin_text}}}'
+        "}"
+    )
 
 
 def report_body(text: str) -> str:
@@ -62,6 +82,7 @@ def report_html(content: ReportContent) -> str:
             font_faces(),
             f":root{{{colour_variables(LIGHT_THEME.colours)}}}",
             STYLE_FILE.read_text(encoding="utf-8"),
+            page_style(content),
         ]
     )
     return (
