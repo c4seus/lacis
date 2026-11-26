@@ -40,9 +40,7 @@ EDGE_ATTRIBUTES = (
     ("identifier", "Identifiant", "string"),
 )
 
-ElementTree.register_namespace("", GEXF_NAMESPACE)
-ElementTree.register_namespace("viz", VIZ_NAMESPACE)
-ElementTree.register_namespace("xsi", SCHEMA_INSTANCE_NAMESPACE)
+PREFIXES = (("", GEXF_NAMESPACE), ("viz", VIZ_NAMESPACE), ("xsi", SCHEMA_INSTANCE_NAMESPACE))
 
 
 def tag(name: str) -> str:
@@ -159,6 +157,8 @@ def write_gexf(
     snapshot: GraphSnapshot, investigation: Investigation, destination: Path, exported_at: datetime
 ) -> None:
     tree = gexf_document(snapshot, investigation, exported_at)
+    for prefix, namespace in PREFIXES:
+        ElementTree.register_namespace(prefix, namespace)
     with destination.open("wb") as output:
         tree.write(output, encoding="UTF-8", xml_declaration=True)
         output.write(b"\n")
