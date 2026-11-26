@@ -363,11 +363,29 @@ def test_a_report_where_every_entity_has_a_verdict_counts_none_left(
     assert "pas encore de verdict" not in findings
 
 
+REFERENCE = re.compile(r"\[R(\d+)\]\(#preuve-(\d+)\)")
 ANCHOR = re.compile(r'<a id="preuve-(\d+)"></a>\*\*R(\d+)\*\*')
 
 
 def anchors_of(text: str) -> set[str]:
     return {number for number, label in ANCHOR.findall(text) if number == label}
+
+
+def test_every_finding_and_signal_refers_to_the_appendix(
+    builder: InvestigationBuilder, scenario: PlumbersScenario
+) -> None:
+    found = sections(report_text(builder, scenario))
+    anchors = anchors_of(found["Annexe : preuves"])
+    findings = [block for block in found["Constats"].split("\n- ")[1:] if block.startswith("**")]
+    signals = found["Signaux"].split("\n### ")[1:]
+    assert len(findings) == 4
+    assert len(signals) == 2
+    for fact in [*findings, *signals]:
+        references = REFERENCE.findall(fact)
+        assert references
+        for label, number in references:
+            assert label == number
+            assert number in anchors
 
 
 def test_the_appendix_lists_each_cited_response_once_with_its_evidence(
@@ -401,10 +419,26 @@ def test_responses_are_numbered_in_the_order_the_report_cites_them(
     found = sections(report_text(builder, scenario))
     confirmed = found["Constats"].split("### Suspect")[0]
     assert "**AZUR PLOMBERIE**" in confirmed.split("- **DUPONT SERVICES**")[0]
+    assert "  - Preuves : [R1](#preuve-1)\n" in confirmed
+    assert "  - Preuves : [R2](#preuve-2)\n" in confirmed
     entries = [line for line in found["Annexe : preuves"].splitlines() if line.startswith("- ")]
     assert len(entries) == 2
     assert entries[0].startswith('- <a id="preuve-1"></a>**R1** : Recherche')
     assert ", paramètres `page=1&q=AZUR+PLOMBERIE`, empreinte SHA-256 `" in entries[0]
+
+
+def test_a_fact_without_a_kept_response_says_so(
+    builder: InvestigationBuilder,
+) -> None:
+    acme = builder.company("ACME PLOMBERIE")
+    VerdictStore(builder.connection).save(acme, Verdict.SUSPECT, "")
+    builder.connection.execute("DELETE FROM entity_source")
+    found = sections(markdown_text(content_of_empty(builder)))
+    assert "  - Preuves : aucune réponse enregistrée\n" in found["Constats"]
+    assert (
+        "Aucun fait de ce rapport ne repose sur une réponse des sources."
+        in found["Annexe : preuves"]
+    )
 
 
 def test_the_filtered_view_cites_only_the_responses_of_the_entities_shown(
