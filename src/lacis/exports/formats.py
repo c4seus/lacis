@@ -10,6 +10,7 @@ from lacis.exports.json_export import ExportScope, InvestigationExport, write_js
 from lacis.exports.maltego import write_maltego_csv
 from lacis.exports.markdown_report import markdown_text, write_markdown
 from lacis.exports.obsidian_vault import ObsidianVault
+from lacis.exports.pdf_report import write_pdf_report
 from lacis.exports.report import ReportBuilder
 from lacis.signals.store import SignalReport
 from lacis.storage.investigations import OpenInvestigation
@@ -37,6 +38,17 @@ def export_markdown_report(
 ) -> None:
     builder = ReportBuilder(opened.connection, report, scope)
     write_markdown(markdown_text(builder.content(opened.investigation, exported_at)), destination)
+
+
+def export_pdf_report(
+    opened: OpenInvestigation,
+    report: SignalReport | None,
+    scope: ExportScope,
+    destination: Path,
+    exported_at: datetime,
+) -> None:
+    builder = ReportBuilder(opened.connection, report, scope)
+    write_pdf_report(builder.content(opened.investigation, exported_at), destination)
 
 
 def export_obsidian_vault(
@@ -142,8 +154,17 @@ HTML_GRAPH_FORMAT = ExportFormat(
     ".html",
     export_html_graph,
 )
+PDF_REPORT_FORMAT = ExportFormat(
+    "pdf_report",
+    "Rapport PDF",
+    "Rapport &PDF…",
+    "Le rapport mis en page, balisé pour les lecteurs d'écran, prêt à envoyer",
+    ".pdf",
+    export_pdf_report,
+)
 EXPORT_FORMATS = (
     MARKDOWN_REPORT_FORMAT,
+    PDF_REPORT_FORMAT,
     JSON_FORMAT,
     OBSIDIAN_FORMAT,
     GEXF_FORMAT,

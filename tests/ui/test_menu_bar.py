@@ -348,6 +348,7 @@ def test_the_file_menu_exports_to_every_format(
     assert menu_bar.export_menu.title() == "E&xporter"
     assert [action.text() for action in menu_bar.export_menu.actions()] == [
         "&Rapport Markdown…",
+        "Rapport &PDF…",
         "&JSON…",
         "&Obsidian…",
         "&Gephi…",
@@ -356,6 +357,7 @@ def test_the_file_menu_exports_to_every_format(
     ]
     assert list(menu_bar.export_actions) == [
         "markdown_report",
+        "pdf_report",
         "json",
         "obsidian",
         "gexf",
