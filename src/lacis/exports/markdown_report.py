@@ -16,6 +16,7 @@ from lacis.signals.facts import counted
 from lacis.storage.expansion_log import ExpansionOperation, RecordedExpansion
 from lacis.storage.responses import ResponseSource, ResponseSummary
 
+SUB_ITEM = "    - "
 MARKDOWN_SPECIAL = re.compile(r"([\\`*_\[\]<>|#~])")
 SOURCE_DESCRIPTIONS = {
     ResponseSource.COMPANY_REGISTER: (
@@ -282,11 +283,11 @@ class MarkdownReport:
         verdict = finding.verdict
         lines = [f"- {entity_heading(finding.entity)}"]
         reason = escaped(verdict.reason.strip()) or "aucune raison donnée"
-        lines.append(f"  - Raison : {reason}")
+        lines.append(f"{SUB_ITEM}Raison : {reason}")
         if finding.entity.tags:
-            lines.append(f"  - Tags : {written_tags(finding.entity.tags)}")
-        lines.append(f"  - Verdict posé le {written_moment(verdict.decided_at)}")
-        lines.append(f"  - Preuves : {self.references(finding.entity.sources)}")
+            lines.append(f"{SUB_ITEM}Tags : {written_tags(finding.entity.tags)}")
+        lines.append(f"{SUB_ITEM}Verdict posé le {written_moment(verdict.decided_at)}")
+        lines.append(f"{SUB_ITEM}Preuves : {self.references(finding.entity.sources)}")
         return lines
 
     def signals(self) -> list[str]:

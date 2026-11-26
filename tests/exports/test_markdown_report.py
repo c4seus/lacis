@@ -254,13 +254,13 @@ def test_the_findings_are_grouped_by_verdict(
     assert "- **DUPONT SERVICES**, entreprise, SIREN " in findings
     assert (
         ", créée le 01/06/2019, fermée le 15/01/2023\n"
-        "  - Raison : Liquidée, puis \\*reprise\\*.\n"
-        f"  - Verdict posé le {decided}"
+        "    - Raison : Liquidée, puis \\*reprise\\*.\n"
+        f"    - Verdict posé le {decided}"
     ) in findings
     assert "- **Jean DUPONT**, personne, né en 05/1980\n" in findings
     assert "- **DUPONT INVEST LTD**, entreprise étrangère, pays Royaume-Uni\n" in findings
-    assert "  - Tags : prioritaire, réseau Dupont\n" in findings
-    assert "  - Raison : aucune raison donnée\n" in findings
+    assert "    - Tags : prioritaire, réseau Dupont\n" in findings
+    assert "    - Raison : aucune raison donnée\n" in findings
     assert "5 entités n'ont pas encore de verdict." in findings
 
 
@@ -419,8 +419,8 @@ def test_responses_are_numbered_in_the_order_the_report_cites_them(
     found = sections(report_text(builder, scenario))
     confirmed = found["Constats"].split("### Suspect")[0]
     assert "**AZUR PLOMBERIE**" in confirmed.split("- **DUPONT SERVICES**")[0]
-    assert "  - Preuves : [R1](#preuve-1)\n" in confirmed
-    assert "  - Preuves : [R2](#preuve-2)\n" in confirmed
+    assert "    - Preuves : [R1](#preuve-1)\n" in confirmed
+    assert "    - Preuves : [R2](#preuve-2)\n" in confirmed
     entries = [line for line in found["Annexe : preuves"].splitlines() if line.startswith("- ")]
     assert len(entries) == 2
     assert entries[0].startswith('- <a id="preuve-1"></a>**R1** : Recherche')
@@ -434,7 +434,7 @@ def test_a_fact_without_a_kept_response_says_so(
     VerdictStore(builder.connection).save(acme, Verdict.SUSPECT, "")
     builder.connection.execute("DELETE FROM entity_source")
     found = sections(markdown_text(content_of_empty(builder)))
-    assert "  - Preuves : aucune réponse enregistrée\n" in found["Constats"]
+    assert "    - Preuves : aucune réponse enregistrée\n" in found["Constats"]
     assert (
         "Aucun fait de ce rapport ne repose sur une réponse des sources."
         in found["Annexe : preuves"]

@@ -73,6 +73,7 @@ def nuitka_command(root: Path, version: str) -> list[str]:
         "--enable-plugin=pyside6",
         "--include-package-data=lacis",
         "--include-distribution-metadata=lacis",
+        "--nofollow-import-to=weasyprint",
         "--windows-console-mode=attach",
         "--lto=no",
         f"--windows-icon-from-ico={root / ICON}",

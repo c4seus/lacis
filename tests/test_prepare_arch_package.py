@@ -118,7 +118,14 @@ def test_the_package_depends_on_every_qt_module_that_lacis_imports() -> None:
     needed = qt6_packages(imported_qt_modules("src"))
     assert needed == {"qt6-svg"}
     assert needed <= set(depends)
-    assert {"pyside6", "python", "python-httpx", "hicolor-icon-theme"} <= set(depends)
+    assert {
+        "pyside6",
+        "python",
+        "python-httpx",
+        "python-markdown",
+        "python-weasyprint",
+        "hicolor-icon-theme",
+    } <= set(depends)
 
 
 def test_the_arch_tests_install_every_qt_module_that_the_tests_import() -> None:
