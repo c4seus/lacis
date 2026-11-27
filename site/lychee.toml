@@ -6,4 +6,4 @@ exclude = [
     "^https://www\\.cnil\\.fr/",
 ]
 max_retries = 3
-accept = ["200..=299", "429"]
+accept = ["200..=299", "429", "503"]

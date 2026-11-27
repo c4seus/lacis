@@ -79,6 +79,12 @@ def test_the_external_link_check_leaves_the_pages_of_the_website_to_its_build() 
     assert "^https://c4seus\\.github\\.io/" in link_check["exclude"]
 
 
+def test_the_external_link_check_tolerates_github_throttling_but_not_missing_pages() -> None:
+    accepted = tomllib.loads((SITE / "lychee.toml").read_text(encoding="utf-8"))["accept"]
+    assert {"429", "503"} <= set(accepted)
+    assert all(code == "429" or not code.startswith("4") for code in accepted)
+
+
 def test_the_website_can_be_published_by_the_release_or_by_hand() -> None:
     assert "\non:\n  workflow_call:\n  workflow_dispatch:\n" in workflow("website.yml")
 
