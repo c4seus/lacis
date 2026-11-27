@@ -46,6 +46,7 @@ SECTIONS = (
     "Réserves",
     "Annexe : preuves",
 )
+FONT_FILE_KEYS = {"/FontFile", "/FontFile2", "/FontFile3"}
 
 
 def weasyprint_available() -> bool:
@@ -98,9 +99,10 @@ def embedded_font_programs(pdf: PdfReader) -> list[bytes]:
             descendants = dictionary(font)["/DescendantFonts"].get_object()
             assert isinstance(descendants, ArrayObject)
             descriptor = dictionary(dictionary(descendants[0])["/FontDescriptor"])
-            program = descriptor["/FontFile2"].get_object()
-            assert isinstance(program, StreamObject)
-            programs.append(program.get_data())
+            for key in FONT_FILE_KEYS & descriptor.keys():
+                program = descriptor[key].get_object()
+                assert isinstance(program, StreamObject)
+                programs.append(program.get_data())
     return programs
 
 
