@@ -58,7 +58,7 @@ Sur les autres distributions Linux, comme openSUSE, installez l'archive des sour
 pipx install ./lacis-X.Y.Z.tar.gz
 ```
 
-pipx installe Lacis et ses dépendances, PySide6 compris, dans un environnement séparé, et place la commande `lacis` dans votre chemin. Lacis n'a alors pas d'entrée dans le menu de votre bureau. Pour le désinstaller : `pipx uninstall lacis`.
+pipx installe Lacis et ses dépendances, PySide6 compris, dans un environnement séparé, et place la commande `lacis` dans votre chemin. L'export du rapport en PDF a aussi besoin de la bibliothèque Pango, que la plupart des bureaux Linux installent déjà ; sinon, installez-la avec le gestionnaire de paquets de votre distribution. Lacis n'a alors pas d'entrée dans le menu de votre bureau. Pour le désinstaller : `pipx uninstall lacis`.
 
 ## Mettre à jour
 

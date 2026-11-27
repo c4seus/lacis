@@ -7,7 +7,7 @@ Un export sort votre enquête de Lacis pour la transmettre, l'archiver ou la tra
 
 ## Ouvrir la fenêtre d'export
 
-Ouvrez l'enquête, puis choisissez **Fichier › Exporter**, et le format voulu : **Rapport Markdown…**, **JSON…**, **Obsidian…**, **Gephi…**, **Maltego…** ou **Format HTML…**. La fenêtre « Exporter l'enquête » s'ouvre, avec trois choix :
+Ouvrez l'enquête, puis choisissez **Fichier › Exporter**, et le format voulu : **Rapport Markdown…**, **Rapport PDF…**, **JSON…**, **Obsidian…**, **Gephi…**, **Maltego…** ou **Format HTML…**. La fenêtre « Exporter l'enquête » s'ouvre, avec trois choix :
 
 - **Format** : le format du fichier, que vous pouvez encore changer ;
 - **Contenu** : toute l'enquête, ou seulement la vue filtrée ;
@@ -46,6 +46,14 @@ Chaque constat et chaque signal renvoie à ses preuves par des références comm
 
 Lacis enregistre les extensions depuis la version 1.0.0. Pour une enquête plus ancienne, la méthode indique seulement combien d'entités ont été étendues.
 
+
+## Le rapport PDF
+
+L'export **Rapport PDF** met en page le même rapport que l'export Markdown, avec les polices et les couleurs de Lacis, prêt à être envoyé. Chaque page rappelle en haut le nom de l'enquête et la date du rapport, et en bas son numéro sur le nombre total de pages. Les références comme R1 sont des liens vers l'annexe de preuves.
+
+Le PDF est balisé : ses titres, ses paragraphes, ses listes et ses tableaux sont décrits dans le fichier, ce qui permet aux lecteurs d'écran de le lire dans l'ordre et d'y naviguer par titres. Le texte de vos notes y apparaît tel que vous l'avez écrit : une image ou un code HTML qu'elles contiendraient n'est ni affiché ni chargé.
+
+L'export PDF s'appuie sur WeasyPrint et sur la bibliothèque Pango, installés avec les paquets de Lacis pour Debian, Ubuntu, Fedora et Arch Linux. L'installateur Windows ne les contient pas encore : sous Windows, Lacis signale que l'export PDF n'est pas disponible, et l'export Markdown reste possible.
 ## Le coffre Obsidian
 
 Le coffre Obsidian transforme l'enquête en notes liées, à relire et à compléter dans [Obsidian](https://obsidian.md/). Ouvrez le dossier exporté avec **Ouvrir un dossier comme coffre**. Il contient :

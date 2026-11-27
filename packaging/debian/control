@@ -21,10 +21,12 @@ Package: lacis
 Architecture: all
 Depends:
  python3-httpx,
+ python3-markdown,
  python3-pyside6.qtcore (>= 6.8),
  python3-pyside6.qtgui (>= 6.8),
  python3-pyside6.qtsvg (>= 6.8),
  python3-pyside6.qtwidgets (>= 6.8),
+ weasyprint,
  ${misc:Depends},
  ${python3:Depends},
 Description: map French companies, their directors and addresses

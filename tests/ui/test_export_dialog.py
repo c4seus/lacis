@@ -170,6 +170,7 @@ def test_choosing_another_format_changes_the_extension_of_the_destination(
     dialog = open_dialog(qtbot, tmp_path)
     assert [dialog.format_box.itemData(index) for index in range(dialog.format_box.count())] == [
         "markdown_report",
+        "pdf_report",
         "json",
         "obsidian",
         "gexf",

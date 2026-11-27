@@ -1,6 +1,7 @@
 import json
 import shutil
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import pytest
@@ -12,6 +13,7 @@ from graph_scenario import PlumbersScenario, plumbers_scenario
 from investigation_builder import InvestigationBuilder
 from lacis.collectors.environment import demo_collection_environment
 from lacis.design.theme_controller import ThemeController
+from lacis.exports import pdf_report
 from lacis.exports.formats import (
     GEXF_FORMAT,
     HTML_GRAPH_FORMAT,
@@ -19,6 +21,7 @@ from lacis.exports.formats import (
     MALTEGO_FORMAT,
     MARKDOWN_REPORT_FORMAT,
     OBSIDIAN_FORMAT,
+    PDF_REPORT_FORMAT,
     ExportFormat,
 )
 from lacis.exports.json_export import FILTERED_VIEW, WHOLE_INVESTIGATION
@@ -259,3 +262,44 @@ def test_the_graph_is_exported_for_other_tools_from_the_file_menu(
         f"Enquête exportée dans {file_name}.",
         NotificationKind.SUCCESS,
     )
+
+
+def test_the_pdf_report_is_exported_from_the_file_menu(
+    window: MainWindow, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    destination = tmp_path / "rapport.pdf"
+    written = []
+    monkeypatch.setattr(
+        "lacis.exports.formats.write_pdf_report",
+        lambda content, path: written.append((content, path)),
+    )
+    answers = answer_with(
+        monkeypatch, window, ExportRequest(PDF_REPORT_FORMAT, False, destination)
+    )
+    window.main_menu_bar.export_actions["pdf_report"].trigger()
+    assert answers.offers[0].chosen_format is PDF_REPORT_FORMAT
+    [(content, path)] = written
+    assert path == destination
+    assert content.investigation.name == INVESTIGATION_NAME
+    assert last_notification(window) == (
+        "Enquête exportée dans rapport.pdf.",
+        NotificationKind.SUCCESS,
+    )
+
+
+def test_a_pdf_report_without_weasyprint_is_reported(
+    window: MainWindow, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def missing_library() -> ModuleType:
+        raise OSError("cannot load library 'libgobject-2.0-0'")
+
+    monkeypatch.setattr(pdf_report, "weasyprint_module", missing_library)
+    destination = tmp_path / "rapport.pdf"
+    answer_with(monkeypatch, window, ExportRequest(PDF_REPORT_FORMAT, False, destination))
+    window.export_investigation("pdf_report")
+    message = (
+        "Impossible d'écrire l'export : l'export PDF a besoin de WeasyPrint et de la "
+        "bibliothèque Pango, qui ne sont pas disponibles sur cet ordinateur"
+    )
+    assert last_notification(window) == (message, NotificationKind.ERROR)
+    assert not destination.exists()

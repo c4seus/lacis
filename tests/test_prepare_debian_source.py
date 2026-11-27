@@ -100,7 +100,10 @@ def test_the_package_depends_on_every_qt_module_that_lacis_imports() -> None:
     control = (REPOSITORY / RECIPE_DIRECTORY / "control").read_text(encoding="utf-8")
     declared = set(re.findall(r"python3-pyside6\.qt(\w+) \(>= 6\.8\)", control))
     assert imported == declared == {"core", "gui", "svg", "widgets"}
-    assert "python3-httpx" in control
+    for dependency in ("python3-httpx", "python3-markdown", "weasyprint"):
+        assert f" {dependency}," in control
+    overrides = (REPOSITORY / RECIPE_DIRECTORY / "py3dist-overrides").read_text(encoding="utf-8")
+    assert "weasyprint weasyprint" in overrides.splitlines()
 
 
 def test_the_debian_tests_install_every_qt_module_that_the_tests_import() -> None:

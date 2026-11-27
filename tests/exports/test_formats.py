@@ -14,6 +14,7 @@ from lacis.exports.formats import (
     MALTEGO_FORMAT,
     MARKDOWN_REPORT_FORMAT,
     OBSIDIAN_FORMAT,
+    PDF_REPORT_FORMAT,
     ExportFormat,
     export_format,
 )
@@ -26,6 +27,7 @@ EXPORTED_AT = datetime(2026, 11, 19, 10, 0, tzinfo=UTC)
 def test_every_format_has_a_key_a_menu_entry_and_an_extension() -> None:
     assert [candidate.key for candidate in EXPORT_FORMATS] == [
         "markdown_report",
+        "pdf_report",
         "json",
         "obsidian",
         "gexf",
@@ -34,6 +36,7 @@ def test_every_format_has_a_key_a_menu_entry_and_an_extension() -> None:
     ]
     assert [candidate.menu_text for candidate in EXPORT_FORMATS] == [
         "&Rapport Markdown…",
+        "Rapport &PDF…",
         "&JSON…",
         "&Obsidian…",
         "&Gephi…",
@@ -42,6 +45,7 @@ def test_every_format_has_a_key_a_menu_entry_and_an_extension() -> None:
     ]
     assert [candidate.extension for candidate in EXPORT_FORMATS] == [
         ".md",
+        ".pdf",
         ".json",
         "",
         ".gexf",
@@ -49,6 +53,7 @@ def test_every_format_has_a_key_a_menu_entry_and_an_extension() -> None:
         ".html",
     ]
     assert [candidate.folder for candidate in EXPORT_FORMATS] == [
+        False,
         False,
         False,
         True,
@@ -59,6 +64,7 @@ def test_every_format_has_a_key_a_menu_entry_and_an_extension() -> None:
     assert export_format("obsidian") is OBSIDIAN_FORMAT
     assert export_format("json") is JSON_FORMAT
     assert export_format("markdown_report") is MARKDOWN_REPORT_FORMAT
+    assert export_format("pdf_report") is PDF_REPORT_FORMAT
 
 
 def test_the_json_format_writes_the_investigation_opened(tmp_path: Path) -> None:

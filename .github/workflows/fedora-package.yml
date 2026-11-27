@@ -67,7 +67,7 @@ jobs:
       - name: Launch Lacis
         run: lacis --version | grep -E '^Lacis [0-9]'
       - name: Install the test tools from Fedora
-        run: dnf install --assumeyes git python3-jsonschema python3-pytest python3-pytest-qt
+        run: dnf install --assumeyes git python3-jsonschema python3-pypdf python3-pytest python3-pytest-qt
       - uses: actions/checkout@v4
       - name: Run the tests against the installed package and the PySide6 of Fedora
         run: |

@@ -114,6 +114,7 @@ def test_nuitka_compiles_the_package_with_its_data_and_metadata() -> None:
         "--enable-plugin=pyside6",
         "--include-package-data=lacis",
         "--include-distribution-metadata=lacis",
+        "--nofollow-import-to=weasyprint",
         "--windows-console-mode=attach",
         "--lto=no",
         "--file-version=0.1.0.0",
