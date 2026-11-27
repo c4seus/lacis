@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 from pypdf import PdfReader
-from pypdf.generic import ArrayObject, DictionaryObject
+from pypdf.generic import ArrayObject, DictionaryObject, StreamObject
 
 from graph_scenario import PlumbersScenario, phoenix_report, plumbers_scenario
 from investigation_builder import InvestigationBuilder
@@ -91,6 +91,23 @@ def dictionary(value: Any) -> DictionaryObject:
     return found
 
 
+def embedded_font_programs(pdf: PdfReader) -> list[bytes]:
+    programs = []
+    for page in pdf.pages:
+        for font in dictionary(dictionary(page["/Resources"])["/Font"]).values():
+            descendants = dictionary(font)["/DescendantFonts"].get_object()
+            assert isinstance(descendants, ArrayObject)
+            descriptor = dictionary(dictionary(descendants[0])["/FontDescriptor"])
+            program = descriptor["/FontFile2"].get_object()
+            assert isinstance(program, StreamObject)
+            programs.append(program.get_data())
+    return programs
+
+
+def font_named(program: bytes, name: str) -> bool:
+    return name.encode("utf-16-be") in program
+
+
 def structure_tags(node: Any) -> Iterator[str]:
     found = node.get_object() if hasattr(node, "get_object") else node
     if isinstance(found, ArrayObject):
@@ -143,13 +160,9 @@ def test_the_pdf_has_every_section_of_the_report_in_order(pdf: PdfReader) -> Non
 
 @needs_weasyprint
 def test_the_pdf_uses_the_fonts_of_lacis(pdf: PdfReader) -> None:
-    fonts = {
-        str(dictionary(font)["/BaseFont"])
-        for page in pdf.pages
-        for font in dictionary(dictionary(page["/Resources"])["/Font"]).values()
-    }
-    assert any(font.endswith("+Inter") for font in fonts)
-    assert any(font.endswith("+Inter-Semi-Bold") for font in fonts)
+    programs = embedded_font_programs(pdf)
+    assert any(font_named(program, "Inter Regular") for program in programs)
+    assert any(font_named(program, "Inter SemiBold") for program in programs)
 
 
 @needs_weasyprint
